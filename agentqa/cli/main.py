@@ -5,6 +5,7 @@ from typing import Annotated
 import typer
 
 from agentqa import __version__
+from agentqa.cli.test import app as test_app
 
 app = typer.Typer(
     name="agentqa",
@@ -12,6 +13,7 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+app.add_typer(test_app, name="test")
 
 
 def _version_callback(value: bool) -> None:

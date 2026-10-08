@@ -1,0 +1,531 @@
+{
+  "$defs": {
+    "BudgetExpectation": {
+      "additionalProperties": false,
+      "description": "Positive execution budgets.",
+      "properties": {
+        "maxCostUsd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxcostusd"
+        },
+        "maxLatencyMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlatencyms"
+        },
+        "maxSteps": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxsteps"
+        },
+        "maxTotalTokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtotaltokens"
+        }
+      },
+      "title": "BudgetExpectation",
+      "type": "object"
+    },
+    "EvaluatorSpec": {
+      "additionalProperties": false,
+      "description": "Configuration for one known evaluator implementation.",
+      "properties": {
+        "config": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Config",
+          "type": "object"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "type": {
+          "enum": [
+            "schema",
+            "text",
+            "tool_call",
+            "trajectory",
+            "state",
+            "budget",
+            "privacy",
+            "llm_judge"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "EvaluatorSpec",
+      "type": "object"
+    },
+    "Expectations": {
+      "additionalProperties": false,
+      "description": "Expected output, trajectory, state, and resource use.",
+      "properties": {
+        "budgets": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BudgetExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OutputExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StateExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Expectations",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Message": {
+      "additionalProperties": false,
+      "description": "One conversation message supplied to an agent.",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant",
+            "tool"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "Message",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "OrderConstraint": {
+      "additionalProperties": false,
+      "description": "A partial ordering requirement between two tool calls.",
+      "properties": {
+        "after": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Before",
+          "type": "string"
+        }
+      },
+      "required": [
+        "before",
+        "after"
+      ],
+      "title": "OrderConstraint",
+      "type": "object"
+    },
+    "OutputExpectation": {
+      "additionalProperties": false,
+      "description": "Deterministic assertions over the final output.",
+      "properties": {
+        "exactFields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Exactfields",
+          "type": "object"
+        },
+        "forbiddenPatterns": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Forbiddenpatterns",
+          "type": "array"
+        },
+        "jsonSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jsonschema"
+        },
+        "mustRefuse": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mustrefuse"
+        },
+        "requireNonEmpty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requirenonempty"
+        },
+        "requiredPatterns": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Requiredpatterns",
+          "type": "array"
+        }
+      },
+      "title": "OutputExpectation",
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "description": "Input and initial state for one agent test.",
+      "properties": {
+        "initialState": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Initialstate",
+          "type": "object"
+        },
+        "input": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Input",
+          "type": "object"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "title": "Messages",
+          "type": "array"
+        }
+      },
+      "title": "Scenario",
+      "type": "object"
+    },
+    "StateExpectation": {
+      "additionalProperties": false,
+      "description": "State assertions retained as a restricted DSL for later evaluation.",
+      "properties": {
+        "invariants": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Invariants",
+          "type": "array"
+        }
+      },
+      "title": "StateExpectation",
+      "type": "object"
+    },
+    "ToolExpectation": {
+      "additionalProperties": false,
+      "description": "Allowed tool-call behavior for a test.",
+      "properties": {
+        "forbidden": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "title": "Forbidden",
+          "type": "array"
+        },
+        "maxCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxcalls"
+        },
+        "minCalls": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mincalls"
+        },
+        "order": {
+          "items": {
+            "$ref": "#/$defs/OrderConstraint"
+          },
+          "title": "Order",
+          "type": "array"
+        },
+        "required": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "title": "Required",
+          "type": "array"
+        }
+      },
+      "title": "ToolExpectation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A single declarative agent test case.",
+  "properties": {
+    "apiVersion": {
+      "const": "agentqa.dev/v1alpha1",
+      "default": "agentqa.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "evaluators": {
+      "items": {
+        "$ref": "#/$defs/EvaluatorSpec"
+      },
+      "minItems": 1,
+      "title": "Evaluators",
+      "type": "array"
+    },
+    "expect": {
+      "$ref": "#/$defs/Expectations"
+    },
+    "kind": {
+      "const": "AgentTest",
+      "default": "AgentTest",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "mutation": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mutation"
+    },
+    "scenario": {
+      "$ref": "#/$defs/Scenario"
+    },
+    "targetRef": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Targetref"
+    },
+    "trials": {
+      "default": 1,
+      "exclusiveMinimum": 0,
+      "title": "Trials",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "metadata",
+    "scenario",
+    "expect",
+    "evaluators"
+  ],
+  "title": "AgentTestSpec",
+  "type": "object"
+}

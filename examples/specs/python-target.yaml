@@ -1,0 +1,8 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: campus-python
+type: python
+entrypoint: examples.campus_agent:run_agent
+isolation: subprocess
+timeoutMs: 10000

@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "description": "Immutable identity and reproducibility data for one run.",
+  "properties": {
+    "artifact_dir": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifact Dir"
+    },
+    "manifest_hash": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Manifest Hash"
+    },
+    "random_seed": {
+      "title": "Random Seed",
+      "type": "integer"
+    },
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "spec_hash": {
+      "minLength": 1,
+      "title": "Spec Hash",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "spec_hash",
+    "started_at",
+    "random_seed"
+  ],
+  "title": "RunContext",
+  "type": "object"
+}

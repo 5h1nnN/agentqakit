@@ -1,0 +1,291 @@
+{
+  "$defs": {
+    "HttpRequestSpec": {
+      "additionalProperties": false,
+      "description": "HTTP request template.",
+      "properties": {
+        "headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Headers",
+          "type": "object"
+        },
+        "json": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "query": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Query",
+          "type": "object"
+        }
+      },
+      "title": "HttpRequestSpec",
+      "type": "object"
+    },
+    "HttpResponseSpec": {
+      "additionalProperties": false,
+      "description": "HTTP response extraction rules.",
+      "properties": {
+        "allowedHeaders": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Allowedheaders",
+          "type": "array"
+        },
+        "outputPath": {
+          "default": "$.answer",
+          "minLength": 1,
+          "title": "Outputpath",
+          "type": "string"
+        }
+      },
+      "title": "HttpResponseSpec",
+      "type": "object"
+    },
+    "HttpTargetSpec": {
+      "additionalProperties": false,
+      "description": "A generic HTTP target.",
+      "properties": {
+        "allowRemote": {
+          "default": false,
+          "title": "Allowremote",
+          "type": "boolean"
+        },
+        "apiVersion": {
+          "const": "agentqa.dev/v1alpha1",
+          "default": "agentqa.dev/v1alpha1",
+          "title": "Apiversion",
+          "type": "string"
+        },
+        "kind": {
+          "const": "Target",
+          "default": "Target",
+          "title": "Kind",
+          "type": "string"
+        },
+        "maxResponseBytes": {
+          "default": 1048576,
+          "exclusiveMinimum": 0,
+          "title": "Maxresponsebytes",
+          "type": "integer"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "method": {
+          "default": "POST",
+          "enum": [
+            "GET",
+            "POST"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "request": {
+          "$ref": "#/$defs/HttpRequestSpec"
+        },
+        "response": {
+          "$ref": "#/$defs/HttpResponseSpec"
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "exclusiveMinimum": 0,
+          "title": "Timeoutms",
+          "type": "integer"
+        },
+        "type": {
+          "const": "http",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metadata",
+        "type",
+        "url"
+      ],
+      "title": "HttpTargetSpec",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LangGraphTargetSpec": {
+      "additionalProperties": false,
+      "description": "A LangGraph object or factory target.",
+      "properties": {
+        "apiVersion": {
+          "const": "agentqa.dev/v1alpha1",
+          "default": "agentqa.dev/v1alpha1",
+          "title": "Apiversion",
+          "type": "string"
+        },
+        "entrypoint": {
+          "minLength": 3,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$",
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "inputKey": {
+          "default": "messages",
+          "minLength": 1,
+          "title": "Inputkey",
+          "type": "string"
+        },
+        "kind": {
+          "const": "Target",
+          "default": "Target",
+          "title": "Kind",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "exclusiveMinimum": 0,
+          "title": "Timeoutms",
+          "type": "integer"
+        },
+        "type": {
+          "const": "langgraph",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metadata",
+        "type",
+        "entrypoint"
+      ],
+      "title": "LangGraphTargetSpec",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "PythonTargetSpec": {
+      "additionalProperties": false,
+      "description": "A Python callable target executed in an isolated worker.",
+      "properties": {
+        "apiVersion": {
+          "const": "agentqa.dev/v1alpha1",
+          "default": "agentqa.dev/v1alpha1",
+          "title": "Apiversion",
+          "type": "string"
+        },
+        "entrypoint": {
+          "minLength": 3,
+          "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$",
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "environmentAllowlist": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Environmentallowlist",
+          "type": "array"
+        },
+        "isolation": {
+          "const": "subprocess",
+          "default": "subprocess",
+          "title": "Isolation",
+          "type": "string"
+        },
+        "kind": {
+          "const": "Target",
+          "default": "Target",
+          "title": "Kind",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "timeoutMs": {
+          "default": 30000,
+          "exclusiveMinimum": 0,
+          "title": "Timeoutms",
+          "type": "integer"
+        },
+        "type": {
+          "const": "python",
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metadata",
+        "type",
+        "entrypoint"
+      ],
+      "title": "PythonTargetSpec",
+      "type": "object"
+    }
+  },
+  "discriminator": {
+    "mapping": {
+      "http": "#/$defs/HttpTargetSpec",
+      "langgraph": "#/$defs/LangGraphTargetSpec",
+      "python": "#/$defs/PythonTargetSpec"
+    },
+    "propertyName": "type"
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/HttpTargetSpec"
+    },
+    {
+      "$ref": "#/$defs/PythonTargetSpec"
+    },
+    {
+      "$ref": "#/$defs/LangGraphTargetSpec"
+    }
+  ]
+}

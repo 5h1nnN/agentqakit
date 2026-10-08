@@ -1,0 +1,301 @@
+{
+  "$defs": {
+    "ExpectedRecovery": {
+      "additionalProperties": false,
+      "description": "Expected behavior after a mutation is applied.",
+      "properties": {
+        "maxRetries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxretries"
+        },
+        "mustExplainTemporaryFailure": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mustexplaintemporaryfailure"
+        },
+        "mustNotClaimSuccess": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mustnotclaimsuccess"
+        }
+      },
+      "title": "ExpectedRecovery",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "MutationOperation": {
+      "additionalProperties": false,
+      "description": "A mutation operator and its common parameters.",
+      "properties": {
+        "delayMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Delayms"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "type": {
+          "enum": [
+            "timeout",
+            "tool_timeout",
+            "tool_exception",
+            "invalid_json",
+            "missing_field",
+            "wrong_value",
+            "duplicate_call_result",
+            "stale_result",
+            "empty_retrieval",
+            "irrelevant_document",
+            "indirect_prompt_injection"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "MutationOperation",
+      "type": "object"
+    },
+    "MutationTarget": {
+      "additionalProperties": false,
+      "description": "The named interception point selected by a mutation.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "tool",
+            "retriever",
+            "prompt",
+            "state",
+            "http"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "MutationTarget",
+      "type": "object"
+    },
+    "MutationWhen": {
+      "additionalProperties": false,
+      "description": "Optional deterministic mutation matching conditions.",
+      "properties": {
+        "argumentExists": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Argumentexists",
+          "type": "array"
+        },
+        "arguments": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Arguments",
+          "type": "object"
+        },
+        "callIndex": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Callindex"
+        },
+        "mode": {
+          "default": "first",
+          "enum": [
+            "first",
+            "every"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "probability": {
+          "default": 1.0,
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Probability",
+          "type": "number"
+        },
+        "testLabels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Testlabels",
+          "type": "object"
+        }
+      },
+      "title": "MutationWhen",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A deterministic fault mutation specification.",
+  "properties": {
+    "apiVersion": {
+      "const": "agentqa.dev/v1alpha1",
+      "default": "agentqa.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "expectedRecovery": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ExpectedRecovery"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "kind": {
+      "const": "Mutation",
+      "default": "Mutation",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "operation": {
+      "$ref": "#/$defs/MutationOperation"
+    },
+    "target": {
+      "$ref": "#/$defs/MutationTarget"
+    },
+    "when": {
+      "$ref": "#/$defs/MutationWhen"
+    }
+  },
+  "required": [
+    "metadata",
+    "target",
+    "operation"
+  ],
+  "title": "MutationSpec",
+  "type": "object"
+}

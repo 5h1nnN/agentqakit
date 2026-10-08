@@ -1,0 +1,283 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "KnowledgeIdentity": {
+      "additionalProperties": false,
+      "description": "Optional knowledge-index identity.",
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "indexHash": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Indexhash"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "KnowledgeIdentity",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "ModelIdentity": {
+      "additionalProperties": false,
+      "description": "Model provider and generation parameters.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "title": "ModelIdentity",
+      "type": "object"
+    },
+    "PromptIdentity": {
+      "additionalProperties": false,
+      "description": "Hashes that identify the prompt assets under test.",
+      "properties": {
+        "systemPromptHash": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Systemprompthash"
+        }
+      },
+      "title": "PromptIdentity",
+      "type": "object"
+    },
+    "RuntimeIdentity": {
+      "additionalProperties": false,
+      "description": "Agent implementation language and framework.",
+      "properties": {
+        "framework": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Framework"
+        },
+        "language": {
+          "minLength": 1,
+          "title": "Language",
+          "type": "string"
+        }
+      },
+      "required": [
+        "language"
+      ],
+      "title": "RuntimeIdentity",
+      "type": "object"
+    },
+    "SourceRevision": {
+      "additionalProperties": false,
+      "description": "Source repository identity for an agent build.",
+      "properties": {
+        "commit": {
+          "minLength": 1,
+          "title": "Commit",
+          "type": "string"
+        },
+        "repository": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Repository",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "commit"
+      ],
+      "title": "SourceRevision",
+      "type": "object"
+    },
+    "ToolIdentity": {
+      "additionalProperties": false,
+      "description": "A tool and its input-schema identity.",
+      "properties": {
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "schemaHash": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schemahash"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "ToolIdentity",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A reproducible identity for the agent version under test.",
+  "properties": {
+    "apiVersion": {
+      "const": "agentqa.dev/v1alpha1",
+      "default": "agentqa.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "kind": {
+      "const": "AgentManifest",
+      "default": "AgentManifest",
+      "title": "Kind",
+      "type": "string"
+    },
+    "knowledge": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/KnowledgeIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "model": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ModelIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "prompts": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PromptIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "runtime": {
+      "$ref": "#/$defs/RuntimeIdentity"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/SourceRevision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "tools": {
+      "items": {
+        "$ref": "#/$defs/ToolIdentity"
+      },
+      "title": "Tools",
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata",
+    "runtime"
+  ],
+  "title": "AgentManifest",
+  "type": "object"
+}

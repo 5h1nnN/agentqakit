@@ -1,0 +1,16 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: campus-http
+type: http
+url: http://localhost:8000/chat
+method: POST
+request:
+  headers:
+    content-type: application/json
+  json:
+    message: "{{ input.message }}"
+response:
+  outputPath: $.answer
+timeoutMs: 10000
+allowRemote: false

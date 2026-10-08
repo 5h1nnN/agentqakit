@@ -1,0 +1,31 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: basic-course-query
+  labels:
+    category: functional
+    risk: low
+targetRef: campus-http
+scenario:
+  input:
+    message: 查询人工智能导论的上课时间
+  messages:
+    - role: user
+      content: 查询人工智能导论的上课时间
+expect:
+  output:
+    requiredPatterns:
+      - 上课时间
+    requireNonEmpty: true
+  tools:
+    required:
+      - query_course
+    maxCalls: 2
+  budgets:
+    maxLatencyMs: 8000
+    maxTotalTokens: 4000
+evaluators:
+  - type: text
+  - type: tool_call
+  - type: budget
+trials: 1

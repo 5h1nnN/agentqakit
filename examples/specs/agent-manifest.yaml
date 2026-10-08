@@ -1,0 +1,23 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentManifest
+metadata:
+  name: campus-agent
+  version: 0.1.0
+source:
+  repository: https://example.org/agentqakit/campus-agent
+  commit: example-commit
+runtime:
+  language: python
+  framework: custom
+model:
+  provider: openai-compatible
+  name: example-model
+  parameters:
+    temperature: 0.2
+prompts:
+  systemPromptHash: sha256:example-prompt
+tools:
+  - name: query_course
+    schemaHash: sha256:example-schema
+knowledge:
+  enabled: false

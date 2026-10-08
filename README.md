@@ -31,6 +31,16 @@ make test
 make e2e
 ```
 
+Validate the included declarative specifications:
+
+```bash
+agentqa test validate examples/specs/
+```
+
+AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
+evaluator or target types are rejected instead of being ignored. See
+[`docs/specifications.md`](docs/specifications.md) for the supported T1 format.
+
 ## Repository layout
 
 - `agentqa/`: importable Python package and CLI

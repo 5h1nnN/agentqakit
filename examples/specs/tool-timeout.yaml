@@ -1,0 +1,17 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Mutation
+metadata:
+  name: course-api-timeout
+target:
+  kind: tool
+  name: query_course
+when:
+  callIndex: 1
+  probability: 1.0
+operation:
+  type: timeout
+  delayMs: 3000
+expectedRecovery:
+  maxRetries: 2
+  mustNotClaimSuccess: true
+  mustExplainTemporaryFailure: true

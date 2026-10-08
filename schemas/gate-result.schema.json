@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "GateRuleResult": {
+      "additionalProperties": false,
+      "description": "One quality-gate rule decision.",
+      "properties": {
+        "actual": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "expected": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "passed",
+        "actual",
+        "expected"
+      ],
+      "title": "GateRuleResult",
+      "type": "object"
+    },
+    "JsonValue": {}
+  },
+  "additionalProperties": false,
+  "description": "Overall quality-gate decision and process exit code.",
+  "properties": {
+    "exit_code": {
+      "enum": [
+        0,
+        1
+      ],
+      "title": "Exit Code",
+      "type": "integer"
+    },
+    "passed": {
+      "title": "Passed",
+      "type": "boolean"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/GateRuleResult"
+      },
+      "title": "Rules",
+      "type": "array"
+    }
+  },
+  "required": [
+    "passed",
+    "exit_code"
+  ],
+  "title": "GateResult",
+  "type": "object"
+}
