@@ -25,6 +25,7 @@ from agentqa.models.specs import EvaluatorSpec
 from agentqa.runner import RunnerOptions, get_current_run_context
 from agentqa.runner import TestRunner as AgentTestRunner
 from agentqa.storage import ArtifactError
+from agentqa.targets import TargetSafetyError
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,6 +318,18 @@ async def test_prepare_failure_is_structured_and_cleanup_still_runs(tmp_path: Pa
     assert "private prepare detail" not in result.error.message
     assert adapter.cleanup_calls == 1
     assert result.summary.incomplete == 1
+
+
+async def test_prepare_preserves_trusted_adapter_diagnostic(tmp_path: Path) -> None:
+    adapter = FakeAdapter([], prepare_error=TargetSafetyError("remote targets are disabled"))
+    runner = AgentTestRunner(adapter, {"schema": ResultEvaluator()}, options=_options(tmp_path))
+
+    result = await runner.run([_test_spec("unsafe-target")], _target())
+
+    assert result.status == "FAILED"
+    assert result.error is not None
+    assert result.error.message == "remote targets are disabled"
+    assert result.error.details["adapter_error_code"] == "HTTP_SAFETY_ERROR"
 
 
 async def test_prepare_timeout_is_structured_and_cleanup_still_runs(tmp_path: Path) -> None:

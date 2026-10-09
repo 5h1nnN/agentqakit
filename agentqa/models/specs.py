@@ -209,7 +209,18 @@ class HttpTargetSpec(TargetSpecBase):
     request: HttpRequestSpec = Field(default_factory=HttpRequestSpec)
     response: HttpResponseSpec = Field(default_factory=HttpResponseSpec)
     allow_remote: bool = False
+    allow_private_network: bool = False
+    allowed_hosts: list[NonEmptyString] = Field(default_factory=list)
+    connect_timeout_ms: PositiveInt = 5_000
+    read_timeout_ms: PositiveInt = 30_000
     max_response_bytes: PositiveInt = 1_048_576
+
+    @model_validator(mode="after")
+    def validate_network_policy(self) -> "HttpTargetSpec":
+        if self.allow_private_network and not self.allow_remote:
+            msg = "allowPrivateNetwork requires allowRemote"
+            raise ValueError(msg)
+        return self
 
 
 class PythonTargetSpec(TargetSpecBase):
@@ -218,7 +229,9 @@ class PythonTargetSpec(TargetSpecBase):
     type: Literal["python"]
     entrypoint: Entrypoint
     isolation: Literal["subprocess"] = "subprocess"
+    worker_mode: Literal["perInvocation", "persistent"] = "perInvocation"
     environment_allowlist: list[NonEmptyString] = Field(default_factory=list)
+    working_directory: NonEmptyString | None = None
 
 
 class LangGraphTargetSpec(TargetSpecBase):
@@ -227,6 +240,8 @@ class LangGraphTargetSpec(TargetSpecBase):
     type: Literal["langgraph"]
     entrypoint: Entrypoint
     input_key: NonEmptyString = "messages"
+    output_path: NonEmptyString | None = None
+    state_diff_allowlist: list[NonEmptyString] = Field(default_factory=list)
 
 
 TargetSpec: TypeAlias = Annotated[

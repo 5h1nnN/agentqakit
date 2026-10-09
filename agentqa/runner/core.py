@@ -31,7 +31,7 @@ from agentqa.runner.options import RunnerOptions
 from agentqa.runner.state import RunState, RunStateMachine
 from agentqa.specs import hash_spec, hash_spec_collection, normalize_spec
 from agentqa.storage import ArtifactError, ArtifactWriter
-from agentqa.targets import TargetAdapter
+from agentqa.targets import TargetAdapter, TargetConfigurationError, TargetSafetyError
 
 _T = TypeVar("_T")
 
@@ -468,6 +468,14 @@ class TestRunner:
                     ) from None
                 except _CancellationRequested:
                     raise
+                except (TargetConfigurationError, TargetSafetyError) as exc:
+                    raise _FatalRunError(
+                        ErrorInfo(
+                            code=RunErrorCode.TARGET_PREPARE_ERROR.value,
+                            message=exc.message,
+                            details={"adapter_error_code": exc.code},
+                        )
+                    ) from None
                 except Exception as exc:
                     raise _FatalRunError(
                         ErrorInfo(

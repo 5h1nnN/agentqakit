@@ -14,3 +14,6 @@ response:
   outputPath: $.answer
 timeoutMs: 10000
 allowRemote: false
+connectTimeoutMs: 5000
+readTimeoutMs: 10000
+maxResponseBytes: 1048576

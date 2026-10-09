@@ -18,6 +18,11 @@ _SENSITIVE_KEYS = {
     "setcookie",
     "token",
 }
+_SENSITIVE_TEXT = (
+    re.compile(r"(?i)(authorization\s*[:=]\s*)([^\s,;]+)"),
+    re.compile(r"(?i)(bearer\s+)([A-Za-z0-9._~+\-/=]+)"),
+    re.compile(r"(?i)((?:api[_-]?key|token|password|cookie)\s*[:=]\s*)([^\s,;]+)"),
+)
 
 
 def _normalize_key(value: str) -> str:
@@ -48,3 +53,11 @@ def redact_secrets(value: Any) -> Any:
     if isinstance(value, tuple):
         return [redact_secrets(item) for item in value]
     return value
+
+
+def redact_text_secrets(value: str) -> str:
+    """Best-effort redaction for credential patterns in unstructured logs."""
+    redacted = value
+    for pattern in _SENSITIVE_TEXT:
+        redacted = pattern.sub(lambda match: f"{match.group(1)}{REDACTED}", redacted)
+    return redacted

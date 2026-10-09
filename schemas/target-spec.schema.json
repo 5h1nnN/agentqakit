@@ -52,16 +52,35 @@
       "additionalProperties": false,
       "description": "A generic HTTP target.",
       "properties": {
+        "allowPrivateNetwork": {
+          "default": false,
+          "title": "Allowprivatenetwork",
+          "type": "boolean"
+        },
         "allowRemote": {
           "default": false,
           "title": "Allowremote",
           "type": "boolean"
+        },
+        "allowedHosts": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Allowedhosts",
+          "type": "array"
         },
         "apiVersion": {
           "const": "agentqa.dev/v1alpha1",
           "default": "agentqa.dev/v1alpha1",
           "title": "Apiversion",
           "type": "string"
+        },
+        "connectTimeoutMs": {
+          "default": 5000,
+          "exclusiveMinimum": 0,
+          "title": "Connecttimeoutms",
+          "type": "integer"
         },
         "kind": {
           "const": "Target",
@@ -86,6 +105,12 @@
           ],
           "title": "Method",
           "type": "string"
+        },
+        "readTimeoutMs": {
+          "default": 30000,
+          "exclusiveMinimum": 0,
+          "title": "Readtimeoutms",
+          "type": "integer"
         },
         "request": {
           "$ref": "#/$defs/HttpRequestSpec"
@@ -150,6 +175,27 @@
         },
         "metadata": {
           "$ref": "#/$defs/Metadata"
+        },
+        "outputPath": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outputpath"
+        },
+        "stateDiffAllowlist": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Statediffallowlist",
+          "type": "array"
         },
         "timeoutMs": {
           "default": 30000,
@@ -258,6 +304,28 @@
           "const": "python",
           "title": "Type",
           "type": "string"
+        },
+        "workerMode": {
+          "default": "perInvocation",
+          "enum": [
+            "perInvocation",
+            "persistent"
+          ],
+          "title": "Workermode",
+          "type": "string"
+        },
+        "workingDirectory": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Workingdirectory"
         }
       },
       "required": [

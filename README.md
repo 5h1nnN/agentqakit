@@ -4,9 +4,9 @@ AgentQAKit is a local-first testing toolkit for AI agents. It is designed to run
 repeatable agent tests, collect execution traces, inject controlled failures,
 evaluate results, reproduce failures, and enforce quality gates in CI.
 
-The project is currently being built from the ground up. This repository state
-contains the T0 foundation: the Python package, command-line entry point,
-development conventions, test layout, and CI checks.
+The project is currently being built from the ground up. The repository now
+contains the package foundation, strict specifications, sequential runner, and
+HTTP, isolated Python, and optional LangGraph target adapters.
 
 ## Requirements
 
@@ -37,15 +37,22 @@ Validate the included declarative specifications:
 agentqa test validate examples/specs/
 ```
 
+Execute a test against one target:
+
+```bash
+agentqa test run examples/specs/basic-test.yaml \
+  --target examples/specs/http-target.yaml
+```
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported T1 format.
 
-The sequential runner now provides an explicit lifecycle, per-trial isolation,
+The sequential runner provides an explicit lifecycle, per-trial isolation,
 timeouts, cancellation, partial-failure handling, and stability aggregation.
-See [`docs/runner.md`](docs/runner.md). Real HTTP and Python target construction
-is added by the following adapter tasks; runner tests currently use injected
-protocol implementations.
+See [`docs/runner.md`](docs/runner.md). Target construction, security defaults,
+subprocess isolation, and LangGraph observation are documented in
+[`docs/targets.md`](docs/targets.md).
 
 ## Repository layout
 

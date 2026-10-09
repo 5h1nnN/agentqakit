@@ -5,4 +5,5 @@ metadata:
 type: python
 entrypoint: examples.campus_agent:run_agent
 isolation: subprocess
+workerMode: perInvocation
 timeoutMs: 10000

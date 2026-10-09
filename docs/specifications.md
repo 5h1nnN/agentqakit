@@ -51,3 +51,6 @@ The generated contracts in [`schemas/`](../schemas/) can be refreshed with:
 ```bash
 python scripts/export_schemas.py
 ```
+
+Target-specific runtime behavior and network/process security defaults are
+documented in [`targets.md`](targets.md).
