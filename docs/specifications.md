@@ -53,4 +53,5 @@ python scripts/export_schemas.py
 ```
 
 Target-specific runtime behavior and network/process security defaults are
-documented in [`targets.md`](targets.md).
+documented in [`targets.md`](targets.md). Mutation operations, matching fields,
+runtime evidence, and scoring are documented in [`mutations.md`](mutations.md).

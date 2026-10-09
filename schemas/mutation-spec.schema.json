@@ -134,6 +134,20 @@
           "title": "Parameters",
           "type": "object"
         },
+        "statusCode": {
+          "anyOf": [
+            {
+              "maximum": 599,
+              "minimum": 500,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Statuscode"
+        },
         "type": {
           "enum": [
             "timeout",
@@ -146,7 +160,9 @@
             "stale_result",
             "empty_retrieval",
             "irrelevant_document",
-            "indirect_prompt_injection"
+            "indirect_prompt_injection",
+            "http_status",
+            "http_disconnect"
           ],
           "title": "Type",
           "type": "string"

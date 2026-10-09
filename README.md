@@ -7,7 +7,8 @@ evaluate results, reproduce failures, and enforce quality gates in CI.
 The project is currently being built from the ground up. The repository now
 contains the package foundation, strict specifications, sequential runner,
 HTTP, isolated Python, and optional LangGraph target adapters, plus bounded
-OpenTelemetry trace collection and OTLP/HTTP instrumentation.
+OpenTelemetry trace collection, OTLP/HTTP instrumentation, deterministic tool,
+retriever, and HTTP mutations, and recomputable Mutation Score reports.
 
 ## Requirements
 
@@ -47,6 +48,13 @@ agentqa test run examples/specs/basic-test.yaml \
   --target examples/specs/http-target.yaml
 ```
 
+Run tests with mutation specifications and inspect the resulting score:
+
+```bash
+agentqa test run tests.yaml --target target.yaml --mutations mutations.yaml
+agentqa mutation score artifacts/runs/<run-id>
+```
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported T1 format.
@@ -57,7 +65,9 @@ See [`docs/runner.md`](docs/runner.md). Target construction, security defaults,
 subprocess isolation, and LangGraph observation are documented in
 [`docs/targets.md`](docs/targets.md). Trace completeness, privacy limits, the
 local OTLP receiver, and zero-source-change instrumentation are documented in
-[`docs/tracing.md`](docs/tracing.md).
+[`docs/tracing.md`](docs/tracing.md). Mutation matching, runtime wrappers, the
+fixed-upstream fault proxy, evidence, and score semantics are documented in
+[`docs/mutations.md`](docs/mutations.md).
 
 ## Repository layout
 

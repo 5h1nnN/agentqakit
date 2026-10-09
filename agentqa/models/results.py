@@ -12,6 +12,7 @@ from agentqa.models.base import (
     UnitInterval,
     UtcDateTime,
 )
+from agentqa.models.mutations import MutationApplication, MutationScoreReport
 
 
 class ErrorInfo(StrictModel):
@@ -39,6 +40,7 @@ class RunContext(StrictModel):
     mutation_id: NonEmptyString | None = None
     trial_seed: int | None = None
     otlp_endpoint: NonEmptyString | None = None
+    test_labels: dict[str, str] = Field(default_factory=dict)
 
 
 class TestInput(StrictModel):
@@ -165,6 +167,7 @@ class TestResult(StrictModel):
     target_result: TargetResult
     trace_status: Literal["complete", "partial", "missing"] = "missing"
     trace_ref: NonEmptyString | None = None
+    mutation_applications: list[MutationApplication] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_time(self) -> "TestResult":
@@ -290,6 +293,7 @@ class RunResult(StrictModel):
     ended_at: UtcDateTime
     summary: RunSummary
     results: list[TestResult] = Field(default_factory=list)
+    mutation_score: MutationScoreReport | None = None
     error: ErrorInfo | None = None
 
     @model_validator(mode="after")

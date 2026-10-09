@@ -65,9 +65,50 @@ class InvokeGraph:
         return {"answer": value["question"]}
 
 
+class MutationEventGraph:
+    def __init__(self, tool: Any) -> None:
+        self._tool = tool
+
+    async def astream_events(
+        self,
+        value: dict[str, Any],
+        *,
+        config: dict[str, Any],
+        version: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        del config
+        assert version == "v2"
+        yield {
+            "event": "on_chain_start",
+            "name": "mutation-fixture-agent",
+            "run_id": "mutation-agent-span",
+            "parent_ids": [],
+            "data": {"input": value},
+        }
+        result = self._tool(query="campus calendar")
+        output = {"messages": [{"role": "assistant", "content": str(result)}]}
+        yield {
+            "event": "on_chain_end",
+            "name": "mutation-fixture-agent",
+            "run_id": "mutation-agent-span",
+            "parent_ids": [],
+            "data": {"output": output},
+        }
+
+
 def build_graph(agentqa_runtime: Any = None) -> EventGraph:
     assert agentqa_runtime is not None
     return EventGraph()
+
+
+def build_mutation_graph(agentqa_runtime: Any = None) -> MutationEventGraph:
+    assert agentqa_runtime is not None
+
+    def campus_lookup(query: str) -> dict[str, Any]:
+        return {"query": query, "answer": "semester starts Monday"}
+
+    tool = agentqa_runtime.wrap_tool(campus_lookup, name="campus.lookup")
+    return MutationEventGraph(tool)
 
 
 compiled_graph = InvokeGraph()

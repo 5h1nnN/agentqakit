@@ -21,6 +21,9 @@ def _context(tmp_path: Path) -> RunContext:
         test_case_id="case-1",
         trial_id="trial-1",
         trace_id="12345678-1234-1234-1234-123456789abc",
+        mutation_id="http-fault",
+        trial_seed=99,
+        test_labels={"suite": "campus"},
     )
 
 
@@ -89,6 +92,10 @@ async def test_http_adapter_renders_request_and_injects_trace_headers(tmp_path: 
     assert request.url.params["case"] == "one"
     assert request.headers["x-prompt"] == "hello"
     assert request.headers["x-agentqa-run-id"] == "run-1"
+    assert request.headers["x-agentqa-trial-id"] == "trial-1"
+    assert request.headers["x-agentqa-mutation-id"] == "http-fault"
+    assert request.headers["x-agentqa-trial-seed"] == "99"
+    assert request.headers["x-agentqa-test-labels"] == '{"suite":"campus"}'
     assert request.headers["traceparent"].startswith("00-12345678123412341234123456789abc-")
     assert result.metadata["headers"] == {
         "authorization": "***",

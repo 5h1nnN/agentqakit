@@ -14,6 +14,7 @@ from agentqa.models import (
     EvaluationResult,
     HttpTargetSpec,
     LangGraphTargetSpec,
+    MutationSpec,
     RunContext,
     TargetResult,
     TraceEvent,
@@ -463,6 +464,47 @@ async def test_langgraph_trial_persists_complete_parented_trace(tmp_path: Path) 
         if event["kind"] == "AGENT" and event["span_id"] != root["span_id"]
     )
     assert graph_root["parent_span_id"] == root["span_id"]
+
+
+async def test_runner_applies_langgraph_tool_mutation_and_persists_score(
+    tmp_path: Path,
+) -> None:
+    target = LangGraphTargetSpec.model_validate(
+        {
+            "metadata": {"name": "mutation-graph"},
+            "type": "langgraph",
+            "entrypoint": "tests.fixtures.langgraph_targets:build_mutation_graph",
+        }
+    )
+    mutation = MutationSpec.model_validate(
+        {
+            "metadata": {"name": "lookup-exception"},
+            "target": {"kind": "tool", "name": "campus.lookup"},
+            "operation": {"type": "tool_exception"},
+        }
+    )
+    spec = _test_spec("mutated-graph").model_copy(update={"mutation": mutation.metadata.name})
+    runner = AgentTestRunner(
+        LangGraphTargetAdapter(target),
+        {"schema": ResultEvaluator()},
+        options=_options(tmp_path),
+        mutations={mutation.metadata.name: mutation},
+    )
+
+    result = await runner.run([spec], target)
+
+    assert result.exit_code == 1
+    assert result.results[0].target_result.status == "ERROR"
+    application = result.results[0].mutation_applications[0]
+    assert application.mutation_id == "lookup-exception"
+    assert application.triggered is True
+    assert result.mutation_score is not None
+    assert result.mutation_score.overall.killed == 1
+    assert result.mutation_score.overall.score == 1.0
+    root = tmp_path / "artifacts" / "runs" / result.run_id
+    assert (root / "resolved-mutations.json").is_file()
+    score = json.loads((root / "mutation-score.json").read_text(encoding="utf-8"))
+    assert score["overall"]["killed"] == 1
 
 
 async def test_cleanup_failure_fails_run_without_losing_results(tmp_path: Path) -> None:

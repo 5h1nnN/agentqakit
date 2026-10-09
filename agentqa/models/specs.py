@@ -280,6 +280,8 @@ MutationOperationType: TypeAlias = Literal[
     "empty_retrieval",
     "irrelevant_document",
     "indirect_prompt_injection",
+    "http_status",
+    "http_disconnect",
 ]
 
 
@@ -291,12 +293,25 @@ class MutationOperation(SpecModel):
     message: NonEmptyString | None = None
     field: NonEmptyString | None = None
     value: JsonValue = None
+    status_code: Annotated[int, Field(ge=500, le=599)] | None = None
     parameters: dict[str, JsonValue] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def require_timeout_delay(self) -> "MutationOperation":
         if self.type in {"timeout", "tool_timeout"} and self.delay_ms is None:
             msg = "timeout mutation requires delayMs"
+            raise ValueError(msg)
+        if self.type in {"missing_field", "wrong_value"} and self.field is None:
+            msg = f"{self.type} mutation requires field"
+            raise ValueError(msg)
+        if self.type == "wrong_value" and "value" not in self.model_fields_set:
+            msg = "wrong_value mutation requires value"
+            raise ValueError(msg)
+        if self.type == "http_status" and self.status_code is None:
+            msg = "http_status mutation requires statusCode"
+            raise ValueError(msg)
+        if self.type != "http_status" and self.status_code is not None:
+            msg = "statusCode is only valid for http_status"
             raise ValueError(msg)
         return self
 
@@ -319,6 +334,42 @@ class MutationSpec(SpecModel):
     when: MutationWhen = Field(default_factory=MutationWhen)
     operation: MutationOperation
     expected_recovery: ExpectedRecovery | None = None
+
+    @model_validator(mode="after")
+    def validate_target_operation(self) -> "MutationSpec":
+        supported: dict[str, set[str]] = {
+            "tool": {
+                "timeout",
+                "tool_timeout",
+                "tool_exception",
+                "invalid_json",
+                "missing_field",
+                "wrong_value",
+                "duplicate_call_result",
+                "stale_result",
+            },
+            "retriever": {
+                "empty_retrieval",
+                "irrelevant_document",
+                "indirect_prompt_injection",
+            },
+            "http": {
+                "timeout",
+                "invalid_json",
+                "missing_field",
+                "wrong_value",
+                "http_status",
+                "http_disconnect",
+            },
+        }
+        allowed = supported.get(self.target.kind)
+        if allowed is None or self.operation.type not in allowed:
+            msg = (
+                f"operation {self.operation.type!r} is not supported for "
+                f"target kind {self.target.kind!r}"
+            )
+            raise ValueError(msg)
+        return self
 
 
 class SourceRevision(SpecModel):

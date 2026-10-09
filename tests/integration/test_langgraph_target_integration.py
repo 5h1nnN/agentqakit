@@ -3,8 +3,10 @@ from pathlib import Path
 
 import pytest
 
-from agentqa.models import LangGraphTargetSpec, RunContext
+from agentqa.models import AgentTestSpec, LangGraphTargetSpec, MutationSpec, RunContext
 from agentqa.models import TestInput as TargetInput
+from agentqa.runner import RunnerOptions
+from agentqa.runner import TestRunner as AgentTestRunner
 from agentqa.targets import LangGraphTargetAdapter
 from agentqa.tracing import InMemoryTraceStore
 from agentqa.tracing.context import reset_current_trace_store, set_current_trace_store
@@ -53,3 +55,46 @@ async def test_adapter_runs_real_compiled_langgraph(tmp_path: Path) -> None:
     events = store.get_events(context.trace_id or "")
     assert any(event.kind == "AGENT" for event in events)
     assert any(event.name == "answer" for event in events)
+
+
+async def test_real_langgraph_tool_boundary_applies_mutation(tmp_path: Path) -> None:
+    target = LangGraphTargetSpec.model_validate(
+        {
+            "metadata": {"name": "real-mutation-graph"},
+            "type": "langgraph",
+            "entrypoint": "tests.fixtures.real_langgraph_target:build_real_mutation_graph",
+        }
+    )
+    mutation = MutationSpec.model_validate(
+        {
+            "metadata": {"name": "real-tool-exception"},
+            "target": {"kind": "tool", "name": "campus.lookup"},
+            "operation": {"type": "tool_exception"},
+        }
+    )
+    test_spec = AgentTestSpec.model_validate(
+        {
+            "metadata": {"name": "real-mutation-test"},
+            "scenario": {"input": {"message": "calendar"}},
+            "mutation": "real-tool-exception",
+            "expect": {"output": {"requireNonEmpty": True}},
+            "evaluators": [{"type": "schema"}],
+        }
+    ).model_copy(update={"evaluators": []})
+    runner = AgentTestRunner(
+        LangGraphTargetAdapter(target),
+        {},
+        options=RunnerOptions(
+            artifact_directory=tmp_path / "artifacts",
+            trace_flush_timeout_seconds=0.01,
+            trace_quiet_period_seconds=0.001,
+        ),
+        mutations={mutation.metadata.name: mutation},
+    )
+
+    result = await runner.run([test_spec], target)
+
+    assert result.results[0].target_result.status == "ERROR"
+    assert result.results[0].mutation_applications[0].triggered is True
+    assert result.mutation_score is not None
+    assert result.mutation_score.overall.killed == 1

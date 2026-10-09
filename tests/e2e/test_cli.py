@@ -78,3 +78,80 @@ evaluators:
     run_directories = list((artifacts / "runs").iterdir())
     assert len(run_directories) == 1
     assert (run_directories[0] / "summary.json").is_file()
+
+
+def test_run_loads_mutation_and_score_command_recomputes_artifact(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "target.yaml"
+    target.write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: mutation-graph
+type: langgraph
+entrypoint: tests.fixtures.langgraph_targets:build_mutation_graph
+""",
+        encoding="utf-8",
+    )
+    test = tmp_path / "test.yaml"
+    test.write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: mutation-cli-test
+targetRef: mutation-graph
+scenario:
+  input:
+    message: hello
+mutation: lookup-exception
+expect:
+  output:
+    requireNonEmpty: true
+evaluators:
+  - type: schema
+""",
+        encoding="utf-8",
+    )
+    mutation = tmp_path / "mutation.yaml"
+    mutation.write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: Mutation
+metadata:
+  name: lookup-exception
+target:
+  kind: tool
+  name: campus.lookup
+operation:
+  type: tool_exception
+""",
+        encoding="utf-8",
+    )
+    artifacts = tmp_path / "artifacts"
+
+    run_result = runner.invoke(
+        app,
+        [
+            "test",
+            "run",
+            str(test),
+            "--target",
+            str(target),
+            "--mutations",
+            str(mutation),
+            "--artifacts",
+            str(artifacts),
+            "--no-trace-receiver",
+        ],
+    )
+
+    assert run_result.exit_code == 1
+    assert "Mutation score: 100.0%" in run_result.stdout
+    run_directory = next((artifacts / "runs").iterdir())
+    assert (run_directory / "mutation-score.json").is_file()
+
+    score_result = runner.invoke(app, ["mutation", "score", str(run_directory)])
+
+    assert score_result.exit_code == 0
+    assert "Mutation score: 100.0%" in score_result.stdout
+    assert "Killed: 1" in score_result.stdout

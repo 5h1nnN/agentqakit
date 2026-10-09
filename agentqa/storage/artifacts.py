@@ -131,6 +131,18 @@ class ArtifactWriter:
                 tests = {"tests": tests}
             return self._write_json("resolved-tests.json", tests)
 
+    def write_resolved_mutations(self, mutations: Any) -> str:
+        """Write the redacted mutation collection used by the run."""
+        with self._lock:
+            if isinstance(mutations, list):
+                mutations = {"mutations": mutations}
+            return self._write_json("resolved-mutations.json", mutations)
+
+    def write_mutation_score(self, score: Any) -> str:
+        """Write a recomputable mutation score report."""
+        with self._lock:
+            return self._write_json("mutation-score.json", score)
+
     def write_trace(self, trace_id: str, trace: Any) -> str:
         """Write one trace document under ``traces/``."""
         if Path(trace_id).name != trace_id or not trace_id:

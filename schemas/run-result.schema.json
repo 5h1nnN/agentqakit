@@ -99,6 +99,32 @@
       "title": "EvaluationResult",
       "type": "object"
     },
+    "InterceptionPoint": {
+      "additionalProperties": false,
+      "description": "A named runtime boundary at which a mutation can be applied.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "tool",
+            "retriever",
+            "http"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "InterceptionPoint",
+      "type": "object"
+    },
     "JsonValue": {},
     "MetricSummary": {
       "additionalProperties": false,
@@ -150,6 +176,295 @@
         "count"
       ],
       "title": "MetricSummary",
+      "type": "object"
+    },
+    "MutationApplication": {
+      "additionalProperties": false,
+      "description": "Evidence emitted for one active-mutation interception attempt.",
+      "properties": {
+        "applied_at": {
+          "format": "date-time",
+          "title": "Applied At",
+          "type": "string"
+        },
+        "behavior": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Behavior",
+          "type": "object"
+        },
+        "call_index": {
+          "minimum": 1,
+          "title": "Call Index",
+          "type": "integer"
+        },
+        "interception": {
+          "$ref": "#/$defs/InterceptionPoint"
+        },
+        "invocation_summary": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "match": {
+          "$ref": "#/$defs/MutationMatch"
+        },
+        "mutation_id": {
+          "minLength": 1,
+          "title": "Mutation Id",
+          "type": "string"
+        },
+        "operation_type": {
+          "minLength": 1,
+          "title": "Operation Type",
+          "type": "string"
+        },
+        "result_summary": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "span_id": {
+          "minLength": 1,
+          "title": "Span Id",
+          "type": "string"
+        },
+        "test_case_id": {
+          "minLength": 1,
+          "title": "Test Case Id",
+          "type": "string"
+        },
+        "trace_id": {
+          "minLength": 1,
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "trial_id": {
+          "minLength": 1,
+          "title": "Trial Id",
+          "type": "string"
+        },
+        "triggered": {
+          "title": "Triggered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mutation_id",
+        "operation_type",
+        "interception",
+        "call_index",
+        "triggered",
+        "match",
+        "invocation_summary",
+        "test_case_id",
+        "trial_id",
+        "trace_id",
+        "span_id",
+        "applied_at"
+      ],
+      "title": "MutationApplication",
+      "type": "object"
+    },
+    "MutationMatch": {
+      "additionalProperties": false,
+      "description": "Deterministic condition-by-condition matcher decision.",
+      "properties": {
+        "conditions": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "title": "Conditions",
+          "type": "object"
+        },
+        "matched": {
+          "title": "Matched",
+          "type": "boolean"
+        },
+        "mutation_id": {
+          "minLength": 1,
+          "title": "Mutation Id",
+          "type": "string"
+        },
+        "probability_sample": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probability Sample"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "mutation_id",
+        "matched"
+      ],
+      "title": "MutationMatch",
+      "type": "object"
+    },
+    "MutationOutcome": {
+      "additionalProperties": false,
+      "description": "One mutation's classification across all associated test trials.",
+      "properties": {
+        "failed_test_case_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Failed Test Case Ids",
+          "type": "array"
+        },
+        "mutation_id": {
+          "minLength": 1,
+          "title": "Mutation Id",
+          "type": "string"
+        },
+        "operation_type": {
+          "minLength": 1,
+          "title": "Operation Type",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "status": {
+          "enum": [
+            "KILLED",
+            "SURVIVED",
+            "NOT_REACHED",
+            "INVALID"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_kind": {
+          "minLength": 1,
+          "title": "Target Kind",
+          "type": "string"
+        },
+        "test_case_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Test Case Ids",
+          "type": "array"
+        },
+        "triggered_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Triggered Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mutation_id",
+        "operation_type",
+        "target_kind",
+        "status"
+      ],
+      "title": "MutationOutcome",
+      "type": "object"
+    },
+    "MutationScoreBucket": {
+      "additionalProperties": false,
+      "description": "Recomputable counts and score for a group of mutation outcomes.",
+      "properties": {
+        "invalid": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Invalid",
+          "type": "integer"
+        },
+        "killed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Killed",
+          "type": "integer"
+        },
+        "not_reached": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Not Reached",
+          "type": "integer"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "survived": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Survived",
+          "type": "integer"
+        }
+      },
+      "title": "MutationScoreBucket",
+      "type": "object"
+    },
+    "MutationScoreReport": {
+      "additionalProperties": false,
+      "description": "Overall and per-operation mutation score report.",
+      "properties": {
+        "by_operation": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MutationScoreBucket"
+          },
+          "title": "By Operation",
+          "type": "object"
+        },
+        "outcomes": {
+          "items": {
+            "$ref": "#/$defs/MutationOutcome"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "overall": {
+          "$ref": "#/$defs/MutationScoreBucket"
+        }
+      },
+      "required": [
+        "overall"
+      ],
+      "title": "MutationScoreReport",
       "type": "object"
     },
     "RunSummary": {
@@ -413,6 +728,13 @@
           "title": "Evaluations",
           "type": "array"
         },
+        "mutation_applications": {
+          "items": {
+            "$ref": "#/$defs/MutationApplication"
+          },
+          "title": "Mutation Applications",
+          "type": "array"
+        },
         "passed": {
           "title": "Passed",
           "type": "boolean"
@@ -573,6 +895,17 @@
       ],
       "title": "Exit Code",
       "type": "integer"
+    },
+    "mutation_score": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/MutationScoreReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "results": {
       "items": {

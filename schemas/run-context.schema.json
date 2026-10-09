@@ -86,6 +86,13 @@
       "default": null,
       "title": "Test Case Id"
     },
+    "test_labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Test Labels",
+      "type": "object"
+    },
     "trace_id": {
       "anyOf": [
         {

@@ -14,6 +14,9 @@ from agentqa.models import (
     AgentTestSpec,
     ErrorInfo,
     EvaluationResult,
+    MutationApplication,
+    MutationScoreReport,
+    MutationSpec,
     RunContext,
     RunResult,
     RunSummary,
@@ -25,6 +28,13 @@ from agentqa.models import (
     Violation,
 )
 from agentqa.models.specs import EvaluatorSpec
+from agentqa.mutations import (
+    MutationEngine,
+    MutationTrialSession,
+    calculate_mutation_score,
+    reset_current_mutation_session,
+    set_current_mutation_session,
+)
 from agentqa.runner.aggregation import aggregate_run
 from agentqa.runner.context import reset_current_run_context, set_current_run_context
 from agentqa.runner.errors import RunErrorCode
@@ -95,6 +105,8 @@ class TestRunner:
         options: RunnerOptions | None = None,
         trace_store: TraceStore | None = None,
         trace_options: TraceOptions | None = None,
+        mutations: Mapping[str, MutationSpec] | None = None,
+        mutation_engine: MutationEngine | None = None,
     ) -> None:
         self._adapter = adapter
         self._evaluators = dict(evaluators)
@@ -107,6 +119,17 @@ class TestRunner:
             max_spans_per_trace=self._trace_options.max_spans_per_trace
         )
         self._trace_runtime = TraceRuntime(self._trace_store, self._trace_options)
+        if mutations is None and mutation_engine is not None:
+            self._mutations = dict(mutation_engine.specs)
+        else:
+            self._mutations = dict(mutations or {})
+        self._mutation_engine = mutation_engine or MutationEngine(self._mutations)
+        if dict(self._mutation_engine.specs) != self._mutations:
+            raise ValueError("mutation engine specs must match runner mutations")
+        if self._mutations:
+            configure_mutations = getattr(self._adapter, "set_mutation_engine", None)
+            if callable(configure_mutations):
+                configure_mutations(self._mutation_engine)
         self._cancel_requested = asyncio.Event()
         self._has_run = False
 
@@ -291,6 +314,7 @@ class TestRunner:
         target_result: TargetResult,
         evaluations: Sequence[EvaluationResult],
         trace_record: TraceRecord,
+        mutation_applications: Sequence[MutationApplication],
     ) -> TestResult:
         if context.trial_id is None or context.trace_id is None or context.trial_seed is None:
             raise RuntimeError("trial context is incomplete")
@@ -326,6 +350,7 @@ class TestRunner:
             target_result=target_result,
             trace_status=trace_record.status,
             trace_ref=f"traces/{context.trace_id}.json",
+            mutation_applications=list(mutation_applications),
         )
 
     async def _execute_trial(
@@ -342,6 +367,7 @@ class TestRunner:
                 "trial_id": new_id(),
                 "trace_id": new_id(),
                 "mutation_id": spec.mutation,
+                "test_labels": spec.metadata.labels,
                 "trial_seed": _derive_trial_seed(
                     base_context.random_seed,
                     spec.metadata.name,
@@ -352,6 +378,8 @@ class TestRunner:
         token = set_current_run_context(context)
         trace_token = set_current_trace_store(self._trace_store)
         trace_options_token = set_current_trace_options(self._trace_options)
+        mutation_session = MutationTrialSession(context)
+        mutation_token = set_current_mutation_session(mutation_session)
         try:
             try:
                 async with asyncio.timeout(self._options.item_timeout_seconds):
@@ -393,9 +421,11 @@ class TestRunner:
                 target_result=target_result,
                 evaluations=evaluations,
                 trace_record=trace_record,
+                mutation_applications=mutation_session.applications,
             )
             return result, trace_record
         finally:
+            reset_current_mutation_session(mutation_token)
             reset_current_trace_options(trace_options_token)
             reset_current_trace_store(trace_token)
             reset_current_run_context(token)
@@ -430,8 +460,7 @@ class TestRunner:
             ],
         }
 
-    @staticmethod
-    def _validate_specs(specs: Sequence[AgentTestSpec]) -> ErrorInfo | None:
+    def _validate_specs(self, specs: Sequence[AgentTestSpec]) -> ErrorInfo | None:
         if not specs:
             return ErrorInfo(
                 code=RunErrorCode.SPEC_ERROR.value,
@@ -442,6 +471,20 @@ class TestRunner:
             return ErrorInfo(
                 code=RunErrorCode.SPEC_ERROR.value,
                 message="test case names must be unique within a run",
+            )
+        missing_mutations = sorted(
+            {
+                spec.mutation
+                for spec in specs
+                if spec.mutation is not None and spec.mutation not in self._mutations
+            }
+        )
+        if missing_mutations:
+            return ErrorInfo(
+                code=RunErrorCode.SPEC_ERROR.value,
+                message=(
+                    "AgentTest references unknown mutation(s): " + ", ".join(missing_mutations)
+                ),
             )
         return None
 
@@ -460,6 +503,7 @@ class TestRunner:
         started_at = utc_now()
         run_id = new_id()
         hashes = [hash_spec(target), *(hash_spec(spec) for spec in frozen_specs)]
+        hashes.extend(hash_spec(spec) for _, spec in sorted(self._mutations.items()))
         manifest_hash = None
         if manifest is not None:
             manifest_hash = hash_spec(manifest)
@@ -502,6 +546,10 @@ class TestRunner:
             )
             writer.write_resolved_target(normalize_spec(target))
             writer.write_resolved_tests([normalize_spec(spec) for spec in frozen_specs])
+            if self._mutations:
+                writer.write_resolved_mutations(
+                    [normalize_spec(spec) for _, spec in sorted(self._mutations.items())]
+                )
         except ArtifactError:
             artifact_healthy = False
             run_error = ErrorInfo(
@@ -670,6 +718,13 @@ class TestRunner:
                 )
 
         summary = aggregate_run(frozen_specs, results)
+        mutation_score: MutationScoreReport | None = None
+        if self._mutations:
+            mutation_score = calculate_mutation_score(
+                self._mutations,
+                frozen_specs,
+                results,
+            )
         ended_at = utc_now()
         if machine.state == RunState.FINALIZING:
             machine.transition(desired_state)
@@ -685,12 +740,19 @@ class TestRunner:
                         error=run_error,
                     )
                 )
+                if mutation_score is not None:
+                    writer.write_mutation_score(mutation_score)
                 writer.finalize_summary(
                     {
                         "run_id": run_id,
                         "status": desired_state.value,
                         "exit_code": exit_code,
                         "summary": summary.model_dump(mode="json"),
+                        "mutation_score": (
+                            None
+                            if mutation_score is None
+                            else mutation_score.model_dump(mode="json")
+                        ),
                     }
                 )
             except ArtifactError:
@@ -710,6 +772,7 @@ class TestRunner:
             ended_at=ended_at,
             summary=summary,
             results=results,
+            mutation_score=mutation_score,
             error=run_error,
         )
         instrumentation.close()

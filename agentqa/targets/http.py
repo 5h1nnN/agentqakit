@@ -192,7 +192,19 @@ class HttpTargetAdapter:
         headers = {
             "x-agentqa-run-id": context.run_id,
             "x-agentqa-test-id": context.test_case_id or "unknown",
+            "x-agentqa-trial-id": context.trial_id or "unknown",
+            "x-agentqa-trace-id": context.trace_id or trace_id,
+            "x-agentqa-test-labels": json.dumps(
+                context.test_labels,
+                ensure_ascii=True,
+                sort_keys=True,
+                separators=(",", ":"),
+            ),
         }
+        if context.trial_seed is not None:
+            headers["x-agentqa-trial-seed"] = str(context.trial_seed)
+        if context.mutation_id is not None:
+            headers["x-agentqa-mutation-id"] = context.mutation_id
         propagate.inject(headers)
         headers.setdefault("traceparent", f"00-{trace_id}-{secrets.token_hex(8)}-01")
         return headers

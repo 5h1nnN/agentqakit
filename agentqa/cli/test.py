@@ -6,7 +6,7 @@ from typing import Annotated, cast
 
 import typer
 
-from agentqa.models import AgentTestSpec, TargetSpec
+from agentqa.models import AgentTestSpec, MutationSpec, TargetSpec
 from agentqa.runner import RunnerOptions, TestRunner
 from agentqa.specs import SpecLoadError, load_specs
 from agentqa.targets import TargetConfigurationError, create_target_adapter
@@ -50,7 +50,8 @@ def validate(
 def _load_for_run(
     tests_path: Path,
     target_path: Path | None,
-) -> tuple[list[AgentTestSpec], TargetSpec]:
+    mutations_path: Path | None,
+) -> tuple[list[AgentTestSpec], TargetSpec, dict[str, MutationSpec]]:
     loaded_tests = load_specs(tests_path)
     tests = [item.spec for item in loaded_tests if isinstance(item.spec, AgentTestSpec)]
     target_documents = loaded_tests if target_path is None else load_specs(target_path)
@@ -64,7 +65,24 @@ def _load_for_run(
     target = targets[0]
     if not all(spec.target_ref in {None, target.metadata.name} for spec in tests):
         raise typer.BadParameter("one or more AgentTest targetRef values do not match the target")
-    return tests, cast(TargetSpec, target)
+    mutation_documents = loaded_tests if mutations_path is None else load_specs(mutations_path)
+    mutation_specs = [
+        item.spec for item in mutation_documents if isinstance(item.spec, MutationSpec)
+    ]
+    mutation_names = [spec.metadata.name for spec in mutation_specs]
+    if len(mutation_names) != len(set(mutation_names)):
+        raise typer.BadParameter("mutation names must be unique")
+    mutations = {spec.metadata.name: spec for spec in mutation_specs}
+    missing = sorted(
+        {
+            spec.mutation
+            for spec in tests
+            if spec.mutation is not None and spec.mutation not in mutations
+        }
+    )
+    if missing:
+        raise typer.BadParameter("AgentTest references unknown mutation(s): " + ", ".join(missing))
+    return tests, cast(TargetSpec, target), mutations
 
 
 @app.command("run")
@@ -91,6 +109,22 @@ def run_tests(
             readable=True,
             resolve_path=True,
             help="A path containing exactly one Target. Defaults to PATH.",
+        ),
+    ] = None,
+    mutations: Annotated[
+        Path | None,
+        typer.Option(
+            "--mutations",
+            "-m",
+            exists=True,
+            file_okay=True,
+            dir_okay=True,
+            readable=True,
+            resolve_path=True,
+            help=(
+                "A path containing Mutation specs. Defaults to PATH, allowing tests, "
+                "target, and mutations in one multi-document YAML file."
+            ),
         ),
     ] = None,
     artifacts: Annotated[
@@ -124,7 +158,7 @@ def run_tests(
 ) -> None:
     """Execute AgentTest specifications against a configured target."""
     try:
-        tests, target_spec = _load_for_run(path, target)
+        tests, target_spec, mutation_specs = _load_for_run(path, target, mutations)
         adapter = create_target_adapter(target_spec)
     except SpecLoadError as exc:
         for issue in exc.issues:
@@ -165,6 +199,7 @@ def run_tests(
             ),
             trace_store=trace_store,
             trace_options=trace_options,
+            mutations=mutation_specs,
         )
         result = asyncio.run(runner.run(tests, target_spec))
     finally:
@@ -176,6 +211,14 @@ def run_tests(
         f"{result.summary.incomplete} incomplete)"
     )
     typer.echo(f"Artifacts: {(artifacts / 'runs' / result.run_id).resolve()}")
+    if result.mutation_score is not None:
+        score = result.mutation_score.overall
+        score_text = "n/a" if score.score is None else f"{score.score:.1%}"
+        typer.echo(
+            "Mutation score: "
+            f"{score_text} ({score.killed} killed, {score.survived} survived, "
+            f"{score.not_reached} not reached, {score.invalid} invalid)"
+        )
     if result.error is not None:
         typer.echo(f"ERROR {result.error.code}: {result.error.message}", err=True)
     if result.exit_code != 0:

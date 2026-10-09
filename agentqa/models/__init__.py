@@ -1,6 +1,14 @@
 """Core data models."""
 
 from agentqa.models.base import API_VERSION
+from agentqa.models.mutations import (
+    InterceptionPoint,
+    MutationApplication,
+    MutationMatch,
+    MutationOutcome,
+    MutationScoreBucket,
+    MutationScoreReport,
+)
 from agentqa.models.results import (
     ErrorInfo,
     EvaluationResult,
@@ -38,8 +46,14 @@ __all__ = [
     "GateResult",
     "GateRuleResult",
     "HttpTargetSpec",
+    "InterceptionPoint",
     "LangGraphTargetSpec",
     "MetricSummary",
+    "MutationApplication",
+    "MutationMatch",
+    "MutationOutcome",
+    "MutationScoreBucket",
+    "MutationScoreReport",
     "MutationSpec",
     "PythonTargetSpec",
     "RunContext",

@@ -16,6 +16,7 @@ from agentqa.models import (
     TestInput,
     TraceEvent,
 )
+from agentqa.mutations import MutationEngine, wrap_retriever, wrap_tool
 from agentqa.targets.errors import TargetConfigurationError, TargetErrorCode
 from agentqa.targets.utils import extract_path, load_entrypoint, safe_jsonable, to_jsonable
 from agentqa.tracing.context import (
@@ -28,23 +29,29 @@ from agentqa.tracing.normalization import content_value
 
 @dataclass(slots=True)
 class AgentQARuntime:
-    """Factory-time extension point for future mutation-aware wrappers."""
+    """Factory-time extension point for mutation-aware wrappers."""
 
-    capabilities: dict[str, bool] = field(
-        default_factory=lambda: {
+    mutation_engine: MutationEngine | None = None
+    capabilities: dict[str, bool] = field(init=False)
+
+    def __post_init__(self) -> None:
+        self.capabilities = {
             "tool_wrapping": True,
             "retriever_wrapping": True,
-            "mutation_engine": False,
+            "mutation_engine": self.mutation_engine is not None,
         }
-    )
 
-    def wrap_tool(self, tool: Any) -> Any:
-        """Mark the stable wrapping boundary; T5 supplies mutation behavior."""
-        return tool
+    def wrap_tool(self, tool: Any, *, name: str | None = None) -> Any:
+        """Wrap a tool while preserving pass-through behavior without mutations."""
+        if self.mutation_engine is None:
+            return tool
+        return wrap_tool(tool, self.mutation_engine, name=name)
 
-    def wrap_retriever(self, retriever: Any) -> Any:
-        """Mark the stable wrapping boundary; T5 supplies mutation behavior."""
-        return retriever
+    def wrap_retriever(self, retriever: Any, *, name: str | None = None) -> Any:
+        """Wrap a retriever while preserving pass-through behavior without mutations."""
+        if self.mutation_engine is None:
+            return retriever
+        return wrap_retriever(retriever, self.mutation_engine, name=name)
 
 
 @dataclass(slots=True)
@@ -75,11 +82,22 @@ def _event_kind(
 class LangGraphTargetAdapter:
     """Invoke a graph and normalize LangChain v2 stream events when available."""
 
-    def __init__(self, spec: LangGraphTargetSpec) -> None:
+    def __init__(
+        self,
+        spec: LangGraphTargetSpec,
+        *,
+        mutation_engine: MutationEngine | None = None,
+    ) -> None:
         self._spec = spec
         self._graph: Any = None
-        self._runtime = AgentQARuntime()
+        self._runtime = AgentQARuntime(mutation_engine)
         self._factory_injection = False
+
+    def set_mutation_engine(self, engine: MutationEngine) -> None:
+        """Configure mutations before prepare builds the graph factory."""
+        if self._graph is not None:
+            raise TargetConfigurationError("mutation engine must be configured before prepare")
+        self._runtime = AgentQARuntime(engine)
 
     async def prepare(self, context: RunContext) -> None:
         del context

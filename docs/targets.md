@@ -23,8 +23,9 @@ as a passing test.
 
 HTTP targets support GET and POST JSON requests, restricted `input` templates,
 query parameters, fixed headers, response output paths, and an allowlist of
-response headers to retain. Every request receives W3C `traceparent`,
-`x-agentqa-run-id`, and `x-agentqa-test-id` headers.
+response headers to retain. Every request receives W3C `traceparent` plus run,
+test, trial, and trace identity headers. Active mutation ID, deterministic trial
+seed, and test labels are included when available for fault-proxy matching.
 
 ```yaml
 apiVersion: agentqa.dev/v1alpha1
@@ -126,7 +127,9 @@ events. State diffs retain only configured keys. A compiled graph can run and
 be observed, but its capability metadata recommends a factory when complete
 tool or retriever wrapping cannot be guaranteed.
 
-The `AgentQARuntime` wrapper methods are the T3 extension boundary. T5 supplies
-the actual mutation behavior. T4 now records framework events directly in the
-trial TraceStore; see [`tracing.md`](tracing.md) for persistence, completeness,
-OTLP export, and privacy behavior.
+The `AgentQARuntime` wrapper methods apply T5 tool and retriever mutations at
+the real invocation boundary and emit linked application/trace evidence. T4
+records framework events directly in the trial TraceStore; see
+[`tracing.md`](tracing.md) for persistence, completeness, OTLP export, and
+privacy behavior, and [`mutations.md`](mutations.md) for wrapper and mutation
+semantics.
