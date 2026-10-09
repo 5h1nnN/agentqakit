@@ -30,6 +30,32 @@
           "default": null,
           "title": "Maxlatencyms"
         },
+        "maxLlmCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxllmcalls"
+        },
+        "maxRetries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxretries"
+        },
         "maxSteps": {
           "anyOf": [
             {
@@ -42,6 +68,19 @@
           ],
           "default": null,
           "title": "Maxsteps"
+        },
+        "maxToolCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtoolcalls"
         },
         "maxTotalTokens": {
           "anyOf": [
@@ -146,6 +185,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ToolExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "trajectory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrajectoryExpectation"
             },
             {
               "type": "null"
@@ -264,6 +314,15 @@
       "additionalProperties": false,
       "description": "Deterministic assertions over the final output.",
       "properties": {
+        "allowedHttpStatuses": {
+          "items": {
+            "maximum": 599,
+            "minimum": 100,
+            "type": "integer"
+          },
+          "title": "Allowedhttpstatuses",
+          "type": "array"
+        },
         "exactFields": {
           "additionalProperties": {
             "$ref": "#/$defs/JsonValue"
@@ -359,26 +418,130 @@
       "title": "Scenario",
       "type": "object"
     },
+    "SpanAttributeExpectation": {
+      "additionalProperties": false,
+      "description": "An attribute required on every span selected by optional kind and name.",
+      "properties": {
+        "attribute": {
+          "minLength": 1,
+          "title": "Attribute",
+          "type": "string"
+        },
+        "equals": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "AGENT",
+                "LLM",
+                "TOOL",
+                "RETRIEVER",
+                "NODE",
+                "EVALUATOR"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "required": [
+        "attribute"
+      ],
+      "title": "SpanAttributeExpectation",
+      "type": "object"
+    },
     "StateExpectation": {
       "additionalProperties": false,
-      "description": "State assertions retained as a restricted DSL for later evaluation.",
+      "description": "A conjunction of non-executable state assertions.",
       "properties": {
-        "invariants": {
+        "all": {
           "items": {
-            "minLength": 1,
-            "type": "string"
+            "$ref": "#/$defs/StateInvariant"
           },
-          "title": "Invariants",
+          "minItems": 1,
+          "title": "All",
           "type": "array"
         }
       },
+      "required": [
+        "all"
+      ],
       "title": "StateExpectation",
+      "type": "object"
+    },
+    "StateInvariant": {
+      "additionalProperties": false,
+      "description": "One non-executable state assertion over a restricted field path.",
+      "properties": {
+        "field": {
+          "minLength": 1,
+          "title": "Field",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "equals",
+            "notEquals",
+            "exists",
+            "in",
+            "before"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "title": "StateInvariant",
       "type": "object"
     },
     "ToolExpectation": {
       "additionalProperties": false,
       "description": "Allowed tool-call behavior for a test.",
       "properties": {
+        "argumentSchemas": {
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "title": "Argumentschemas",
+          "type": "object"
+        },
         "forbidden": {
           "items": {
             "maxLength": 128,
@@ -448,6 +611,34 @@
         }
       },
       "title": "ToolExpectation",
+      "type": "object"
+    },
+    "TrajectoryExpectation": {
+      "additionalProperties": false,
+      "description": "Assertions over normalized trace shape and span metadata.",
+      "properties": {
+        "maxErrorSpans": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxerrorspans"
+        },
+        "requiredSpanAttributes": {
+          "items": {
+            "$ref": "#/$defs/SpanAttributeExpectation"
+          },
+          "title": "Requiredspanattributes",
+          "type": "array"
+        }
+      },
+      "title": "TrajectoryExpectation",
       "type": "object"
     },
     "TrialPolicy": {

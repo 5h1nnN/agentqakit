@@ -6,6 +6,7 @@ from typing import Annotated, cast
 
 import typer
 
+from agentqa.evaluators import built_in_evaluators
 from agentqa.models import AgentTestSpec, MutationSpec, TargetSpec
 from agentqa.runner import RunnerOptions, TestRunner
 from agentqa.specs import SpecLoadError, load_specs
@@ -190,7 +191,7 @@ def run_tests(
     try:
         runner = TestRunner(
             adapter,
-            {},
+            built_in_evaluators(),
             options=RunnerOptions(
                 artifact_directory=artifacts,
                 random_seed=seed,

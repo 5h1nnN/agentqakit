@@ -25,7 +25,7 @@ def test_version() -> None:
     assert result.stdout.strip() == f"AgentQAKit {__version__}"
 
 
-def test_run_executes_python_target_and_fails_closed_without_t6_evaluator(
+def test_run_executes_python_target_with_builtin_schema_evaluator(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "target.yaml"
@@ -73,8 +73,8 @@ evaluators:
         ],
     )
 
-    assert result.exit_code == 1
-    assert "COMPLETED (0 passed, 1 failed" in result.stdout
+    assert result.exit_code == 0
+    assert "COMPLETED (1 passed, 0 failed" in result.stdout
     run_directories = list((artifacts / "runs").iterdir())
     assert len(run_directories) == 1
     assert (run_directories[0] / "summary.json").is_file()

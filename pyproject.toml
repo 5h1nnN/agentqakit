@@ -25,6 +25,7 @@ classifiers = [
 ]
 dependencies = [
   "httpx>=0.27,<1",
+  "jsonschema>=4.23,<5",
   "opentelemetry-api>=1.30,<2",
   "opentelemetry-exporter-otlp-proto-http>=1.30,<2",
   "opentelemetry-instrumentation>=0.51b0,<1",
@@ -32,6 +33,7 @@ dependencies = [
   "opentelemetry-sdk>=1.30,<2",
   "pydantic>=2.10,<3",
   "PyYAML>=6.0,<7",
+  "regex>=2024.11,<2027",
   "rich>=13.9,<15",
   "typer>=0.12,<1",
 ]
@@ -51,7 +53,9 @@ dev = [
   "pytest>=8.3,<9",
   "pytest-asyncio>=0.24,<2",
   "ruff>=0.9,<1",
+  "types-jsonschema>=4.23,<5",
   "types-PyYAML>=6.0.12,<7",
+  "types-regex>=2024.11,<2027",
 ]
 
 [project.scripts]

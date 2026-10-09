@@ -52,6 +52,58 @@ The generated contracts in [`schemas/`](../schemas/) can be refreshed with:
 python scripts/export_schemas.py
 ```
 
+## Evaluation expectations
+
+`expect` is declarative data; it never executes user-provided Python. Available
+sections are:
+
+- `output`: Draft 2020-12 JSON Schema, exact field paths, required and forbidden
+  regex patterns, refusal intent, non-empty output, and allowed HTTP statuses;
+- `tools`: required or forbidden names, total/per-tool call limits, argument
+  schemas, and pairwise `before`/`after` constraints;
+- `trajectory`: maximum `ERROR` spans and required span attributes;
+- `state.all`: restricted `equals`, `notEquals`, `exists`, `in`, and `before`
+  invariants;
+- `budgets`: latency, token, step, LLM/tool call, cost, and retry limits.
+
+For example:
+
+```yaml
+expect:
+  output:
+    jsonSchema:
+      type: object
+      required: [answer]
+    exactFields:
+      $.status: ok
+    allowedHttpStatuses: [200]
+  tools:
+    required: [course.lookup]
+    argumentSchemas:
+      course.lookup:
+        type: object
+        required: [course_id]
+    order:
+      - before: course.lookup
+        after: answer.render
+  trajectory:
+    maxErrorSpans: 0
+  state:
+    all:
+      - field: data_disclosed
+        op: equals
+        value: false
+  budgets:
+    maxLatencyMs: 8000
+    maxLlmCalls: 3
+    maxToolCalls: 4
+    maxRetries: 1
+```
+
+Field paths support only names and integer indexes, such as `$.answer.text` or
+`items[0].id`. Evaluator behavior and observability rules are documented in
+[`evaluators.md`](evaluators.md).
+
 Target-specific runtime behavior and network/process security defaults are
 documented in [`targets.md`](targets.md). Mutation operations, matching fields,
 runtime evidence, and scoring are documented in [`mutations.md`](mutations.md).

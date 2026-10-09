@@ -15,9 +15,8 @@ agentqa test run examples/specs/basic-test.yaml \
 ```
 
 The command writes the normal run artifacts and exits with the runner's exit
-code. Until the T6 evaluators are implemented, configured evaluator types are
-reported as `EVALUATION_ERROR`; a successful target call alone is not treated
-as a passing test.
+code. The CLI registers AgentQAKit's built-in T6 evaluators. A trial passes only
+when the target succeeds and every configured evaluator returns `PASS`.
 
 ## HTTP
 

@@ -20,6 +20,13 @@ structured trial results so later trials still execute. Cleanup is attempted
 after every preparation attempt and has its own timeout. `summary.json` is
 written last.
 
+Each evaluator receives one immutable `EvaluationRequest` containing the
+validated `AgentTestSpec`, its own `EvaluatorSpec`, the complete `TargetResult`,
+the explicit `TraceRecord`, and the trial `RunContext`. An assertion mismatch is
+`FAIL`; an evaluator crash, timeout, invalid result, or missing implementation is
+`ERROR`. This distinction keeps product regressions separate from test
+infrastructure defects.
+
 ## Trial policy
 
 Multiple trials are reduced to one test-case decision with `trialPolicy`:
@@ -65,3 +72,6 @@ T2 is sequential by design. Concurrency, semaphores, and global Token/cost
 budgets belong to the deferred T2-3 task. The runner's explicit per-trial
 contexts and stable execution ordering provide the boundary for adding them
 later.
+
+The built-in evaluators and their evidence semantics are described in
+[`evaluators.md`](evaluators.md).

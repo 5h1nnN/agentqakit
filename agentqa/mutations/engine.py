@@ -176,6 +176,7 @@ class MutationEngine:
                 attributes={
                     "agentqa.mutation.id": attempt.spec.metadata.name,
                     "agentqa.mutation.operation": attempt.spec.operation.type,
+                    "agentqa.interception.name": attempt.invocation.interception.name,
                     "agentqa.mutation.matched": attempt.match.matched,
                     "agentqa.mutation.triggered": triggered,
                     "agentqa.mutation.call_index": attempt.invocation.call_index,

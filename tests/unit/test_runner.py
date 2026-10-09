@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 
 from agentqa.conventions import utc_now
+from agentqa.evaluators import EvaluationRequest
 from agentqa.models import (
     AgentTestSpec,
     EvaluationResult,
@@ -17,13 +18,11 @@ from agentqa.models import (
     MutationSpec,
     RunContext,
     TargetResult,
-    TraceEvent,
     Violation,
 )
 from agentqa.models import (
     TestInput as AgentTestInput,
 )
-from agentqa.models.specs import EvaluatorSpec
 from agentqa.runner import RunnerOptions, get_current_run_context
 from agentqa.runner import TestRunner as AgentTestRunner
 from agentqa.storage import ArtifactError
@@ -98,20 +97,16 @@ class FakeAdapter:
 
 class ResultEvaluator:
     type = "schema"
+    requires_trace = False
+    runs_on_target_error = False
 
-    async def evaluate(
-        self,
-        spec: EvaluatorSpec,
-        target_result: TargetResult,
-        trace: Sequence[TraceEvent] | None,
-        context: RunContext,
-    ) -> EvaluationResult:
-        assert trace is None
-        output = target_result.output
+    async def evaluate(self, request: EvaluationRequest) -> EvaluationResult:
+        assert request.trace_record.status == "missing"
+        output = request.target_result.output
         passed = isinstance(output, dict) and output.get("passed") is True
         violations = [] if passed else [Violation(type="output", message="output failed")]
         return EvaluationResult(
-            evaluator_type=spec.type,
+            evaluator_type=request.evaluator_spec.type,
             status="PASS" if passed else "FAIL",
             score=1.0 if passed else 0.0,
             violations=violations,
@@ -120,41 +115,28 @@ class ResultEvaluator:
 
 class RaisingEvaluator:
     type = "schema"
+    requires_trace = False
+    runs_on_target_error = False
 
-    async def evaluate(
-        self,
-        spec: EvaluatorSpec,
-        target_result: TargetResult,
-        trace: Sequence[TraceEvent] | None,
-        context: RunContext,
-    ) -> EvaluationResult:
+    async def evaluate(self, request: EvaluationRequest) -> EvaluationResult:
         raise ValueError("sensitive evaluator detail")
 
 
 class TraceRequiredEvaluator:
     type = "schema"
     requires_trace = True
+    runs_on_target_error = False
 
-    async def evaluate(
-        self,
-        spec: EvaluatorSpec,
-        target_result: TargetResult,
-        trace: Sequence[TraceEvent] | None,
-        context: RunContext,
-    ) -> EvaluationResult:
+    async def evaluate(self, request: EvaluationRequest) -> EvaluationResult:
         raise AssertionError("trace evaluator must not run without complete evidence")
 
 
 class SlowEvaluator:
     type = "schema"
+    requires_trace = False
+    runs_on_target_error = False
 
-    async def evaluate(
-        self,
-        spec: EvaluatorSpec,
-        target_result: TargetResult,
-        trace: Sequence[TraceEvent] | None,
-        context: RunContext,
-    ) -> EvaluationResult:
+    async def evaluate(self, request: EvaluationRequest) -> EvaluationResult:
         await asyncio.sleep(60)
         raise AssertionError("timed-out evaluator continued")
 

@@ -1,21 +1,34 @@
-"""Evaluator contract consumed by the test runner."""
+"""Evaluator contracts consumed by the test runner."""
 
-from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Protocol
 
-from agentqa.models import EvaluationResult, RunContext, TargetResult, TraceEvent
+from agentqa.models import (
+    AgentTestSpec,
+    EvaluationResult,
+    RunContext,
+    TargetResult,
+    TraceRecord,
+)
 from agentqa.models.specs import EvaluatorSpec
 
 
+@dataclass(frozen=True, slots=True)
+class EvaluationRequest:
+    """All validated evidence and expectations available to one evaluator."""
+
+    evaluator_spec: EvaluatorSpec
+    test_spec: AgentTestSpec
+    target_result: TargetResult
+    trace_record: TraceRecord
+    context: RunContext
+
+
 class Evaluator(Protocol):
-    """Evaluate a target result and optional trace against one evaluator spec."""
+    """Evaluate one request without mutating target or trace evidence."""
 
     type: str
+    requires_trace: bool
+    runs_on_target_error: bool
 
-    async def evaluate(
-        self,
-        spec: EvaluatorSpec,
-        target_result: TargetResult,
-        trace: Sequence[TraceEvent] | None,
-        context: RunContext,
-    ) -> EvaluationResult: ...
+    async def evaluate(self, request: EvaluationRequest) -> EvaluationResult: ...

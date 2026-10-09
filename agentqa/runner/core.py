@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Literal, TypeVar, cast
 
 from agentqa.conventions import new_id, to_utc_iso8601, utc_now
-from agentqa.evaluators import Evaluator
+from agentqa.evaluators import EvaluationRequest, Evaluator
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
@@ -227,16 +227,13 @@ class TestRunner:
 
     async def _evaluate(
         self,
-        specs: Sequence[EvaluatorSpec],
+        test_spec: AgentTestSpec,
         target_result: TargetResult,
         trace_record: TraceRecord,
         context: RunContext,
     ) -> list[EvaluationResult]:
-        if target_result.status != "OK":
-            return self._skipped_evaluations(specs, "target invocation did not complete")
-
         results: list[EvaluationResult] = []
-        for evaluator_spec in specs:
+        for evaluator_spec in test_spec.evaluators:
             evaluator = self._evaluators.get(evaluator_spec.type)
             if evaluator is None:
                 results.append(
@@ -245,6 +242,17 @@ class TestRunner:
                         status="ERROR",
                         message=f"no evaluator registered for {evaluator_spec.type}",
                         metadata={"error_code": RunErrorCode.EVALUATION_ERROR.value},
+                    )
+                )
+                continue
+            if target_result.status != "OK" and not getattr(
+                evaluator, "runs_on_target_error", False
+            ):
+                results.append(
+                    EvaluationResult(
+                        evaluator_type=evaluator_spec.type,
+                        status="SKIPPED",
+                        message="target invocation did not complete",
                     )
                 )
                 continue
@@ -264,10 +272,13 @@ class TestRunner:
             try:
                 result = await self._wait_or_cancel(
                     evaluator.evaluate(
-                        evaluator_spec,
-                        target_result,
-                        None if trace_record.status == "missing" else trace_record.events,
-                        context,
+                        EvaluationRequest(
+                            evaluator_spec=evaluator_spec,
+                            test_spec=test_spec,
+                            target_result=target_result,
+                            trace_record=trace_record,
+                            context=context,
+                        )
                     ),
                     timeout_seconds=self._options.evaluator_timeout_seconds,
                 )
@@ -393,7 +404,7 @@ class TestRunner:
                     )
                     trace_record = self._trace_store.build_record(context.trace_id or "")
                     evaluations = await self._evaluate(
-                        spec.evaluators,
+                        spec,
                         target_result,
                         trace_record,
                         context,

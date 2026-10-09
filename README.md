@@ -9,6 +9,8 @@ contains the package foundation, strict specifications, sequential runner,
 HTTP, isolated Python, and optional LangGraph target adapters, plus bounded
 OpenTelemetry trace collection, OTLP/HTTP instrumentation, deterministic tool,
 retriever, and HTTP mutations, and recomputable Mutation Score reports.
+It also includes deterministic output, tool, trajectory, state, privacy, and
+budget evaluators plus an opt-in, provider-neutral LLM judge boundary.
 
 ## Requirements
 
@@ -57,7 +59,7 @@ agentqa mutation score artifacts/runs/<run-id>
 
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
-[`docs/specifications.md`](docs/specifications.md) for the supported T1 format.
+[`docs/specifications.md`](docs/specifications.md) for the supported format.
 
 The sequential runner provides an explicit lifecycle, per-trial isolation,
 timeouts, cancellation, partial-failure handling, and stability aggregation.
@@ -67,7 +69,9 @@ subprocess isolation, and LangGraph observation are documented in
 local OTLP receiver, and zero-source-change instrumentation are documented in
 [`docs/tracing.md`](docs/tracing.md). Mutation matching, runtime wrappers, the
 fixed-upstream fault proxy, evidence, and score semantics are documented in
-[`docs/mutations.md`](docs/mutations.md).
+[`docs/mutations.md`](docs/mutations.md). Evaluator evidence requirements,
+status semantics, and Judge integration are documented in
+[`docs/evaluators.md`](docs/evaluators.md).
 
 ## Repository layout
 
