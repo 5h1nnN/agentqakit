@@ -5,6 +5,8 @@ from typing import Any, cast
 from agentqa.models import LangGraphTargetSpec, RunContext
 from agentqa.models import TestInput as TargetInput
 from agentqa.targets import LangGraphTargetAdapter
+from agentqa.tracing import InMemoryTraceStore
+from agentqa.tracing.context import reset_current_trace_store, set_current_trace_store
 
 
 def _context(tmp_path: Path) -> RunContext:
@@ -33,24 +35,30 @@ async def test_langgraph_factory_invokes_and_normalizes_events(tmp_path: Path) -
     context = _context(tmp_path)
     await adapter.prepare(context)
 
-    result = await adapter.invoke(
-        TargetInput(
-            test_case_id="case-1",
-            messages=[{"role": "user", "content": "hello"}],
-        ),
-        context,
-    )
+    store = InMemoryTraceStore()
+    token = set_current_trace_store(store)
+    try:
+        result = await adapter.invoke(
+            TargetInput(
+                test_case_id="case-1",
+                messages=[{"role": "user", "content": "hello"}],
+            ),
+            context,
+        )
+    finally:
+        reset_current_trace_store(token)
     await adapter.cleanup(context)
 
     assert result.status == "OK"
     assert result.output == "done"
     capabilities = cast(dict[str, Any], result.metadata["capabilities"])
     assert capabilities["factory_injection"] is True
-    events = cast(list[dict[str, Any]], result.metadata["trace_events"])
-    assert isinstance(events, list)
-    assert {event["kind"] for event in events} == {"AGENT", "LLM", "TOOL"}
-    agent = next(event for event in events if event["kind"] == "AGENT")
-    assert agent["state_diff"] == {"safe": 1}
+    events = store.get_events(context.trace_id or "")
+    assert {event.kind for event in events} == {"AGENT", "LLM", "TOOL"}
+    agent = next(event for event in events if event.kind == "AGENT")
+    assert agent.state_diff == {"safe": 1}
+    assert agent.input is not None
+    assert "sha256" in cast(dict[str, Any], agent.input)
 
 
 async def test_compiled_graph_reports_injection_hint_and_extracts_path(tmp_path: Path) -> None:

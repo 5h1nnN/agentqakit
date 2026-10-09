@@ -53,11 +53,21 @@ class PythonTargetAdapter:
                 "PYTHONUNBUFFERED": "1",
                 "AGENTQA_RUN_ID": context.run_id,
                 "AGENTQA_TEST_ID": context.test_case_id or "",
+                "AGENTQA_TRIAL_ID": context.trial_id or "",
                 "AGENTQA_TRACE_ID": context.trace_id or "",
                 "AGENTQA_MUTATION_ID": context.mutation_id or "",
                 "AGENTQA_ARTIFACT_DIR": context.artifact_dir or "",
             }
         )
+        if context.otlp_endpoint is not None:
+            environment.update(
+                {
+                    "OTEL_EXPORTER_OTLP_ENDPOINT": context.otlp_endpoint,
+                    "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+                    "OTEL_TRACES_EXPORTER": "otlp",
+                    "OTEL_SERVICE_NAME": "agentqa-python-target",
+                }
+            )
         return environment
 
     @staticmethod

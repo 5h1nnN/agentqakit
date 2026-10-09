@@ -41,6 +41,19 @@
       "default": null,
       "title": "Mutation Id"
     },
+    "otlp_endpoint": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Otlp Endpoint"
+    },
     "random_seed": {
       "title": "Random Seed",
       "type": "integer"

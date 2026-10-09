@@ -5,6 +5,8 @@ import inspect
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from opentelemetry import trace
+
 from agentqa.conventions import new_id, utc_now
 from agentqa.models import (
     ErrorInfo,
@@ -16,6 +18,12 @@ from agentqa.models import (
 )
 from agentqa.targets.errors import TargetConfigurationError, TargetErrorCode
 from agentqa.targets.utils import extract_path, load_entrypoint, safe_jsonable, to_jsonable
+from agentqa.tracing.context import (
+    get_current_trace_options,
+    get_current_trace_store,
+    record_trace_event,
+)
+from agentqa.tracing.normalization import content_value
 
 
 @dataclass(slots=True)
@@ -157,11 +165,14 @@ class LangGraphTargetAdapter:
         graph_input: dict[str, Any],
         config: dict[str, Any],
         context: RunContext,
-    ) -> tuple[Any, list[TraceEvent]]:
+    ) -> tuple[Any, int]:
         trace_id = context.trace_id or new_id()
         open_spans: dict[str, _OpenSpan] = {}
-        traces: list[TraceEvent] = []
+        event_count = 0
         final_output: Any = None
+        span_context = trace.get_current_span().get_span_context()
+        runner_span_id = f"{span_context.span_id:016x}" if span_context.is_valid else None
+        trace_options = get_current_trace_options()
         stream = self._graph.astream_events(graph_input, config=config, version="v2")
         async for raw_event in stream:
             if not isinstance(raw_event, dict):
@@ -177,10 +188,10 @@ class LangGraphTargetAdapter:
             if suffix == "start":
                 open_spans[run_id] = _OpenSpan(
                     span_id=run_id,
-                    parent_span_id=parent_ids[-1] if parent_ids else None,
+                    parent_span_id=parent_ids[-1] if parent_ids else runner_span_id,
                     kind=_event_kind(event_name, is_root=is_root),
                     name=str(raw_event.get("name") or event_name),
-                    input=safe_jsonable(data.get("input")),
+                    input=content_value(data.get("input"), trace_options),
                     started_at=utc_now(),
                     attributes={
                         "event": event_name,
@@ -194,7 +205,7 @@ class LangGraphTargetAdapter:
             if opened is None:
                 opened = _OpenSpan(
                     span_id=run_id,
-                    parent_span_id=parent_ids[-1] if parent_ids else None,
+                    parent_span_id=parent_ids[-1] if parent_ids else runner_span_id,
                     kind=_event_kind(event_name, is_root=is_root),
                     name=str(raw_event.get("name") or event_name),
                     input=None,
@@ -210,7 +221,7 @@ class LangGraphTargetAdapter:
                     code=TargetErrorCode.LANGGRAPH_RUNTIME_ERROR.value,
                     message="LangGraph event reported an error",
                 )
-            traces.append(
+            record_trace_event(
                 TraceEvent(
                     trace_id=trace_id,
                     span_id=opened.span_id,
@@ -218,7 +229,7 @@ class LangGraphTargetAdapter:
                     kind=opened.kind,
                     name=opened.name,
                     input=opened.input,
-                    output=safe_jsonable(output),
+                    output=content_value(output, trace_options),
                     started_at=opened.started_at,
                     ended_at=utc_now(),
                     status="ERROR" if error is not None else "OK",
@@ -227,21 +238,28 @@ class LangGraphTargetAdapter:
                     state_diff=self._state_diff(output),
                 )
             )
-        return final_output, traces
+            event_count += 1
+        current_store = get_current_trace_store()
+        if current_store is not None and open_spans:
+            current_store.add_diagnostic(
+                trace_id,
+                f"{len(open_spans)} LangGraph span(s) did not end",
+            )
+        return final_output, event_count
 
     async def _invoke_graph(
         self,
         graph_input: dict[str, Any],
         config: dict[str, Any],
         context: RunContext,
-    ) -> tuple[Any, list[TraceEvent]]:
+    ) -> tuple[Any, int]:
         if callable(getattr(self._graph, "astream_events", None)):
             return await self._event_stream(graph_input, config, context)
         if callable(getattr(self._graph, "ainvoke", None)):
-            return await self._graph.ainvoke(graph_input, config=config), []
+            return await self._graph.ainvoke(graph_input, config=config), 0
         invoke = getattr(self._graph, "invoke", None)
         if callable(invoke):
-            return await asyncio.to_thread(invoke, graph_input, config=config), []
+            return await asyncio.to_thread(invoke, graph_input, config=config), 0
         raise TargetConfigurationError("LangGraph target is not invokable")
 
     async def invoke(self, test_input: TestInput, context: RunContext) -> TargetResult:
@@ -267,7 +285,7 @@ class LangGraphTargetAdapter:
                 metadata={"capabilities": capabilities},
             )
         try:
-            output, traces = await self._invoke_graph(
+            output, trace_event_count = await self._invoke_graph(
                 self._input(test_input), self._config(context), context
             )
             if output is None:
@@ -302,7 +320,7 @@ class LangGraphTargetAdapter:
             ended_at=utc_now(),
             metadata={
                 "capabilities": capabilities,
-                "trace_events": [event.model_dump(mode="json") for event in traces],
+                "trace_event_count": trace_event_count,
                 "latency_ms": (utc_now() - started_at).total_seconds() * 1000,
             },
         )

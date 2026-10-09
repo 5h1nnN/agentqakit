@@ -15,6 +15,7 @@ from agentqa.models.results import (
     TestInput,
     TestResult,
     TraceEvent,
+    TraceRecord,
     Violation,
 )
 from agentqa.models.specs import (
@@ -50,6 +51,7 @@ __all__ = [
     "TestInput",
     "TestResult",
     "TraceEvent",
+    "TraceRecord",
     "TrialPolicy",
     "Violation",
 ]

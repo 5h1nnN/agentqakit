@@ -256,6 +256,29 @@
       "title": "Trace Id",
       "type": "string"
     },
+    "trace_ref": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trace Ref"
+    },
+    "trace_status": {
+      "default": "missing",
+      "enum": [
+        "complete",
+        "partial",
+        "missing"
+      ],
+      "title": "Trace Status",
+      "type": "string"
+    },
     "trial_id": {
       "minLength": 1,
       "title": "Trial Id",

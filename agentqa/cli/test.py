@@ -10,6 +10,7 @@ from agentqa.models import AgentTestSpec, TargetSpec
 from agentqa.runner import RunnerOptions, TestRunner
 from agentqa.specs import SpecLoadError, load_specs
 from agentqa.targets import TargetConfigurationError, create_target_adapter
+from agentqa.tracing import InMemoryTraceStore, LocalOTLPReceiver, TraceOptions
 
 app = typer.Typer(help="Validate and run AgentTest specifications.", no_args_is_help=True)
 
@@ -101,6 +102,25 @@ def run_tests(
         ),
     ] = Path("artifacts"),
     seed: Annotated[int, typer.Option(help="Deterministic base random seed.")] = 0,
+    otlp_port: Annotated[
+        int,
+        typer.Option(min=0, max=65_535, help="Loopback OTLP/HTTP receiver port."),
+    ] = 4318,
+    trace_receiver: Annotated[
+        bool,
+        typer.Option(
+            "--trace-receiver/--no-trace-receiver",
+            help="Collect standard OTLP spans from instrumented target processes.",
+        ),
+    ] = True,
+    trace_flush_timeout: Annotated[
+        float,
+        typer.Option(min=0.01, help="Seconds to await spans after a target response."),
+    ] = 0.25,
+    capture_trace_content: Annotated[
+        bool,
+        typer.Option(help="Persist redacted, size-limited span input and output content."),
+    ] = False,
 ) -> None:
     """Execute AgentTest specifications against a configured target."""
     try:
@@ -114,15 +134,42 @@ def run_tests(
         typer.echo(f"ERROR {exc}", err=True)
         raise typer.Exit(code=2) from None
 
-    runner = TestRunner(
-        adapter,
-        {},
-        options=RunnerOptions(
-            artifact_directory=artifacts,
-            random_seed=seed,
-        ),
+    trace_options = TraceOptions(
+        flush_timeout_seconds=trace_flush_timeout,
+        capture_content=capture_trace_content,
     )
-    result = asyncio.run(runner.run(tests, target_spec))
+    trace_store = InMemoryTraceStore(max_spans_per_trace=trace_options.max_spans_per_trace)
+    receiver: LocalOTLPReceiver | None = None
+    endpoint: str | None = None
+    if trace_receiver:
+        try:
+            receiver = LocalOTLPReceiver(trace_store, port=otlp_port, options=trace_options)
+            receiver.start()
+            endpoint = receiver.endpoint
+        except OSError as exc:
+            typer.echo(
+                f"ERROR could not start local OTLP receiver: {type(exc).__name__}; "
+                "choose --otlp-port or use --no-trace-receiver",
+                err=True,
+            )
+            raise typer.Exit(code=2) from None
+    try:
+        runner = TestRunner(
+            adapter,
+            {},
+            options=RunnerOptions(
+                artifact_directory=artifacts,
+                random_seed=seed,
+                trace_flush_timeout_seconds=trace_flush_timeout,
+                otlp_endpoint=endpoint,
+            ),
+            trace_store=trace_store,
+            trace_options=trace_options,
+        )
+        result = asyncio.run(runner.run(tests, target_spec))
+    finally:
+        if receiver is not None:
+            receiver.stop()
     typer.echo(
         f"Run {result.run_id}: {result.status} "
         f"({result.summary.passed} passed, {result.summary.failed} failed, "

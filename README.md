@@ -5,8 +5,9 @@ repeatable agent tests, collect execution traces, inject controlled failures,
 evaluate results, reproduce failures, and enforce quality gates in CI.
 
 The project is currently being built from the ground up. The repository now
-contains the package foundation, strict specifications, sequential runner, and
-HTTP, isolated Python, and optional LangGraph target adapters.
+contains the package foundation, strict specifications, sequential runner,
+HTTP, isolated Python, and optional LangGraph target adapters, plus bounded
+OpenTelemetry trace collection and OTLP/HTTP instrumentation.
 
 ## Requirements
 
@@ -20,6 +21,8 @@ python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
+# Optional OpenAI/LangGraph auto-instrumentation:
+python -m pip install -e ".[instrumentation]"
 ```
 
 Verify the installation:
@@ -52,7 +55,9 @@ The sequential runner provides an explicit lifecycle, per-trial isolation,
 timeouts, cancellation, partial-failure handling, and stability aggregation.
 See [`docs/runner.md`](docs/runner.md). Target construction, security defaults,
 subprocess isolation, and LangGraph observation are documented in
-[`docs/targets.md`](docs/targets.md).
+[`docs/targets.md`](docs/targets.md). Trace completeness, privacy limits, the
+local OTLP receiver, and zero-source-change instrumentation are documented in
+[`docs/tracing.md`](docs/tracing.md).
 
 ## Repository layout
 

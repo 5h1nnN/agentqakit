@@ -69,6 +69,7 @@ evaluators:
             str(target),
             "--artifacts",
             str(artifacts),
+            "--no-trace-receiver",
         ],
     )
 

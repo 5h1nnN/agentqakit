@@ -1,12 +1,13 @@
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
 
 import pytest
 
 from agentqa.models import LangGraphTargetSpec, RunContext
 from agentqa.models import TestInput as TargetInput
 from agentqa.targets import LangGraphTargetAdapter
+from agentqa.tracing import InMemoryTraceStore
+from agentqa.tracing.context import reset_current_trace_store, set_current_trace_store
 
 pytestmark = pytest.mark.integration
 pytest.importorskip("langgraph.graph")
@@ -33,17 +34,22 @@ async def test_adapter_runs_real_compiled_langgraph(tmp_path: Path) -> None:
     adapter = LangGraphTargetAdapter(spec)
     await adapter.prepare(context)
 
-    result = await adapter.invoke(
-        TargetInput(
-            test_case_id="real-graph-case",
-            messages=[{"role": "user", "content": "hello"}],
-        ),
-        context,
-    )
+    store = InMemoryTraceStore()
+    token = set_current_trace_store(store)
+    try:
+        result = await adapter.invoke(
+            TargetInput(
+                test_case_id="real-graph-case",
+                messages=[{"role": "user", "content": "hello"}],
+            ),
+            context,
+        )
+    finally:
+        reset_current_trace_store(token)
     await adapter.cleanup(context)
 
     assert result.status == "OK"
     assert result.output == "real-graph-done"
-    events = cast(list[dict[str, Any]], result.metadata["trace_events"])
-    assert any(event["kind"] == "AGENT" for event in events)
-    assert any(event["name"] == "answer" for event in events)
+    events = store.get_events(context.trace_id or "")
+    assert any(event.kind == "AGENT" for event in events)
+    assert any(event.name == "answer" for event in events)

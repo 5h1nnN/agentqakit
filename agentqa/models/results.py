@@ -38,6 +38,7 @@ class RunContext(StrictModel):
     trace_id: NonEmptyString | None = None
     mutation_id: NonEmptyString | None = None
     trial_seed: int | None = None
+    otlp_endpoint: NonEmptyString | None = None
 
 
 class TestInput(StrictModel):
@@ -103,6 +104,30 @@ class TraceEvent(StrictModel):
         return self
 
 
+class TraceRecord(StrictModel):
+    """A collected trial trace plus an explicit observability decision."""
+
+    trace_id: NonEmptyString
+    status: Literal["complete", "partial", "missing"]
+    root_span_id: NonEmptyString | None = None
+    events: list[TraceEvent] = Field(default_factory=list)
+    diagnostics: list[NonEmptyString] = Field(default_factory=list)
+    dropped_spans: NonNegativeInt = 0
+
+    @model_validator(mode="after")
+    def validate_trace_membership(self) -> "TraceRecord":
+        if any(event.trace_id != self.trace_id for event in self.events):
+            msg = "every trace event must belong to trace_id"
+            raise ValueError(msg)
+        if self.status == "missing" and self.root_span_id is not None:
+            msg = "missing trace cannot identify a root span"
+            raise ValueError(msg)
+        if self.status == "complete" and self.root_span_id is None:
+            msg = "complete trace requires a root span"
+            raise ValueError(msg)
+        return self
+
+
 class Violation(StrictModel):
     """A concrete failed assertion with optional trace evidence."""
 
@@ -138,6 +163,8 @@ class TestResult(StrictModel):
     violations: list[Violation] = Field(default_factory=list)
     evaluations: list[EvaluationResult] = Field(default_factory=list)
     target_result: TargetResult
+    trace_status: Literal["complete", "partial", "missing"] = "missing"
+    trace_ref: NonEmptyString | None = None
 
     @model_validator(mode="after")
     def validate_time(self) -> "TestResult":

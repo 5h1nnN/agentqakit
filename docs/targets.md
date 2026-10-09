@@ -127,4 +127,6 @@ be observed, but its capability metadata recommends a factory when complete
 tool or retriever wrapping cannot be guaranteed.
 
 The `AgentQARuntime` wrapper methods are the T3 extension boundary. T5 supplies
-the actual mutation behavior; T4 supplies durable trace storage and export.
+the actual mutation behavior. T4 now records framework events directly in the
+trial TraceStore; see [`tracing.md`](tracing.md) for persistence, completeness,
+OTLP export, and privacy behavior.

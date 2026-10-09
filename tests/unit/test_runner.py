@@ -13,6 +13,7 @@ from agentqa.models import (
     AgentTestSpec,
     EvaluationResult,
     HttpTargetSpec,
+    LangGraphTargetSpec,
     RunContext,
     TargetResult,
     TraceEvent,
@@ -26,6 +27,7 @@ from agentqa.runner import RunnerOptions, get_current_run_context
 from agentqa.runner import TestRunner as AgentTestRunner
 from agentqa.storage import ArtifactError
 from agentqa.targets import TargetSafetyError
+from agentqa.targets.langgraph import LangGraphTargetAdapter
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,6 +128,20 @@ class RaisingEvaluator:
         context: RunContext,
     ) -> EvaluationResult:
         raise ValueError("sensitive evaluator detail")
+
+
+class TraceRequiredEvaluator:
+    type = "schema"
+    requires_trace = True
+
+    async def evaluate(
+        self,
+        spec: EvaluatorSpec,
+        target_result: TargetResult,
+        trace: Sequence[TraceEvent] | None,
+        context: RunContext,
+    ) -> EvaluationResult:
+        raise AssertionError("trace evaluator must not run without complete evidence")
 
 
 class SlowEvaluator:
@@ -390,6 +406,63 @@ async def test_evaluator_timeout_becomes_error_result(tmp_path: Path) -> None:
     assert result.status == "COMPLETED"
     assert evaluation.status == "ERROR"
     assert evaluation.message == "evaluator schema timed out"
+
+
+async def test_trace_evaluator_is_not_observable_but_output_is_preserved(tmp_path: Path) -> None:
+    runner = AgentTestRunner(
+        FakeAdapter([Outcome()]),
+        {"schema": TraceRequiredEvaluator()},
+        options=_options(tmp_path),
+    )
+
+    result = await runner.run([_test_spec("missing-trace")], _target())
+
+    trial = result.results[0]
+    assert trial.target_result.status == "OK"
+    assert trial.target_result.output == {"passed": True}
+    assert trial.trace_status == "missing"
+    assert trial.evaluations[0].status == "NOT_OBSERVABLE"
+    trace_path = (
+        tmp_path / "artifacts" / "runs" / result.run_id / "traces" / f"{trial.trace_id}.json"
+    )
+    assert trace_path.is_file()
+
+
+async def test_langgraph_trial_persists_complete_parented_trace(tmp_path: Path) -> None:
+    target = LangGraphTargetSpec.model_validate(
+        {
+            "metadata": {"name": "traced-graph"},
+            "type": "langgraph",
+            "entrypoint": "tests.fixtures.langgraph_targets:build_graph",
+        }
+    )
+    spec = _test_spec("traced-graph").model_copy(update={"evaluators": []})
+    runner = AgentTestRunner(
+        LangGraphTargetAdapter(target),
+        {},
+        options=_options(tmp_path),
+    )
+
+    result = await runner.run([spec], target)
+
+    trial = result.results[0]
+    assert result.exit_code == 0
+    assert trial.trace_status == "complete"
+    trace_path = (
+        tmp_path / "artifacts" / "runs" / result.run_id / "traces" / f"{trial.trace_id}.json"
+    )
+    trace_record = json.loads(trace_path.read_text(encoding="utf-8"))
+    root = next(
+        event
+        for event in trace_record["events"]
+        if event["attributes"].get("agentqa.runner.root") is True
+    )
+    graph_root = next(
+        event
+        for event in trace_record["events"]
+        if event["kind"] == "AGENT" and event["span_id"] != root["span_id"]
+    )
+    assert graph_root["parent_span_id"] == root["span_id"]
 
 
 async def test_cleanup_failure_fails_run_without_losing_results(tmp_path: Path) -> None:

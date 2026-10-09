@@ -10,6 +10,7 @@ from typing import Any, Literal
 from urllib.parse import urlsplit
 
 import httpx
+from opentelemetry import propagate
 
 from agentqa.conventions import utc_now
 from agentqa.models import ErrorInfo, HttpTargetSpec, RunContext, TargetResult, TestInput
@@ -188,11 +189,13 @@ class HttpTargetAdapter:
     @staticmethod
     def _trace_headers(context: RunContext) -> dict[str, str]:
         trace_id = trace_id_hex(context.trace_id)
-        return {
-            "traceparent": f"00-{trace_id}-{secrets.token_hex(8)}-01",
+        headers = {
             "x-agentqa-run-id": context.run_id,
             "x-agentqa-test-id": context.test_case_id or "unknown",
         }
+        propagate.inject(headers)
+        headers.setdefault("traceparent", f"00-{trace_id}-{secrets.token_hex(8)}-01")
+        return headers
 
     async def invoke(self, test_input: TestInput, context: RunContext) -> TargetResult:
         started_at = utc_now()

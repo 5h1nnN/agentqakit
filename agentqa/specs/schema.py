@@ -20,6 +20,7 @@ from agentqa.models import (
     TargetSpec,
     TestResult,
     TraceEvent,
+    TraceRecord,
 )
 
 _SCHEMA_MODELS: dict[str, type[BaseModel] | TypeAdapter[Any]] = {
@@ -34,6 +35,7 @@ _SCHEMA_MODELS: dict[str, type[BaseModel] | TypeAdapter[Any]] = {
     "target-spec": TypeAdapter(cast(Any, TargetSpec)),
     "test-result": TestResult,
     "trace-event": TraceEvent,
+    "trace-record": TraceRecord,
 }
 
 

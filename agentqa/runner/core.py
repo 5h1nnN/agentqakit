@@ -21,6 +21,7 @@ from agentqa.models import (
     TargetSpec,
     TestInput,
     TestResult,
+    TraceRecord,
     Violation,
 )
 from agentqa.models.specs import EvaluatorSpec
@@ -32,6 +33,14 @@ from agentqa.runner.state import RunState, RunStateMachine
 from agentqa.specs import hash_spec, hash_spec_collection, normalize_spec
 from agentqa.storage import ArtifactError, ArtifactWriter
 from agentqa.targets import TargetAdapter, TargetConfigurationError, TargetSafetyError
+from agentqa.tracing import InMemoryTraceStore, TraceOptions, TraceRuntime, TraceStore
+from agentqa.tracing.context import (
+    reset_current_trace_options,
+    reset_current_trace_store,
+    set_current_trace_options,
+    set_current_trace_store,
+)
+from agentqa.tracing.instrumentation import InstrumentationManager
 
 _T = TypeVar("_T")
 
@@ -84,10 +93,20 @@ class TestRunner:
         evaluators: Mapping[str, Evaluator],
         *,
         options: RunnerOptions | None = None,
+        trace_store: TraceStore | None = None,
+        trace_options: TraceOptions | None = None,
     ) -> None:
         self._adapter = adapter
         self._evaluators = dict(evaluators)
         self._options = options or RunnerOptions()
+        self._trace_options = trace_options or TraceOptions(
+            flush_timeout_seconds=self._options.trace_flush_timeout_seconds,
+            quiet_period_seconds=self._options.trace_quiet_period_seconds,
+        )
+        self._trace_store = trace_store or InMemoryTraceStore(
+            max_spans_per_trace=self._trace_options.max_spans_per_trace
+        )
+        self._trace_runtime = TraceRuntime(self._trace_store, self._trace_options)
         self._cancel_requested = asyncio.Event()
         self._has_run = False
 
@@ -187,6 +206,7 @@ class TestRunner:
         self,
         specs: Sequence[EvaluatorSpec],
         target_result: TargetResult,
+        trace_record: TraceRecord,
         context: RunContext,
     ) -> list[EvaluationResult]:
         if target_result.status != "OK":
@@ -205,9 +225,27 @@ class TestRunner:
                     )
                 )
                 continue
+            if getattr(evaluator, "requires_trace", False) and trace_record.status != "complete":
+                results.append(
+                    EvaluationResult(
+                        evaluator_type=evaluator_spec.type,
+                        status="NOT_OBSERVABLE",
+                        message=(
+                            "trace evidence is unavailable or incomplete; "
+                            "the target output remains available to output evaluators"
+                        ),
+                        metadata={"trace_status": trace_record.status},
+                    )
+                )
+                continue
             try:
                 result = await self._wait_or_cancel(
-                    evaluator.evaluate(evaluator_spec, target_result, None, context),
+                    evaluator.evaluate(
+                        evaluator_spec,
+                        target_result,
+                        None if trace_record.status == "missing" else trace_record.events,
+                        context,
+                    ),
                     timeout_seconds=self._options.evaluator_timeout_seconds,
                 )
             except _CancellationRequested:
@@ -252,6 +290,7 @@ class TestRunner:
         started_at: datetime,
         target_result: TargetResult,
         evaluations: Sequence[EvaluationResult],
+        trace_record: TraceRecord,
     ) -> TestResult:
         if context.trial_id is None or context.trace_id is None or context.trial_seed is None:
             raise RuntimeError("trial context is incomplete")
@@ -285,6 +324,8 @@ class TestRunner:
             violations=violations,
             evaluations=list(evaluations),
             target_result=target_result,
+            trace_status=trace_record.status,
+            trace_ref=f"traces/{context.trace_id}.json",
         )
 
     async def _execute_trial(
@@ -293,7 +334,7 @@ class TestRunner:
         target: TargetSpec,
         base_context: RunContext,
         trial_index: int,
-    ) -> TestResult:
+    ) -> tuple[TestResult, TraceRecord]:
         started_at = utc_now()
         context = base_context.model_copy(
             update={
@@ -309,11 +350,26 @@ class TestRunner:
             }
         )
         token = set_current_run_context(context)
+        trace_token = set_current_trace_store(self._trace_store)
+        trace_options_token = set_current_trace_options(self._trace_options)
         try:
             try:
                 async with asyncio.timeout(self._options.item_timeout_seconds):
-                    target_result = await self._invoke_target(spec, target, context)
-                    evaluations = await self._evaluate(spec.evaluators, target_result, context)
+                    with self._trace_runtime.trial_span(context) as root_span:
+                        target_result = await self._invoke_target(spec, target, context)
+                        self._trace_runtime.finish_target_span(root_span, target_result)
+                    await self._trace_store.wait_for_quiet(
+                        context.trace_id or "",
+                        timeout_seconds=self._trace_options.flush_timeout_seconds,
+                        quiet_period_seconds=self._trace_options.quiet_period_seconds,
+                    )
+                    trace_record = self._trace_store.build_record(context.trace_id or "")
+                    evaluations = await self._evaluate(
+                        spec.evaluators,
+                        target_result,
+                        trace_record,
+                        context,
+                    )
             except TimeoutError:
                 target_result = TargetResult(
                     status="TIMEOUT",
@@ -328,15 +384,20 @@ class TestRunner:
                     spec.evaluators,
                     "test item exceeded its total timeout",
                 )
-            return self._build_test_result(
+                trace_record = self._trace_store.build_record(context.trace_id or "")
+            result = self._build_test_result(
                 spec=spec,
                 context=context,
                 trial_index=trial_index,
                 started_at=started_at,
                 target_result=target_result,
                 evaluations=evaluations,
+                trace_record=trace_record,
             )
+            return result, trace_record
         finally:
+            reset_current_trace_options(trace_options_token)
+            reset_current_trace_store(trace_token)
             reset_current_run_context(token)
 
     @staticmethod
@@ -410,6 +471,7 @@ class TestRunner:
             started_at=started_at,
             random_seed=self._options.random_seed,
             artifact_dir=str((self._options.artifact_directory / "runs" / run_id).resolve()),
+            otlp_endpoint=self._options.otlp_endpoint,
         )
         writer = ArtifactWriter(self._options.artifact_directory, run_id)
         machine = RunStateMachine()
@@ -420,6 +482,13 @@ class TestRunner:
         prepare_attempted = False
         artifact_healthy = True
         external_cancellation = False
+        instrumentation = InstrumentationManager()
+        if target.type == "langgraph":
+            instrumentation.activate(
+                ["langgraph", "openai"],
+                self._trace_runtime.provider,
+                self._trace_options,
+            )
 
         try:
             writer.initialize(
@@ -498,8 +567,11 @@ class TestRunner:
                     for trial_index in range(1, spec.trials + 1):
                         if self._cancel_requested.is_set():
                             raise _CancellationRequested
-                        result = await self._execute_trial(spec, target, context, trial_index)
+                        result, trace_record = await self._execute_trial(
+                            spec, target, context, trial_index
+                        )
                         results.append(result)
+                        writer.write_trace(result.trace_id, trace_record)
                         writer.append_result(result)
                         writer.write_run(
                             self._state_record(
@@ -640,6 +712,8 @@ class TestRunner:
             results=results,
             error=run_error,
         )
+        instrumentation.close()
+        self._trace_runtime.shutdown()
         if external_cancellation:
             raise asyncio.CancelledError
         return run_result
