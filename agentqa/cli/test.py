@@ -1,8 +1,9 @@
 """Commands for validating and running agent tests."""
 
 import asyncio
+import shlex
 from pathlib import Path
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 import typer
 
@@ -156,8 +157,62 @@ def run_tests(
         bool,
         typer.Option(help="Persist redacted, size-limited span input and output content."),
     ] = False,
+    replay_mode: Annotated[
+        str,
+        typer.Option(
+            "--replay-mode",
+            help="Dependency interaction policy: off, record, or replay.",
+        ),
+    ] = "record",
+    replay_cassette: Annotated[
+        Path | None,
+        typer.Option(
+            "--replay-cassette",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Source JSONL cassette required by replay mode.",
+        ),
+    ] = None,
+    allow_live_fallback: Annotated[
+        bool,
+        typer.Option(
+            help="Allow a replay miss to call the live dependency and record a delta.",
+        ),
+    ] = False,
+    volatile_field: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--volatile-field",
+            help="Argument field path to remove before cassette matching; repeatable.",
+        ),
+    ] = None,
+    failure_bundles: Annotated[
+        bool,
+        typer.Option(
+            "--failure-bundles/--no-failure-bundles",
+            help="Create a verified reproduction ZIP for each failed trial.",
+        ),
+    ] = True,
 ) -> None:
     """Execute AgentTest specifications against a configured target."""
+    if replay_mode not in {"off", "record", "replay"}:
+        raise typer.BadParameter(
+            "replay mode must be off, record, or replay",
+            param_hint="--replay-mode",
+        )
+    if replay_mode == "replay" and replay_cassette is None:
+        raise typer.BadParameter(
+            "replay mode requires --replay-cassette",
+            param_hint="--replay-cassette",
+        )
+    if replay_mode != "replay" and allow_live_fallback:
+        raise typer.BadParameter(
+            "--allow-live-fallback is only valid in replay mode",
+            param_hint="--allow-live-fallback",
+        )
     try:
         tests, target_spec, mutation_specs = _load_for_run(path, target, mutations)
         adapter = create_target_adapter(target_spec)
@@ -189,6 +244,34 @@ def run_tests(
             )
             raise typer.Exit(code=2) from None
     try:
+        command = ["agentqa", "test", "run", str(path)]
+        if target is not None:
+            command.extend(["--target", str(target)])
+        if mutations is not None:
+            command.extend(["--mutations", str(mutations)])
+        command.extend(
+            [
+                "--artifacts",
+                str(artifacts),
+                "--seed",
+                str(seed),
+                "--otlp-port",
+                str(otlp_port),
+                "--trace-flush-timeout",
+                str(trace_flush_timeout),
+                "--replay-mode",
+                replay_mode,
+            ]
+        )
+        command.append("--trace-receiver" if trace_receiver else "--no-trace-receiver")
+        if capture_trace_content:
+            command.append("--capture-trace-content")
+        if replay_cassette is not None:
+            command.extend(["--replay-cassette", str(replay_cassette)])
+        if allow_live_fallback:
+            command.append("--allow-live-fallback")
+        for field in volatile_field or ():
+            command.extend(["--volatile-field", field])
         runner = TestRunner(
             adapter,
             built_in_evaluators(),
@@ -197,6 +280,12 @@ def run_tests(
                 random_seed=seed,
                 trace_flush_timeout_seconds=trace_flush_timeout,
                 otlp_endpoint=endpoint,
+                replay_mode=cast(Literal["off", "record", "replay"], replay_mode),
+                replay_cassette=replay_cassette,
+                allow_live_fallback=allow_live_fallback,
+                replay_volatile_fields=tuple(volatile_field or ()),
+                generate_failure_bundles=failure_bundles,
+                original_command=shlex.join(command),
             ),
             trace_store=trace_store,
             trace_options=trace_options,

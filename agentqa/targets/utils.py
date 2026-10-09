@@ -2,19 +2,21 @@
 
 import hashlib
 import importlib
-import json
-import math
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
-from pydantic import BaseModel
-
 from agentqa.errors import AgentQAError
+from agentqa.json import to_jsonable as _to_jsonable
 from agentqa.storage import redact_secrets
 from agentqa.targets.errors import TargetConfigurationError
 
 _PATH_PART = re.compile(r"([A-Za-z_][A-Za-z0-9_-]*)|\[(-?\d+)\]")
+
+
+def to_jsonable(value: Any, *, depth: int = 0) -> Any:
+    """Normalize common framework objects to bounded JSON-compatible data."""
+    return _to_jsonable(value, depth=depth)
 
 
 def load_entrypoint(entrypoint: str) -> Any:
@@ -101,39 +103,6 @@ def trace_id_hex(value: str | None) -> str:
     if len(compact) == 32 and compact != "0" * 32 and all(c in "0123456789abcdef" for c in compact):
         return compact
     return hashlib.sha256((value or "agentqa").encode()).hexdigest()[:32]
-
-
-def to_jsonable(value: Any, *, depth: int = 0) -> Any:
-    """Normalize common framework objects to bounded JSON-compatible data."""
-    if depth > 30:
-        return "<maximum-depth>"
-    if isinstance(value, float) and not math.isfinite(value):
-        return "<non-finite-float>"
-    if value is None or isinstance(value, (bool, int, float, str)):
-        return value
-    if isinstance(value, BaseModel):
-        return to_jsonable(value.model_dump(mode="json"), depth=depth + 1)
-    if isinstance(value, Mapping):
-        return {
-            str(key): to_jsonable(item, depth=depth + 1)
-            for key, item in list(value.items())[:10_000]
-        }
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return [to_jsonable(item, depth=depth + 1) for item in list(value)[:10_000]]
-    content = getattr(value, "content", None)
-    if content is not None:
-        result: dict[str, Any] = {
-            "type": type(value).__name__,
-            "content": to_jsonable(content, depth=depth + 1),
-        }
-        name = getattr(value, "name", None)
-        if isinstance(name, str) and name:
-            result["name"] = name
-        return result
-    try:
-        return json.loads(json.dumps(value))
-    except (TypeError, ValueError):
-        return f"<{type(value).__name__}>"
 
 
 def safe_jsonable(value: Any) -> Any:

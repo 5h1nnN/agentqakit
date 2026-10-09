@@ -1,5 +1,6 @@
 import asyncio
 import json
+import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import timedelta
@@ -23,6 +24,8 @@ from agentqa.models import (
 from agentqa.models import (
     TestInput as AgentTestInput,
 )
+from agentqa.replay import CassetteFormatError
+from agentqa.replay.bundle import extract_failure_bundle
 from agentqa.runner import RunnerOptions, get_current_run_context
 from agentqa.runner import TestRunner as AgentTestRunner
 from agentqa.storage import ArtifactError
@@ -270,6 +273,50 @@ async def test_runner_continues_after_target_error_and_persists_results(tmp_path
     assert summary_record["exit_code"] == 1
     assert summary_record["summary"]["inconsistent_cases"] == 1
     assert len((root / "results.jsonl").read_text(encoding="utf-8").splitlines()) == 3
+
+
+async def test_failed_trial_writes_a_verified_redacted_reproduction_bundle(
+    tmp_path: Path,
+) -> None:
+    runner = AgentTestRunner(
+        FakeAdapter([Outcome(passed=False)]),
+        {"schema": ResultEvaluator()},
+        options=_options(tmp_path, original_command="agentqa test run test.yaml token=private"),
+    )
+
+    result = await runner.run([_test_spec("bundle-failure")], _target())
+
+    trial = result.results[0]
+    assert trial.failure_bundle_ref is not None
+    bundle = tmp_path / "artifacts" / "runs" / result.run_id / trial.failure_bundle_ref
+    assert bundle.is_file()
+    assert bundle.with_name(f"{bundle.name}.sha256").is_file()
+
+    extracted = tmp_path / "extracted"
+    manifest = extract_failure_bundle(bundle, extracted)
+    assert manifest["trial_seed"] == trial.trial_seed
+    assert {
+        "manifest.yaml",
+        "target.yaml",
+        "test.yaml",
+        "result.json",
+        "trace.json",
+        "cassette.jsonl",
+        "environment.json",
+        "README.md",
+        "checksums.txt",
+    }.issubset({path.name for path in extracted.iterdir()})
+    readme = (extracted / "README.md").read_text(encoding="utf-8")
+    assert "private" not in readme
+    assert "agentqa replay" in readme
+
+    tampered = tmp_path / "tampered.zip"
+    with zipfile.ZipFile(bundle) as source, zipfile.ZipFile(tampered, "w") as target:
+        for info in source.infolist():
+            payload = b"{}\n" if info.filename == "result.json" else source.read(info)
+            target.writestr(info, payload)
+    with pytest.raises(CassetteFormatError, match="checksum mismatch"):
+        extract_failure_bundle(tampered, tmp_path / "tampered-output")
 
 
 async def test_trial_policies_and_metric_percentiles(tmp_path: Path) -> None:

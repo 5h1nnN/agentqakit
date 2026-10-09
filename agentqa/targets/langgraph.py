@@ -17,6 +17,7 @@ from agentqa.models import (
     TraceEvent,
 )
 from agentqa.mutations import MutationEngine, wrap_retriever, wrap_tool
+from agentqa.replay import InteractionEngine
 from agentqa.targets.errors import TargetConfigurationError, TargetErrorCode
 from agentqa.targets.utils import extract_path, load_entrypoint, safe_jsonable, to_jsonable
 from agentqa.tracing.context import (
@@ -33,25 +34,24 @@ class AgentQARuntime:
 
     mutation_engine: MutationEngine | None = None
     capabilities: dict[str, bool] = field(init=False)
+    _interaction_engine: InteractionEngine = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._interaction_engine = InteractionEngine(self.mutation_engine)
         self.capabilities = {
             "tool_wrapping": True,
             "retriever_wrapping": True,
             "mutation_engine": self.mutation_engine is not None,
+            "record_replay": True,
         }
 
     def wrap_tool(self, tool: Any, *, name: str | None = None) -> Any:
         """Wrap a tool while preserving pass-through behavior without mutations."""
-        if self.mutation_engine is None:
-            return tool
-        return wrap_tool(tool, self.mutation_engine, name=name)
+        return wrap_tool(tool, self._interaction_engine, name=name)
 
     def wrap_retriever(self, retriever: Any, *, name: str | None = None) -> Any:
         """Wrap a retriever while preserving pass-through behavior without mutations."""
-        if self.mutation_engine is None:
-            return retriever
-        return wrap_retriever(retriever, self.mutation_engine, name=name)
+        return wrap_retriever(retriever, self._interaction_engine, name=name)
 
 
 @dataclass(slots=True)

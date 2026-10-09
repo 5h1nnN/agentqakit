@@ -267,6 +267,64 @@
       "title": "MutationMatch",
       "type": "object"
     },
+    "ReplayStats": {
+      "additionalProperties": false,
+      "description": "Per-trial record/replay accounting persisted with the test result.",
+      "properties": {
+        "hit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hit Rate"
+        },
+        "hits": {
+          "minimum": 0,
+          "title": "Hits",
+          "type": "integer"
+        },
+        "live_fallbacks": {
+          "minimum": 0,
+          "title": "Live Fallbacks",
+          "type": "integer"
+        },
+        "misses": {
+          "minimum": 0,
+          "title": "Misses",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "record",
+            "replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "recorded": {
+          "minimum": 0,
+          "title": "Recorded",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "recorded",
+        "hits",
+        "misses",
+        "live_fallbacks"
+      ],
+      "title": "ReplayStats",
+      "type": "object"
+    },
     "TargetResult": {
       "additionalProperties": false,
       "description": "Normalized output from any target adapter.",
@@ -380,6 +438,19 @@
   "additionalProperties": false,
   "description": "Combined target and evaluator result for one test trial.",
   "properties": {
+    "cassette_ref": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cassette Ref"
+    },
     "ended_at": {
       "format": "date-time",
       "title": "Ended At",
@@ -392,6 +463,19 @@
       "title": "Evaluations",
       "type": "array"
     },
+    "failure_bundle_ref": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Failure Bundle Ref"
+    },
     "mutation_applications": {
       "items": {
         "$ref": "#/$defs/MutationApplication"
@@ -402,6 +486,17 @@
     "passed": {
       "title": "Passed",
       "type": "boolean"
+    },
+    "replay": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReplayStats"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "scores": {
       "additionalProperties": {

@@ -2,13 +2,30 @@
 
 import functools
 import inspect
-from collections.abc import Callable
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, Protocol
 
 from agentqa.models import InterceptionPoint
-from agentqa.mutations.engine import MutationEngine
 
 _IGNORED_ARGUMENTS = {"self", "config", "callbacks", "run_manager"}
+
+
+class InvocationInterceptor(Protocol):
+    """Sync/async interception boundary shared by mutation and replay engines."""
+
+    async def intercept(
+        self,
+        interception: InterceptionPoint,
+        arguments: dict[str, Any],
+        next_call: Callable[[], Awaitable[Any]],
+    ) -> Any: ...
+
+    def intercept_sync(
+        self,
+        interception: InterceptionPoint,
+        arguments: dict[str, Any],
+        next_call: Callable[[], Any],
+    ) -> Any: ...
 
 
 def _arguments(
@@ -26,7 +43,7 @@ def _arguments(
 def wrap_callable(
     function: Callable[..., Any],
     *,
-    engine: MutationEngine,
+    engine: InvocationInterceptor,
     interception: InterceptionPoint,
 ) -> Callable[..., Any]:
     """Wrap a synchronous or asynchronous callable while preserving metadata."""
@@ -59,7 +76,7 @@ class _InvocationProxy:
     def __init__(
         self,
         wrapped: Any,
-        engine: MutationEngine,
+        engine: InvocationInterceptor,
         interception: InterceptionPoint,
     ) -> None:
         self._wrapped = wrapped
@@ -117,7 +134,7 @@ def _name(value: Any, explicit: str | None) -> str:
     return str(candidate or type(value).__name__)
 
 
-def wrap_tool(tool: Any, engine: MutationEngine, *, name: str | None = None) -> Any:
+def wrap_tool(tool: Any, engine: InvocationInterceptor, *, name: str | None = None) -> Any:
     """Wrap a callable or common LangChain StructuredTool."""
     tool_name = _name(tool, name)
     interception = InterceptionPoint(kind="tool", name=tool_name)
@@ -149,7 +166,12 @@ def wrap_tool(tool: Any, engine: MutationEngine, *, name: str | None = None) -> 
     return _InvocationProxy(tool, engine, interception)
 
 
-def wrap_retriever(retriever: Any, engine: MutationEngine, *, name: str | None = None) -> Any:
+def wrap_retriever(
+    retriever: Any,
+    engine: InvocationInterceptor,
+    *,
+    name: str | None = None,
+) -> Any:
     """Wrap a callable or invoke/ainvoke-compatible retriever."""
     interception = InterceptionPoint(
         kind="retriever",

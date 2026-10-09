@@ -136,11 +136,13 @@ def test_proxy_records_sanitized_cassette_and_replays_without_upstream(
     assert response.headers["x-agentqa-proxy-source"] == "upstream"
     assert forbidden.status_code == 403
     assert state.calls == 1
-    cassette_files = [
-        path for path in cassette_directory.glob("*.json") if path.name != "applications.jsonl"
-    ]
-    assert len(cassette_files) == 1
-    assert "upstream-secret" not in cassette_files[0].read_text(encoding="utf-8")
+    cassette = cassette_directory / "cassette.jsonl"
+    assert cassette.is_file()
+    assert "upstream-secret" not in cassette.read_text(encoding="utf-8")
+    cassette_entry = json.loads(cassette.read_text(encoding="utf-8"))
+    assert cassette_entry["kind"] == "http"
+    assert cassette_entry["name"] == "campus.api"
+    assert cassette_entry["call_index"] == 1
 
     replay = FaultProxy(
         FaultProxyOptions(
@@ -163,6 +165,32 @@ def test_proxy_records_sanitized_cassette_and_replays_without_upstream(
     assert replayed.headers["x-agentqa-proxy-source"] == "cassette"
     assert miss.status_code == 502
     assert state.calls == 1
+
+    fallback = FaultProxy(
+        FaultProxyOptions(
+            upstream_base_url=upstream_url,
+            allowed_paths=("/tool",),
+            route_name="campus.api",
+            cassette_directory=cassette_directory,
+            mode="replay",
+            allow_live_fallback=True,
+        )
+    )
+    fallback_endpoint = fallback.start()
+    try:
+        fallback_response = httpx.get(
+            f"{fallback_endpoint}/tool?token=private-query-value",
+            timeout=2,
+            trust_env=False,
+        )
+    finally:
+        fallback.stop()
+
+    assert fallback_response.status_code == 200
+    assert fallback_response.headers["x-agentqa-proxy-source"] == "upstream"
+    assert state.calls == 2
+    delta = (cassette_directory / "replay-delta.jsonl").read_text(encoding="utf-8")
+    assert "private-query-value" not in delta
 
 
 def test_proxy_applies_http_mutations_selected_by_headers(

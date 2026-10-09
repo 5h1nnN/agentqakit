@@ -155,3 +155,19 @@ operation:
     assert score_result.exit_code == 0
     assert "Mutation score: 100.0%" in score_result.stdout
     assert "Killed: 1" in score_result.stdout
+
+    failure_bundle = next((run_directory / "failures").glob("failure-*.zip"))
+    replay_artifacts = tmp_path / "replay-artifacts"
+    replay_result = runner.invoke(
+        app,
+        [
+            "replay",
+            str(failure_bundle),
+            "--artifacts",
+            str(replay_artifacts),
+        ],
+    )
+
+    assert replay_result.exit_code == 0
+    assert "Reproduced failure" in replay_result.stdout
+    assert len(list((replay_artifacts / "runs").iterdir())) == 1

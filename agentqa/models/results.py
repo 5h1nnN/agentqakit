@@ -150,6 +150,29 @@ class EvaluationResult(StrictModel):
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
+class ReplayStats(StrictModel):
+    """Per-trial record/replay accounting persisted with the test result."""
+
+    mode: Literal["off", "record", "replay"]
+    recorded: NonNegativeInt
+    hits: NonNegativeInt
+    misses: NonNegativeInt
+    live_fallbacks: NonNegativeInt
+    hit_rate: UnitInterval | None = None
+
+    @model_validator(mode="after")
+    def validate_rate(self) -> "ReplayStats":
+        attempts = self.hits + self.misses
+        expected = None if attempts == 0 else self.hits / attempts
+        if expected is None and self.hit_rate is not None:
+            msg = "hit_rate must be null when no replay lookup occurred"
+            raise ValueError(msg)
+        if expected is not None and (self.hit_rate is None or abs(self.hit_rate - expected) > 1e-9):
+            msg = "hit_rate must equal hits divided by replay lookups"
+            raise ValueError(msg)
+        return self
+
+
 class TestResult(StrictModel):
     """Combined target and evaluator result for one test trial."""
 
@@ -167,6 +190,9 @@ class TestResult(StrictModel):
     target_result: TargetResult
     trace_status: Literal["complete", "partial", "missing"] = "missing"
     trace_ref: NonEmptyString | None = None
+    cassette_ref: NonEmptyString | None = None
+    replay: ReplayStats | None = None
+    failure_bundle_ref: NonEmptyString | None = None
     mutation_applications: list[MutationApplication] = Field(default_factory=list)
 
     @model_validator(mode="after")

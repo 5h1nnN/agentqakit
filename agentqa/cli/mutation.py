@@ -165,6 +165,12 @@ def proxy(
         str,
         typer.Option(help="record forwards to the fixed upstream; replay never does."),
     ] = "record",
+    allow_live_fallback: Annotated[
+        bool,
+        typer.Option(
+            help="Allow replay misses to access the fixed upstream and record a delta.",
+        ),
+    ] = False,
     port: Annotated[
         int,
         typer.Option(min=0, max=65_535, help="Loopback listening port; 0 selects one."),
@@ -173,6 +179,11 @@ def proxy(
     """Run a loopback-only fixed-upstream HTTP fault proxy."""
     if mode not in {"record", "replay"}:
         raise typer.BadParameter("mode must be record or replay", param_hint="--mode")
+    if mode != "replay" and allow_live_fallback:
+        raise typer.BadParameter(
+            "--allow-live-fallback is only valid in replay mode",
+            param_hint="--allow-live-fallback",
+        )
     try:
         loaded = load_specs(mutations_path)
         mutation_specs = [
@@ -192,6 +203,7 @@ def proxy(
                 route_name=route_name,
                 cassette_directory=cassette_directory,
                 mode=cast(Literal["record", "replay"], mode),
+                allow_live_fallback=allow_live_fallback,
                 port=port,
             ),
             {spec.metadata.name: spec for spec in mutation_specs},

@@ -59,6 +59,12 @@ from the run seed, test name, and one-based trial index. The summary contains
 mean, P50, and P95 latency, token count, and step count. Missing token or step
 metadata remains unknown and is not converted to zero.
 
+Wrapped dependency calls are recorded by default into one canonical cassette
+per trial. `TestResult` links the cassette, carries replay hit/miss statistics,
+and links a verified reproduction bundle when the trial fails. Bundle replay
+restores the recorded trial seed instead of deriving a new one. See
+[`replay.md`](replay.md).
+
 ## Cancellation and timeouts
 
 `TestRunner.cancel()` cooperatively cancels an active invocation or evaluator,

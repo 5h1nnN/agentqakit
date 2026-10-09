@@ -10,7 +10,8 @@ HTTP, isolated Python, and optional LangGraph target adapters, plus bounded
 OpenTelemetry trace collection, OTLP/HTTP instrumentation, deterministic tool,
 retriever, and HTTP mutations, and recomputable Mutation Score reports.
 It also includes deterministic output, tool, trajectory, state, privacy, and
-budget evaluators plus an opt-in, provider-neutral LLM judge boundary.
+budget evaluators plus an opt-in, provider-neutral LLM judge boundary, canonical
+dependency replay, and verified failure reproduction bundles.
 
 ## Requirements
 
@@ -57,6 +58,12 @@ agentqa test run tests.yaml --target target.yaml --mutations mutations.yaml
 agentqa mutation score artifacts/runs/<run-id>
 ```
 
+Reproduce a failed trial without calling its recorded wrapped dependencies:
+
+```bash
+agentqa replay artifacts/runs/<run-id>/failures/failure-<trial-id>.zip
+```
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
@@ -71,7 +78,9 @@ local OTLP receiver, and zero-source-change instrumentation are documented in
 fixed-upstream fault proxy, evidence, and score semantics are documented in
 [`docs/mutations.md`](docs/mutations.md). Evaluator evidence requirements,
 status semantics, and Judge integration are documented in
-[`docs/evaluators.md`](docs/evaluators.md).
+[`docs/evaluators.md`](docs/evaluators.md). Cassette matching, privacy,
+strict replay, and verified failure bundles are documented in
+[`docs/replay.md`](docs/replay.md).
 
 ## Repository layout
 

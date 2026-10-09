@@ -121,11 +121,19 @@ disconnect (`http_disconnect`), `invalid_json`, `missing_field`, and
 trace, seed, label, and mutation headers so deterministic matching works across
 the process boundary.
 
-In `record` mode, pass-through responses are saved under a request signature.
-Credential headers are omitted and JSON/text bodies are redacted before disk
-write. Replay therefore returns the sanitized representation. In `replay` mode,
-a cassette miss returns 502 and no network request is made. Proxy mutation
-attempts are appended to `applications.jsonl` beside the cassettes.
+In `record` mode, pass-through responses are saved to the canonical
+`cassette.jsonl` format with method, path/query, body digest, call index, and
+trace/span linkage. Credential headers are omitted and JSON/text bodies are
+redacted before checksums and disk writes. Replay therefore returns the
+sanitized representation. In `replay` mode, a cassette miss returns 502 and no
+network request is made. Explicit `--allow-live-fallback` accesses only the
+configured fixed upstream and writes `replay-delta.jsonl`. Proxy mutation
+attempts are appended to `applications.jsonl` beside the cassette.
+
+The in-process mutation engine is composed outside record/replay. This keeps
+recorded entries as an unmutated baseline and makes the injected behavior
+independent of whether the baseline came from a live call or a cassette. See
+[`replay.md`](replay.md).
 
 ## Mutation Score
 

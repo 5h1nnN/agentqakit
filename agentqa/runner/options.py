@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +18,14 @@ class RunnerOptions:
     trace_flush_timeout_seconds: float = 0.25
     trace_quiet_period_seconds: float = 0.05
     otlp_endpoint: str | None = None
+    replay_mode: Literal["off", "record", "replay"] = "record"
+    replay_cassette: Path | None = None
+    allow_live_fallback: bool = False
+    replay_volatile_fields: tuple[str, ...] = ()
+    replay_max_inline_result_bytes: int = 65_536
+    replay_trial_seed: int | None = None
+    generate_failure_bundles: bool = True
+    original_command: str | None = None
 
     def __post_init__(self) -> None:
         timeouts = {
@@ -30,3 +39,13 @@ class RunnerOptions:
         for name, value in timeouts.items():
             if value <= 0:
                 raise ValueError(f"{name} must be positive")
+        if self.replay_mode not in {"off", "record", "replay"}:
+            raise ValueError("replay_mode must be off, record, or replay")
+        if self.replay_mode == "replay" and self.replay_cassette is None:
+            raise ValueError("replay mode requires replay_cassette")
+        if self.replay_mode != "replay" and self.allow_live_fallback:
+            raise ValueError("allow_live_fallback is only valid in replay mode")
+        if self.replay_max_inline_result_bytes <= 0:
+            raise ValueError("replay_max_inline_result_bytes must be positive")
+        if any(not path.strip() for path in self.replay_volatile_fields):
+            raise ValueError("replay volatile field paths must be non-empty")

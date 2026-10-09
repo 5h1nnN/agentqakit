@@ -10,6 +10,7 @@ from agentqa.runner import TestRunner as AgentTestRunner
 from agentqa.targets import LangGraphTargetAdapter
 from agentqa.tracing import InMemoryTraceStore
 from agentqa.tracing.context import reset_current_trace_store, set_current_trace_store
+from tests.fixtures.langgraph_targets import configure_replay_tool, replay_tool_calls
 
 pytestmark = pytest.mark.integration
 pytest.importorskip("langgraph.graph")
@@ -98,3 +99,68 @@ async def test_real_langgraph_tool_boundary_applies_mutation(tmp_path: Path) -> 
     assert result.results[0].mutation_applications[0].triggered is True
     assert result.mutation_score is not None
     assert result.mutation_score.overall.killed == 1
+
+
+async def test_recorded_tool_replays_after_the_real_dependency_is_offline(
+    tmp_path: Path,
+) -> None:
+    target = LangGraphTargetSpec.model_validate(
+        {
+            "metadata": {"name": "replay-graph"},
+            "type": "langgraph",
+            "entrypoint": "tests.fixtures.langgraph_targets:build_replay_graph",
+        }
+    )
+    test_spec = AgentTestSpec.model_validate(
+        {
+            "metadata": {"name": "replay-offline"},
+            "scenario": {"input": {"message": "calendar"}},
+            "expect": {"output": {"requireNonEmpty": True}},
+            "evaluators": [{"type": "schema"}],
+        }
+    ).model_copy(update={"evaluators": []})
+    configure_replay_tool(available=True, reset_calls=True)
+    record_runner = AgentTestRunner(
+        LangGraphTargetAdapter(target),
+        {},
+        options=RunnerOptions(
+            artifact_directory=tmp_path / "record-artifacts",
+            trace_flush_timeout_seconds=0.01,
+            trace_quiet_period_seconds=0.001,
+        ),
+    )
+
+    recorded = await record_runner.run([test_spec], target)
+
+    recorded_trial = recorded.results[0]
+    assert recorded_trial.passed is True
+    assert recorded_trial.replay is not None
+    assert recorded_trial.replay.recorded == 1
+    assert replay_tool_calls() == 1
+    assert recorded_trial.cassette_ref is not None
+    cassette = (
+        tmp_path / "record-artifacts" / "runs" / recorded.run_id / recorded_trial.cassette_ref
+    )
+
+    configure_replay_tool(available=False)
+    replay_runner = AgentTestRunner(
+        LangGraphTargetAdapter(target),
+        {},
+        options=RunnerOptions(
+            artifact_directory=tmp_path / "replay-artifacts",
+            replay_mode="replay",
+            replay_cassette=cassette,
+            trace_flush_timeout_seconds=0.01,
+            trace_quiet_period_seconds=0.001,
+        ),
+    )
+
+    replayed = await replay_runner.run([test_spec], target)
+
+    replayed_trial = replayed.results[0]
+    assert replayed_trial.passed is True
+    assert replayed_trial.target_result.output == recorded_trial.target_result.output
+    assert replayed_trial.replay is not None
+    assert replayed_trial.replay.hits == 1
+    assert replayed_trial.replay.hit_rate == 1.0
+    assert replay_tool_calls() == 1

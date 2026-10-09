@@ -150,6 +150,16 @@ class ArtifactWriter:
         with self._lock:
             return self._write_json(Path("traces") / f"{trace_id}.json", trace)
 
+    def write_failure_bundle(self, trial_id: str, payload: bytes) -> tuple[str, str]:
+        """Write one reproduction ZIP under ``failures/`` with a checksum sidecar."""
+        if Path(trial_id).name != trial_id or not trial_id:
+            raise ArtifactError("trial_id must be one non-empty path component")
+        with self._lock:
+            self._ensure_open()
+            relative = Path("failures") / f"failure-{trial_id}.zip"
+            digest = self._write_with_checksum(self._resolve(relative), payload)
+            return relative.as_posix(), digest
+
     def append_result(self, result: Any) -> str:
         """Atomically append a checksummed record to ``results.jsonl``."""
         with self._lock:

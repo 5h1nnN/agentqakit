@@ -3,6 +3,8 @@
 from collections.abc import AsyncIterator
 from typing import Any
 
+_REPLAY_TOOL_STATE = {"available": True, "calls": 0}
+
 
 class EventGraph:
     async def astream_events(
@@ -66,8 +68,9 @@ class InvokeGraph:
 
 
 class MutationEventGraph:
-    def __init__(self, tool: Any) -> None:
+    def __init__(self, tool: Any, *, stringify_result: bool = True) -> None:
         self._tool = tool
+        self._stringify_result = stringify_result
 
     async def astream_events(
         self,
@@ -86,7 +89,8 @@ class MutationEventGraph:
             "data": {"input": value},
         }
         result = self._tool(query="campus calendar")
-        output = {"messages": [{"role": "assistant", "content": str(result)}]}
+        content = str(result) if self._stringify_result else result
+        output = {"messages": [{"role": "assistant", "content": content}]}
         yield {
             "event": "on_chain_end",
             "name": "mutation-fixture-agent",
@@ -109,6 +113,29 @@ def build_mutation_graph(agentqa_runtime: Any = None) -> MutationEventGraph:
 
     tool = agentqa_runtime.wrap_tool(campus_lookup, name="campus.lookup")
     return MutationEventGraph(tool)
+
+
+def configure_replay_tool(*, available: bool, reset_calls: bool = False) -> None:
+    _REPLAY_TOOL_STATE["available"] = available
+    if reset_calls:
+        _REPLAY_TOOL_STATE["calls"] = 0
+
+
+def replay_tool_calls() -> int:
+    return int(_REPLAY_TOOL_STATE["calls"])
+
+
+def build_replay_graph(agentqa_runtime: Any = None) -> MutationEventGraph:
+    assert agentqa_runtime is not None
+
+    def campus_lookup(query: str) -> dict[str, Any]:
+        if not _REPLAY_TOOL_STATE["available"]:
+            raise RuntimeError("the real tool server is offline")
+        _REPLAY_TOOL_STATE["calls"] += 1
+        return {"query": query, "answer": "recorded calendar"}
+
+    tool = agentqa_runtime.wrap_tool(campus_lookup, name="campus.lookup")
+    return MutationEventGraph(tool, stringify_result=False)
 
 
 compiled_graph = InvokeGraph()

@@ -1,7 +1,6 @@
 """Loopback-only fixed-upstream HTTP fault proxy with safe cassette replay."""
 
 import base64
-import hashlib
 import json
 import os
 import re
@@ -18,6 +17,7 @@ from typing import Any, Literal, cast
 from urllib.parse import unquote, urlsplit, urlunsplit
 
 import httpx
+from pydantic import JsonValue
 
 from agentqa.conventions import utc_now
 from agentqa.models import (
@@ -30,6 +30,8 @@ from agentqa.models import (
 from agentqa.mutations.context import MutationTrialSession
 from agentqa.mutations.matcher import match_mutation
 from agentqa.mutations.utils import delete_path, replace_path, safe_jsonable, summarize
+from agentqa.replay.models import CassetteError
+from agentqa.replay.store import JsonlCassetteStore, ReplayError
 from agentqa.specs.hashing import canonical_json_bytes, sha256_digest
 from agentqa.storage import redact_secrets
 from agentqa.storage.redaction import redact_text_secrets
@@ -78,6 +80,7 @@ class FaultProxyOptions:
     read_timeout_seconds: float = 30.0
     max_request_bytes: int = 1_048_576
     max_response_bytes: int = 1_048_576
+    allow_live_fallback: bool = False
 
     def __post_init__(self) -> None:
         parsed = urlsplit(self.upstream_base_url)
@@ -93,6 +96,8 @@ class FaultProxyOptions:
             raise FaultProxyError("route_name must be a valid mutation resource name")
         if self.mode not in {"record", "replay"}:
             raise FaultProxyError("mode must be record or replay")
+        if self.mode != "replay" and self.allow_live_fallback:
+            raise FaultProxyError("allow_live_fallback is only valid in replay mode")
         if not 0 <= self.port <= 65_535:
             raise FaultProxyError("port must be between 0 and 65535")
         if not self.allowed_paths:
@@ -117,20 +122,54 @@ class _ProxyResponse:
 
 
 class _CassetteStore:
-    def __init__(self, directory: Path) -> None:
+    def __init__(
+        self,
+        directory: Path,
+        *,
+        mode: Literal["record", "replay"],
+        route_name: str,
+        allow_live_fallback: bool,
+    ) -> None:
         self._directory = directory.resolve()
         self._directory.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-
-    @staticmethod
-    def key(method: str, path_and_query: str, body: bytes) -> str:
-        material = b"\0".join(
-            [method.upper().encode(), path_and_query.encode(), hashlib.sha256(body).digest()]
+        self._route_name = route_name
+        self.allow_live_fallback = allow_live_fallback
+        self._call_index = 0
+        source = self._directory / "cassette.jsonl" if mode == "replay" else None
+        output = (
+            self._directory / "cassette.jsonl"
+            if mode == "record"
+            else self._directory / "replay-delta.jsonl"
         )
-        return hashlib.sha256(material).hexdigest()
+        try:
+            self._store = JsonlCassetteStore(
+                source_path=source,
+                output_path=output,
+            )
+        except ReplayError:
+            raise FaultProxyError("cassette could not be loaded") from None
 
-    def _path(self, key: str) -> Path:
-        return self._directory / f"{key}.json"
+    def request(
+        self,
+        method: str,
+        path_and_query: str,
+        headers: dict[str, str],
+        body: bytes,
+    ) -> tuple[JsonValue, int]:
+        with self._lock:
+            self._call_index += 1
+            call_index = self._call_index
+        normalized_headers = {name.lower(): value for name, value in headers.items()}
+        safe_body = self._safe_body(normalized_headers, body)
+        return (
+            {
+                "method": method.upper(),
+                "path_and_query": redact_text_secrets(path_and_query),
+                "body_sha256": sha256_digest(safe_body),
+            },
+            call_index,
+        )
 
     @staticmethod
     def _atomic_write(path: Path, payload: bytes) -> None:
@@ -161,7 +200,15 @@ class _CassetteStore:
             return b"<agentqa-redacted-binary>"
         return redact_text_secrets(text).encode()
 
-    def record(self, key: str, response: _ProxyResponse) -> None:
+    def record(
+        self,
+        arguments: JsonValue,
+        call_index: int,
+        response: _ProxyResponse,
+        *,
+        trace_id: str,
+        span_id: str,
+    ) -> None:
         retained_headers = {
             name: value
             for name, value in response.headers.items()
@@ -175,47 +222,74 @@ class _CassetteStore:
         )
         normalized_headers = {name.lower(): value for name, value in headers.items()}
         safe_body = self._safe_body(normalized_headers, response.body)
-        payload = (
-            canonical_json_bytes(
-                {
-                    "schema_version": "agentqa.cassette/v1alpha1",
-                    "status_code": response.status_code,
-                    "headers": headers,
-                    "body_base64": base64.b64encode(safe_body).decode("ascii"),
-                }
-            )
-            + b"\n"
+        result = cast(
+            JsonValue,
+            {
+                "status_code": response.status_code,
+                "headers": headers,
+                "body_base64": base64.b64encode(safe_body).decode("ascii"),
+            },
         )
-        path = self._path(key)
-        with self._lock:
-            self._atomic_write(path, payload)
-            self._atomic_write(
-                path.with_name(f"{path.name}.sha256"),
-                f"{sha256_digest(payload)}\n".encode(),
-            )
+        self._store.record_success(
+            kind="http",
+            name=self._route_name,
+            arguments=arguments,
+            call_index=call_index,
+            result=result,
+            trace_id=trace_id,
+            span_id=span_id,
+        )
+        self._store.flush()
 
-    def replay(self, key: str) -> _ProxyResponse | None:
-        path = self._path(key)
-        with self._lock:
-            if not path.is_file():
+    def replay(self, arguments: JsonValue, call_index: int) -> _ProxyResponse | None:
+        entry = self._store.lookup("http", self._route_name, arguments, call_index)
+        if entry is None:
+            return None
+        if entry.status == "error":
+            raise FaultProxyError("replayed upstream error")
+        try:
+            payload = self._store.result(entry)
+            if not isinstance(payload, dict):
                 return None
-            try:
-                raw = path.read_bytes()
-                checksum = path.with_name(f"{path.name}.sha256").read_text(encoding="utf-8").strip()
-                if checksum != sha256_digest(raw):
-                    return None
-                payload = json.loads(raw)
-                if payload["schema_version"] != "agentqa.cassette/v1alpha1":
-                    return None
-                headers = {str(name): str(value) for name, value in payload["headers"].items()}
-                return _ProxyResponse(
-                    status_code=int(payload["status_code"]),
-                    headers=headers,
-                    body=base64.b64decode(payload["body_base64"], validate=True),
-                    source="cassette",
-                )
-            except (KeyError, OSError, TypeError, ValueError, json.JSONDecodeError):
+            raw_headers = payload["headers"]
+            if not isinstance(raw_headers, dict):
                 return None
+            headers = {str(name): str(value) for name, value in raw_headers.items()}
+            return _ProxyResponse(
+                status_code=int(cast(Any, payload["status_code"])),
+                headers=headers,
+                body=base64.b64decode(str(payload["body_base64"]), validate=True),
+                source="cassette",
+            )
+        except (KeyError, OSError, TypeError, ValueError, ReplayError):
+            return None
+
+    def record_error(
+        self,
+        arguments: JsonValue,
+        call_index: int,
+        error: Exception,
+        *,
+        trace_id: str,
+        span_id: str,
+    ) -> None:
+        self._store.record_error(
+            kind="http",
+            name=self._route_name,
+            arguments=arguments,
+            call_index=call_index,
+            error=CassetteError(
+                code="UPSTREAM_ERROR",
+                exception_type=type(error).__name__,
+                message=f"upstream raised {type(error).__name__}",
+            ),
+            trace_id=trace_id,
+            span_id=span_id,
+        )
+        self._store.flush()
+
+    def flush(self) -> None:
+        self._store.flush()
 
     def append_application(self, application: MutationApplication) -> None:
         path = self._directory / "applications.jsonl"
@@ -245,7 +319,12 @@ class FaultProxy:
                 raise FaultProxyError("mutation mapping keys must equal metadata.name")
             if spec.target.kind != "http":
                 raise FaultProxyError("fault proxy accepts only HTTP mutation specs")
-        self._cassettes = _CassetteStore(options.cassette_directory)
+        self._cassettes = _CassetteStore(
+            options.cassette_directory,
+            mode=options.mode,
+            route_name=options.route_name,
+            allow_live_fallback=options.allow_live_fallback,
+        )
         self._sessions: dict[str, MutationTrialSession] = {}
         self._session_lock = threading.RLock()
         self._server: ThreadingHTTPServer | None = None
@@ -334,6 +413,7 @@ class FaultProxy:
         finally:
             self._server.server_close()
             self._server = None
+            self._cassettes.flush()
             self._client.close()
 
     def stop(self) -> None:
@@ -345,6 +425,7 @@ class FaultProxy:
             server.server_close()
         if thread is not None and thread is not threading.current_thread():
             thread.join(timeout=5)
+        self._cassettes.flush()
         self._client.close()
 
     def wait(self) -> None:
@@ -440,14 +521,38 @@ class FaultProxy:
         path_and_query: str,
         body: bytes,
     ) -> _ProxyResponse:
-        key = self._cassettes.key(handler.command, path_and_query, body)
+        arguments, call_index = self._cassettes.request(
+            handler.command,
+            path_and_query,
+            {name: value for name, value in handler.headers.items()},
+            body,
+        )
         if self.options.mode == "replay":
-            replay = self._cassettes.replay(key)
-            if replay is None:
+            replay = self._cassettes.replay(arguments, call_index)
+            if replay is not None:
+                return replay
+            if not self._cassettes.allow_live_fallback:
                 raise FaultProxyError("cassette miss")
-            return replay
-        response = self._upstream(handler, url, body)
-        self._cassettes.record(key, response)
+        trace_id = handler.headers.get("x-agentqa-trace-id", "proxy-trace")
+        span_id = handler.headers.get("x-agentqa-span-id", secrets.token_hex(8))
+        try:
+            response = self._upstream(handler, url, body)
+        except (FaultProxyError, httpx.HTTPError) as exc:
+            self._cassettes.record_error(
+                arguments,
+                call_index,
+                exc,
+                trace_id=trace_id,
+                span_id=span_id,
+            )
+            raise
+        self._cassettes.record(
+            arguments,
+            call_index,
+            response,
+            trace_id=trace_id,
+            span_id=span_id,
+        )
         return response
 
     def _session(

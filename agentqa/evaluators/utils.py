@@ -100,10 +100,43 @@ def _logical_call_name(event: TraceEvent) -> str:
         value = event.attributes.get(key)
         if isinstance(value, str) and value:
             return value
-    prefix = "agentqa.mutation.tool."
-    if event.name.startswith(prefix):
-        return event.name.removeprefix(prefix)
+    for prefix in (
+        "agentqa.mutation.tool.",
+        "agentqa.mutation.retriever.",
+        "agentqa.replay.tool.",
+        "agentqa.replay.retriever.",
+    ):
+        if event.name.startswith(prefix):
+            return event.name.removeprefix(prefix)
     return event.name
+
+
+def _logical_interactions(events: Sequence[TraceEvent]) -> list[TraceEvent]:
+    """Prefer framework spans, then replay spans, over outer mutation spans."""
+    ordinary_names = {
+        _logical_call_name(event)
+        for event in events
+        if not event.name.startswith(("agentqa.mutation.", "agentqa.replay."))
+    }
+    replay_names = {
+        _logical_call_name(event) for event in events if event.name.startswith("agentqa.replay.")
+    }
+    return [
+        event
+        for event in events
+        if (
+            not event.name.startswith(("agentqa.mutation.", "agentqa.replay."))
+            or (
+                event.name.startswith("agentqa.replay.")
+                and _logical_call_name(event) not in ordinary_names
+            )
+            or (
+                event.name.startswith("agentqa.mutation.")
+                and _logical_call_name(event) not in ordinary_names
+                and _logical_call_name(event) not in replay_names
+            )
+        )
+    ]
 
 
 class TraceView:
@@ -118,19 +151,9 @@ class TraceView:
             if event.parent_span_id is not None:
                 self.children.setdefault(event.parent_span_id, []).append(event)
 
-        raw_tools = [event for event in self.events if event.kind == "TOOL"]
-        ordinary_names = {
-            _logical_call_name(event)
-            for event in raw_tools
-            if not event.name.startswith("agentqa.mutation.")
-        }
+        raw_tools = _logical_interactions([event for event in self.events if event.kind == "TOOL"])
         self.tool_calls = [
-            ToolCall(_logical_call_name(event), event, event.input)
-            for event in raw_tools
-            if not (
-                event.name.startswith("agentqa.mutation.")
-                and _logical_call_name(event) in ordinary_names
-            )
+            ToolCall(_logical_call_name(event), event, event.input) for event in raw_tools
         ]
 
     @property
@@ -146,11 +169,9 @@ class TraceView:
         non_call_events = [
             event for event in self.internal_events if event.kind not in {"TOOL", "RETRIEVER"}
         ]
-        retriever_events = [
-            event
-            for event in self.internal_events
-            if event.kind == "RETRIEVER" and not event.name.startswith("agentqa.mutation.")
-        ]
+        retriever_events = _logical_interactions(
+            [event for event in self.internal_events if event.kind == "RETRIEVER"]
+        )
         return len(non_call_events) + len(self.tool_calls) + len(retriever_events)
 
     @property

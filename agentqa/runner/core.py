@@ -5,6 +5,7 @@ import hashlib
 from collections.abc import Coroutine, Mapping, Sequence
 from copy import deepcopy
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
 from agentqa.conventions import new_id, to_utc_iso8601, utc_now
@@ -17,6 +18,7 @@ from agentqa.models import (
     MutationApplication,
     MutationScoreReport,
     MutationSpec,
+    ReplayStats,
     RunContext,
     RunResult,
     RunSummary,
@@ -35,6 +37,14 @@ from agentqa.mutations import (
     reset_current_mutation_session,
     set_current_mutation_session,
 )
+from agentqa.replay import (
+    CassetteMissError,
+    JsonlCassetteStore,
+    ReplaySession,
+    reset_current_replay_session,
+    set_current_replay_session,
+)
+from agentqa.replay.bundle import build_failure_bundle
 from agentqa.runner.aggregation import aggregate_run
 from agentqa.runner.context import reset_current_run_context, set_current_run_context
 from agentqa.runner.errors import RunErrorCode
@@ -204,6 +214,13 @@ class TestRunner:
                 started_at=started_at,
                 ended_at=utc_now(),
             )
+        except CassetteMissError as exc:
+            return TargetResult(
+                status="ERROR",
+                error=ErrorInfo(code=exc.code, message=exc.message),
+                started_at=started_at,
+                ended_at=utc_now(),
+            )
         except Exception as exc:
             return TargetResult(
                 status="ERROR",
@@ -326,6 +343,8 @@ class TestRunner:
         evaluations: Sequence[EvaluationResult],
         trace_record: TraceRecord,
         mutation_applications: Sequence[MutationApplication],
+        replay_stats: ReplayStats,
+        cassette_ref: str,
     ) -> TestResult:
         if context.trial_id is None or context.trace_id is None or context.trial_seed is None:
             raise RuntimeError("trial context is incomplete")
@@ -361,6 +380,8 @@ class TestRunner:
             target_result=target_result,
             trace_status=trace_record.status,
             trace_ref=f"traces/{context.trace_id}.json",
+            cassette_ref=cassette_ref,
+            replay=replay_stats,
             mutation_applications=list(mutation_applications),
         )
 
@@ -370,6 +391,7 @@ class TestRunner:
         target: TargetSpec,
         base_context: RunContext,
         trial_index: int,
+        artifact_root: Path,
     ) -> tuple[TestResult, TraceRecord]:
         started_at = utc_now()
         context = base_context.model_copy(
@@ -380,17 +402,34 @@ class TestRunner:
                 "mutation_id": spec.mutation,
                 "test_labels": spec.metadata.labels,
                 "trial_seed": _derive_trial_seed(
-                    base_context.random_seed,
-                    spec.metadata.name,
-                    trial_index,
-                ),
+                    base_context.random_seed, spec.metadata.name, trial_index
+                )
+                if self._options.replay_trial_seed is None
+                else self._options.replay_trial_seed,
             }
+        )
+        mutation_session = MutationTrialSession(context)
+        if context.trial_id is None:
+            raise RuntimeError("trial context is missing trial_id")
+        cassette_ref = f"cassettes/{context.trial_id}.jsonl"
+        cassette_store = JsonlCassetteStore(
+            source_path=self._options.replay_cassette,
+            output_path=artifact_root / cassette_ref,
+            max_inline_result_bytes=self._options.replay_max_inline_result_bytes,
+        )
+        replay_session = ReplaySession(
+            run_context=context,
+            mode=self._options.replay_mode,
+            store=cassette_store,
+            allow_live_fallback=self._options.allow_live_fallback,
+            volatile_fields=self._options.replay_volatile_fields,
         )
         token = set_current_run_context(context)
         trace_token = set_current_trace_store(self._trace_store)
         trace_options_token = set_current_trace_options(self._trace_options)
-        mutation_session = MutationTrialSession(context)
         mutation_token = set_current_mutation_session(mutation_session)
+        replay_token = set_current_replay_session(replay_session)
+        cassette_flushed = False
         try:
             try:
                 async with asyncio.timeout(self._options.item_timeout_seconds):
@@ -424,6 +463,8 @@ class TestRunner:
                     "test item exceeded its total timeout",
                 )
                 trace_record = self._trace_store.build_record(context.trace_id or "")
+            cassette_store.flush()
+            cassette_flushed = True
             result = self._build_test_result(
                 spec=spec,
                 context=context,
@@ -433,13 +474,20 @@ class TestRunner:
                 evaluations=evaluations,
                 trace_record=trace_record,
                 mutation_applications=mutation_session.applications,
+                replay_stats=replay_session.stats(),
+                cassette_ref=cassette_ref,
             )
             return result, trace_record
         finally:
-            reset_current_mutation_session(mutation_token)
-            reset_current_trace_options(trace_options_token)
-            reset_current_trace_store(trace_token)
-            reset_current_run_context(token)
+            try:
+                if not cassette_flushed:
+                    cassette_store.flush()
+            finally:
+                reset_current_replay_session(replay_token)
+                reset_current_mutation_session(mutation_token)
+                reset_current_trace_options(trace_options_token)
+                reset_current_trace_store(trace_token)
+                reset_current_run_context(token)
 
     @staticmethod
     def _state_record(
@@ -627,10 +675,37 @@ class TestRunner:
                         if self._cancel_requested.is_set():
                             raise _CancellationRequested
                         result, trace_record = await self._execute_trial(
-                            spec, target, context, trial_index
+                            spec,
+                            target,
+                            context,
+                            trial_index,
+                            writer.root,
                         )
-                        results.append(result)
                         writer.write_trace(result.trace_id, trace_record)
+                        if not result.passed and self._options.generate_failure_bundles:
+                            mutation_spec = (
+                                None
+                                if spec.mutation is None
+                                else self._mutations.get(spec.mutation)
+                            )
+                            cassette_path = writer.root / cast(str, result.cassette_ref)
+                            bundle = build_failure_bundle(
+                                context=context,
+                                test_spec=spec,
+                                target_spec=target,
+                                mutation_spec=mutation_spec,
+                                manifest=manifest,
+                                result=result,
+                                trace=trace_record,
+                                cassette_path=cassette_path,
+                                original_command=self._options.original_command,
+                            )
+                            bundle_ref, _ = writer.write_failure_bundle(
+                                result.trial_id,
+                                bundle,
+                            )
+                            result = result.model_copy(update={"failure_bundle_ref": bundle_ref})
+                        results.append(result)
                         writer.append_result(result)
                         writer.write_run(
                             self._state_record(
