@@ -449,6 +449,38 @@
       },
       "title": "ToolExpectation",
       "type": "object"
+    },
+    "TrialPolicy": {
+      "additionalProperties": false,
+      "description": "How multiple trials determine one test-case outcome.",
+      "properties": {
+        "minPassRate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minpassrate"
+        },
+        "strategy": {
+          "default": "all",
+          "enum": [
+            "all",
+            "majority",
+            "minPassRate"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "title": "TrialPolicy",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -512,6 +544,9 @@
       ],
       "default": null,
       "title": "Targetref"
+    },
+    "trialPolicy": {
+      "$ref": "#/$defs/TrialPolicy"
     },
     "trials": {
       "default": 1,

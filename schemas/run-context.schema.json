@@ -28,6 +28,19 @@
       "default": null,
       "title": "Manifest Hash"
     },
+    "mutation_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mutation Id"
+    },
     "random_seed": {
       "title": "Random Seed",
       "type": "integer"
@@ -46,6 +59,57 @@
       "format": "date-time",
       "title": "Started At",
       "type": "string"
+    },
+    "test_case_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Test Case Id"
+    },
+    "trace_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trace Id"
+    },
+    "trial_id": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trial Id"
+    },
+    "trial_seed": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Trial Seed"
     }
   },
   "required": [

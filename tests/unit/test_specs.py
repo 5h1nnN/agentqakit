@@ -267,3 +267,30 @@ def test_successful_environment_rendering_keeps_a_redacted_document(tmp_path: Pa
     assert loaded.spec.request.headers["authorization"] == "Bearer secret"
     headers = loaded.redacted_document["request"]["headers"]
     assert headers["authorization"] == "Bearer ***"
+
+
+@pytest.mark.parametrize(
+    "policy",
+    [
+        """
+        trials: 0
+        """,
+        """
+        trials: 3
+        trialPolicy:
+          strategy: minPassRate
+        """,
+        """
+        trials: 3
+        trialPolicy:
+          strategy: all
+          minPassRate: 0.5
+        """,
+    ],
+)
+def test_rejects_invalid_trial_configuration(tmp_path: Path, policy: str) -> None:
+    base = _agent_test().replace("    trials: 1\n", "")
+    path = _write(tmp_path / "invalid-trials.yaml", base + dedent(policy))
+
+    with pytest.raises(SpecLoadError):
+        load_spec_file(path)

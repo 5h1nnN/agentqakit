@@ -144,6 +144,23 @@ class EvaluatorSpec(SpecModel):
         return self
 
 
+class TrialPolicy(SpecModel):
+    """How multiple trials determine one test-case outcome."""
+
+    strategy: Literal["all", "majority", "minPassRate"] = "all"
+    min_pass_rate: UnitInterval | None = None
+
+    @model_validator(mode="after")
+    def validate_threshold(self) -> "TrialPolicy":
+        if self.strategy == "minPassRate" and self.min_pass_rate is None:
+            msg = "minPassRate strategy requires minPassRate"
+            raise ValueError(msg)
+        if self.strategy != "minPassRate" and self.min_pass_rate is not None:
+            msg = "minPassRate is only valid with the minPassRate strategy"
+            raise ValueError(msg)
+        return self
+
+
 class AgentTestSpec(SpecModel):
     """A single declarative agent test case."""
 
@@ -156,6 +173,7 @@ class AgentTestSpec(SpecModel):
     expect: Expectations
     evaluators: list[EvaluatorSpec] = Field(min_length=1)
     trials: PositiveInt = 1
+    trial_policy: TrialPolicy = Field(default_factory=TrialPolicy)
 
 
 class HttpRequestSpec(SpecModel):

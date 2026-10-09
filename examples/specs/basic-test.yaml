@@ -29,3 +29,5 @@ evaluators:
   - type: tool_call
   - type: budget
 trials: 1
+trialPolicy:
+  strategy: all

@@ -213,6 +213,11 @@
   "additionalProperties": false,
   "description": "Combined target and evaluator result for one test trial.",
   "properties": {
+    "ended_at": {
+      "format": "date-time",
+      "title": "Ended At",
+      "type": "string"
+    },
     "evaluations": {
       "items": {
         "$ref": "#/$defs/EvaluationResult"
@@ -233,16 +238,13 @@
       "title": "Scores",
       "type": "object"
     },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
     "target_result": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/TargetResult"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null
+      "$ref": "#/$defs/TargetResult"
     },
     "test_case_id": {
       "minLength": 1,
@@ -259,6 +261,15 @@
       "title": "Trial Id",
       "type": "string"
     },
+    "trial_index": {
+      "exclusiveMinimum": 0,
+      "title": "Trial Index",
+      "type": "integer"
+    },
+    "trial_seed": {
+      "title": "Trial Seed",
+      "type": "integer"
+    },
     "violations": {
       "items": {
         "$ref": "#/$defs/Violation"
@@ -271,7 +282,12 @@
     "test_case_id",
     "trial_id",
     "trace_id",
-    "passed"
+    "trial_index",
+    "trial_seed",
+    "started_at",
+    "ended_at",
+    "passed",
+    "target_result"
   ],
   "title": "TestResult",
   "type": "object"

@@ -41,6 +41,12 @@ AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported T1 format.
 
+The sequential runner now provides an explicit lifecycle, per-trial isolation,
+timeouts, cancellation, partial-failure handling, and stability aggregation.
+See [`docs/runner.md`](docs/runner.md). Real HTTP and Python target construction
+is added by the following adapter tasks; runner tests currently use injected
+protocol implementations.
+
 ## Repository layout
 
 - `agentqa/`: importable Python package and CLI

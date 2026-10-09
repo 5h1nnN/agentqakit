@@ -6,10 +6,13 @@ from agentqa.models.results import (
     EvaluationResult,
     GateResult,
     GateRuleResult,
+    MetricSummary,
     RunContext,
     RunResult,
     RunSummary,
     TargetResult,
+    TestCaseSummary,
+    TestInput,
     TestResult,
     TraceEvent,
     Violation,
@@ -22,6 +25,7 @@ from agentqa.models.specs import (
     MutationSpec,
     PythonTargetSpec,
     TargetSpec,
+    TrialPolicy,
 )
 
 __all__ = [
@@ -34,6 +38,7 @@ __all__ = [
     "GateRuleResult",
     "HttpTargetSpec",
     "LangGraphTargetSpec",
+    "MetricSummary",
     "MutationSpec",
     "PythonTargetSpec",
     "RunContext",
@@ -41,7 +46,10 @@ __all__ = [
     "RunSummary",
     "TargetResult",
     "TargetSpec",
+    "TestCaseSummary",
+    "TestInput",
     "TestResult",
     "TraceEvent",
+    "TrialPolicy",
     "Violation",
 ]
