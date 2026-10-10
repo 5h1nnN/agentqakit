@@ -1,0 +1,32 @@
+{
+  "benchmarkVersion": "1.0.0",
+  "categoryCounts": {
+    "boundary_input": 15,
+    "normal_task": 30,
+    "permission_privacy": 15,
+    "prompt_injection_security": 10,
+    "retrieval_knowledge_fault": 10,
+    "tool_call_arguments": 15,
+    "tool_failure_recovery": 15
+  },
+  "configurations": [
+    {
+      "configuration": "output-judge",
+      "failed": 4,
+      "judge_error": 3,
+      "judge_pass": 16,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.11428571428571428,
+      "pass_rate": 0.9636363636363636,
+      "passed": 106,
+      "replay_hits": 0,
+      "replay_misses": 0,
+      "total": 110
+    }
+  ],
+  "generatedAt": "2026-10-10T07:06:55.620816+00:00",
+  "judgeProvider": "deepseek",
+  "rawResultsHash": "sha256:33534799701ab28d2c3a5d22592d25ef414ba93039e9dc234f9d91a661a7bedc",
+  "resultCount": 110
+}

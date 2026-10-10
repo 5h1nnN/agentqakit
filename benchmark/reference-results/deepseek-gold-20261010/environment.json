@@ -1,0 +1,15 @@
+{
+  "agentqakitVersion": "0.1.0a0",
+  "benchmarkManifestHash": "sha256:0e939c2090c0d0070bc0e6f9690b5101b7c4bf44da8b89b20018636d1500acca",
+  "configHash": "sha256:4263e1450296db06540a525ae517f44e0eef0580fd596247be6fa3bf6550eb36",
+  "judgeConfigured": true,
+  "judgeModel": "deepseek-flash",
+  "judgeProvider": "deepseek",
+  "limitPerSuite": null,
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+  "randomSeed": 2026,
+  "selectedConfigurations": [
+    "output-judge"
+  ]
+}

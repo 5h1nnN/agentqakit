@@ -1,0 +1,2 @@
+configuration,total,passed,failed,pass_rate,judge_pass,judge_error,judge_skipped,mutation_applications,mutation_detection_rate,replay_hits,replay_misses
+output-judge,110,106,4,0.9636363636363636,16,3,0,37,0.11428571428571428,0,0
