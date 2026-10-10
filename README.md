@@ -5,7 +5,7 @@ repeatable agent tests, collect execution traces, inject controlled failures,
 evaluate results, reproduce failures, and enforce quality gates in CI.
 
 The project is currently being built from the ground up. The repository now
-contains the package foundation, strict specifications, sequential runner,
+contains the package foundation, strict specifications, concurrent budget-aware runner,
 HTTP, isolated Python, and optional LangGraph target adapters, plus bounded
 OpenTelemetry trace collection, OTLP/HTTP instrumentation, deterministic tool,
 retriever, and HTTP mutations, and recomputable Mutation Score reports.
@@ -111,8 +111,9 @@ AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
 
-The sequential runner provides an explicit lifecycle, per-trial isolation,
-timeouts, cancellation, partial-failure handling, and stability aggregation.
+The runner provides an explicit lifecycle, bounded trial concurrency, global
+Token/cost budgets, per-trial isolation, timeouts, cancellation,
+partial-failure handling, and stability aggregation.
 See [`docs/runner.md`](docs/runner.md). Target construction, security defaults,
 subprocess isolation, and LangGraph observation are documented in
 [`docs/targets.md`](docs/targets.md). Trace completeness, privacy limits, the

@@ -103,6 +103,18 @@ def run_tests(
         ),
     ] = Path("artifacts"),
     seed: Annotated[int, typer.Option(help="Deterministic base random seed.")] = 0,
+    concurrency: Annotated[
+        int,
+        typer.Option(min=1, help="Maximum number of trials running concurrently."),
+    ] = 1,
+    max_total_tokens: Annotated[
+        int | None,
+        typer.Option(min=1, help="Stop scheduling trials at this observed token total."),
+    ] = None,
+    max_total_cost_usd: Annotated[
+        float | None,
+        typer.Option(min=0.000001, help="Stop scheduling trials at this observed USD cost."),
+    ] = None,
     otlp_port: Annotated[
         int,
         typer.Option(min=0, max=65_535, help="Loopback OTLP/HTTP receiver port."),
@@ -204,6 +216,8 @@ def run_tests(
             str(artifacts),
             "--seed",
             str(seed),
+            "--concurrency",
+            str(concurrency),
             "--otlp-port",
             str(otlp_port),
             "--trace-flush-timeout",
@@ -215,6 +229,10 @@ def run_tests(
     command.append("--trace-receiver" if trace_receiver else "--no-trace-receiver")
     if capture_trace_content:
         command.append("--capture-trace-content")
+    if max_total_tokens is not None:
+        command.extend(["--max-total-tokens", str(max_total_tokens)])
+    if max_total_cost_usd is not None:
+        command.extend(["--max-total-cost-usd", str(max_total_cost_usd)])
     if replay_cassette is not None:
         command.extend(["--replay-cassette", str(replay_cassette)])
     if allow_live_fallback:
@@ -238,6 +256,9 @@ def run_tests(
                     mutations_path=mutations,
                     artifact_directory=artifacts,
                     random_seed=seed,
+                    concurrency=concurrency,
+                    max_total_tokens=max_total_tokens,
+                    max_total_cost_usd=max_total_cost_usd,
                     trace_receiver=trace_receiver,
                     otlp_port=otlp_port,
                     trace_flush_timeout_seconds=trace_flush_timeout,

@@ -41,6 +41,7 @@ class Outcome:
     steps: int = 2
     error: Exception | None = None
     delay_seconds: float = 0.0
+    cost_usd: float | None = None
 
 
 class FakeAdapter:
@@ -82,12 +83,18 @@ class FakeAdapter:
         if outcome.error is not None:
             raise outcome.error
         started_at = utc_now()
+        metadata: dict[str, int | float] = {
+            "total_tokens": outcome.total_tokens,
+            "steps": outcome.steps,
+        }
+        if outcome.cost_usd is not None:
+            metadata["cost_usd"] = outcome.cost_usd
         return TargetResult(
             status="OK",
             output={"passed": outcome.passed},
             started_at=started_at,
             ended_at=started_at + timedelta(milliseconds=outcome.latency_ms),
-            metadata={"total_tokens": outcome.total_tokens, "steps": outcome.steps},
+            metadata=metadata,
         )
 
     async def cleanup(self, context: RunContext) -> None:
@@ -153,6 +160,21 @@ class BlockingAdapter(FakeAdapter):
         self.started.set()
         await asyncio.sleep(60)
         raise AssertionError("cancelled invocation continued")
+
+
+class ConcurrencyAdapter(FakeAdapter):
+    def __init__(self, outcomes: Sequence[Outcome]) -> None:
+        super().__init__(outcomes)
+        self.active = 0
+        self.max_active = 0
+
+    async def invoke(self, test_input: AgentTestInput, context: RunContext) -> TargetResult:
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        try:
+            return await super().invoke(test_input, context)
+        finally:
+            self.active -= 1
 
 
 class InputMutationAdapter(FakeAdapter):
@@ -349,6 +371,81 @@ async def test_trial_policies_and_metric_percentiles(tmp_path: Path) -> None:
         assert case.latency_ms.p95 == pytest.approx(290)
         assert case.total_tokens.mean == pytest.approx(20)
         assert case.steps.p95 == pytest.approx(2.9)
+
+
+async def test_runner_bounds_concurrency_and_preserves_result_order(tmp_path: Path) -> None:
+    adapter = ConcurrencyAdapter(
+        [Outcome(delay_seconds=0.02) for _ in range(6)]
+    )
+    runner = AgentTestRunner(
+        adapter,
+        {"schema": ResultEvaluator()},
+        options=_options(tmp_path, concurrency=3),
+    )
+
+    result = await runner.run([_test_spec("concurrent", trials=6)], _target())
+
+    assert result.status == "COMPLETED"
+    assert result.exit_code == 0
+    assert adapter.max_active == 3
+    assert len({context.trial_id for context in adapter.contexts}) == 6
+    assert len({context.trace_id for context in adapter.contexts}) == 6
+    assert [trial.trial_index for trial in result.results] == [1, 2, 3, 4, 5, 6]
+    assert get_current_run_context() is None
+
+
+async def test_global_budget_stops_new_trials_and_finishes_in_flight_work(
+    tmp_path: Path,
+) -> None:
+    adapter = ConcurrencyAdapter(
+        [Outcome(total_tokens=100, cost_usd=0.05, delay_seconds=0.02) for _ in range(4)]
+    )
+    runner = AgentTestRunner(
+        adapter,
+        {"schema": ResultEvaluator()},
+        options=_options(
+            tmp_path,
+            concurrency=2,
+            max_total_tokens=100,
+            max_total_cost_usd=0.05,
+        ),
+    )
+
+    result = await runner.run([_test_spec("budgeted", trials=4)], _target())
+
+    assert result.status == "COMPLETED"
+    assert result.exit_code == 2
+    assert len(adapter.invoke_calls) == 2
+    assert result.summary.completed_trials == 2
+    assert result.summary.incomplete == 1
+    assert result.budget is not None
+    assert result.budget.exhausted is True
+    assert result.budget.exhausted_by == ["tokens", "cost"]
+    assert result.budget.consumed_total_tokens == 200
+    assert result.budget.consumed_cost_usd == pytest.approx(0.1)
+    assert result.budget.token_observations == 2
+    assert result.budget.cost_observations == 2
+
+    root = tmp_path / "artifacts" / "runs" / result.run_id
+    summary_record = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+    assert summary_record["budget"]["exhausted_by"] == ["tokens", "cost"]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"concurrency": 0}, "concurrency"),
+        ({"max_total_tokens": 0}, "max_total_tokens"),
+        ({"max_total_cost_usd": 0}, "max_total_cost_usd"),
+    ],
+)
+def test_runner_options_reject_invalid_concurrency_and_budgets(
+    tmp_path: Path,
+    overrides: dict[str, Any],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        _options(tmp_path, **overrides)
 
 
 async def test_prepare_failure_is_structured_and_cleanup_still_runs(tmp_path: Path) -> None:

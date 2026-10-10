@@ -1,6 +1,6 @@
 """Runtime context and result models serialized as snake_case JSON."""
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import ConfigDict, Field, JsonValue, model_validator
 
@@ -309,6 +309,29 @@ class RunSummary(StrictModel):
         return self
 
 
+class RunBudgetSummary(StrictModel):
+    """Observed global resource use and the limits applied to one run."""
+
+    max_total_tokens: PositiveInt | None = None
+    max_total_cost_usd: Annotated[float, Field(gt=0)] | None = None
+    consumed_total_tokens: NonNegativeInt = 0
+    consumed_cost_usd: Annotated[float, Field(ge=0)] = 0.0
+    token_observations: NonNegativeInt = 0
+    cost_observations: NonNegativeInt = 0
+    exhausted: bool = False
+    exhausted_by: list[Literal["tokens", "cost"]] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_exhaustion(self) -> "RunBudgetSummary":
+        if self.exhausted != bool(self.exhausted_by):
+            raise ValueError("exhausted must match exhausted_by")
+        if "tokens" in self.exhausted_by and self.max_total_tokens is None:
+            raise ValueError("token exhaustion requires a token limit")
+        if "cost" in self.exhausted_by and self.max_total_cost_usd is None:
+            raise ValueError("cost exhaustion requires a cost limit")
+        return self
+
+
 class RunResult(StrictModel):
     """Final state and all trial results for a run."""
 
@@ -318,6 +341,7 @@ class RunResult(StrictModel):
     started_at: UtcDateTime
     ended_at: UtcDateTime
     summary: RunSummary
+    budget: RunBudgetSummary | None = None
     results: list[TestResult] = Field(default_factory=list)
     mutation_score: MutationScoreReport | None = None
     error: ErrorInfo | None = None

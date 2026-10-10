@@ -1,4 +1,4 @@
-"""Sequential runner configuration."""
+"""Test runner configuration."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +13,9 @@ class RunnerOptions:
 
     artifact_directory: Path = Path("artifacts")
     random_seed: int = 0
+    concurrency: int = 1
+    max_total_tokens: int | None = None
+    max_total_cost_usd: float | None = None
     prepare_timeout_seconds: float = 30.0
     item_timeout_seconds: float = 120.0
     evaluator_timeout_seconds: float = 30.0
@@ -31,6 +34,16 @@ class RunnerOptions:
     run_id: str | None = None
 
     def __post_init__(self) -> None:
+        if isinstance(self.concurrency, bool) or self.concurrency <= 0:
+            raise ValueError("concurrency must be a positive integer")
+        if self.max_total_tokens is not None and (
+            isinstance(self.max_total_tokens, bool) or self.max_total_tokens <= 0
+        ):
+            raise ValueError("max_total_tokens must be a positive integer")
+        if self.max_total_cost_usd is not None and (
+            isinstance(self.max_total_cost_usd, bool) or self.max_total_cost_usd <= 0
+        ):
+            raise ValueError("max_total_cost_usd must be positive")
         timeouts = {
             "prepare_timeout_seconds": self.prepare_timeout_seconds,
             "item_timeout_seconds": self.item_timeout_seconds,

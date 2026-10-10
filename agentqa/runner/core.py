@@ -4,12 +4,14 @@ import asyncio
 import hashlib
 from collections.abc import Coroutine, Mapping, Sequence
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, TypeVar, cast
 
 from agentqa.conventions import new_id, to_utc_iso8601, utc_now
 from agentqa.evaluators import EvaluationRequest, Evaluator
+from agentqa.evaluators.budget import observed_token_and_cost
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
@@ -19,6 +21,7 @@ from agentqa.models import (
     MutationScoreReport,
     MutationSpec,
     ReplayStats,
+    RunBudgetSummary,
     RunContext,
     RunResult,
     RunSummary,
@@ -75,6 +78,67 @@ class _FatalRunError(Exception):
         self.error = error
 
 
+@dataclass(slots=True)
+class _BudgetTracker:
+    max_total_tokens: int | None
+    max_total_cost_usd: float | None
+    consumed_total_tokens: int = 0
+    consumed_cost_usd: float = 0.0
+    token_observations: int = 0
+    cost_observations: int = 0
+
+    @property
+    def enabled(self) -> bool:
+        return self.max_total_tokens is not None or self.max_total_cost_usd is not None
+
+    @property
+    def exhausted_by(self) -> list[Literal["tokens", "cost"]]:
+        exhausted: list[Literal["tokens", "cost"]] = []
+        if (
+            self.max_total_tokens is not None
+            and self.consumed_total_tokens >= self.max_total_tokens
+        ):
+            exhausted.append("tokens")
+        if (
+            self.max_total_cost_usd is not None
+            and self.consumed_cost_usd >= self.max_total_cost_usd
+        ):
+            exhausted.append("cost")
+        return exhausted
+
+    @property
+    def exhausted(self) -> bool:
+        return bool(self.exhausted_by)
+
+    def observe(self, result: TestResult, trace_record: TraceRecord) -> None:
+        tokens, cost = observed_token_and_cost(
+            result.target_result.metadata,
+            trace_record.status,
+            [event for event in trace_record.events if event.kind == "LLM"],
+        )
+        if tokens is not None:
+            self.consumed_total_tokens += tokens
+            self.token_observations += 1
+        if cost is not None:
+            self.consumed_cost_usd += cost
+            self.cost_observations += 1
+
+    def summary(self) -> RunBudgetSummary | None:
+        if not self.enabled:
+            return None
+        exhausted_by = self.exhausted_by
+        return RunBudgetSummary(
+            max_total_tokens=self.max_total_tokens,
+            max_total_cost_usd=self.max_total_cost_usd,
+            consumed_total_tokens=self.consumed_total_tokens,
+            consumed_cost_usd=self.consumed_cost_usd,
+            token_observations=self.token_observations,
+            cost_observations=self.cost_observations,
+            exhausted=bool(exhausted_by),
+            exhausted_by=exhausted_by,
+        )
+
+
 def _safe_exception_message(subject: str, exc: BaseException) -> str:
     """Describe an exception without persisting its potentially sensitive message."""
     return f"{subject} raised {type(exc).__name__}"
@@ -105,7 +169,7 @@ def _run_exit_code(state: RunState, summary: RunSummary) -> Literal[0, 1, 2]:
 
 
 class TestRunner:
-    """Run validated specs sequentially against injected adapters and evaluators."""
+    """Run validated specs with bounded concurrency and observed global budgets."""
 
     def __init__(
         self,
@@ -554,7 +618,7 @@ class TestRunner:
         *,
         manifest: AgentManifest | None = None,
     ) -> RunResult:
-        """Execute every ``Test x Trial`` item sequentially and finalize artifacts."""
+        """Execute planned ``Test x Trial`` items and finalize artifacts."""
         if self._has_run:
             raise RuntimeError("TestRunner instances are single-use")
         self._has_run = True
@@ -579,7 +643,12 @@ class TestRunner:
         writer = ArtifactWriter(self._options.artifact_directory, run_id)
         machine = RunStateMachine()
         results: list[TestResult] = []
+        ordered_results: list[tuple[int, TestResult]] = []
         total_items = sum(spec.trials for spec in frozen_specs)
+        budget_tracker = _BudgetTracker(
+            max_total_tokens=self._options.max_total_tokens,
+            max_total_cost_usd=self._options.max_total_cost_usd,
+        )
         run_error = self._validate_specs(frozen_specs)
         desired_state = RunState.FAILED if run_error is not None else RunState.COMPLETED
         prepare_attempted = False
@@ -670,52 +739,110 @@ class TestRunner:
                         error=None,
                     )
                 )
-                for spec in frozen_specs:
-                    for trial_index in range(1, spec.trials + 1):
+                planned_trials = [
+                    (spec, trial_index)
+                    for spec in frozen_specs
+                    for trial_index in range(1, spec.trials + 1)
+                ]
+                work_items = [
+                    (ordinal, spec, trial_index)
+                    for ordinal, (spec, trial_index) in enumerate(planned_trials)
+                ]
+                work_iterator = iter(work_items)
+                semaphore = asyncio.Semaphore(self._options.concurrency)
+
+                async def execute_work(
+                    ordinal: int,
+                    spec: AgentTestSpec,
+                    trial_index: int,
+                ) -> tuple[int, AgentTestSpec, TestResult, TraceRecord]:
+                    async with semaphore:
+                        result, trace_record = await self._execute_trial(
+                            spec, target, context, trial_index, writer.root
+                        )
+                    return ordinal, spec, result, trace_record
+
+                pending: set[
+                    asyncio.Task[tuple[int, AgentTestSpec, TestResult, TraceRecord]]
+                ] = set()
+
+                def launch_next() -> bool:
+                    if budget_tracker.exhausted:
+                        return False
+                    item = next(work_iterator, None)
+                    if item is None:
+                        return False
+                    pending.add(asyncio.create_task(execute_work(*item)))
+                    return True
+
+                for _ in range(self._options.concurrency):
+                    if not launch_next():
+                        break
+
+                try:
+                    while pending:
                         if self._cancel_requested.is_set():
                             raise _CancellationRequested
-                        result, trace_record = await self._execute_trial(
-                            spec,
-                            target,
-                            context,
-                            trial_index,
-                            writer.root,
+                        completed, still_pending = await asyncio.wait(
+                            pending,
+                            return_when=asyncio.FIRST_COMPLETED,
                         )
-                        writer.write_trace(result.trace_id, trace_record)
-                        if not result.passed and self._options.generate_failure_bundles:
-                            mutation_spec = (
-                                None
-                                if spec.mutation is None
-                                else self._mutations.get(spec.mutation)
-                            )
-                            cassette_path = writer.root / cast(str, result.cassette_ref)
-                            bundle = build_failure_bundle(
-                                context=context,
-                                test_spec=spec,
-                                target_spec=target,
-                                mutation_spec=mutation_spec,
-                                manifest=manifest,
-                                result=result,
-                                trace=trace_record,
-                                cassette_path=cassette_path,
-                                original_command=self._options.original_command,
-                            )
-                            bundle_ref, _ = writer.write_failure_bundle(
-                                result.trial_id,
-                                bundle,
-                            )
-                            result = result.model_copy(update={"failure_bundle_ref": bundle_ref})
-                        results.append(result)
-                        writer.append_result(result)
-                        writer.write_run(
-                            self._state_record(
-                                machine,
-                                context,
-                                total_items=total_items,
-                                completed_items=len(results),
-                                error=None,
-                            )
+                        pending = set(still_pending)
+                        completed_trials = sorted(
+                            (task.result() for task in completed),
+                            key=lambda item: item[0],
                         )
+                        for ordinal, spec, result, trace_record in completed_trials:
+                            budget_tracker.observe(result, trace_record)
+                            ordered_results.append((ordinal, result))
+                            results.append(result)
+                            writer.write_trace(result.trace_id, trace_record)
+                            if not result.passed and self._options.generate_failure_bundles:
+                                mutation_spec = (
+                                    None
+                                    if spec.mutation is None
+                                    else self._mutations.get(spec.mutation)
+                                )
+                                cassette_path = writer.root / cast(str, result.cassette_ref)
+                                bundle = build_failure_bundle(
+                                    context=context,
+                                    test_spec=spec,
+                                    target_spec=target,
+                                    mutation_spec=mutation_spec,
+                                    manifest=manifest,
+                                    result=result,
+                                    trace=trace_record,
+                                    cassette_path=cassette_path,
+                                    original_command=self._options.original_command,
+                                )
+                                bundle_ref, _ = writer.write_failure_bundle(
+                                    result.trial_id,
+                                    bundle,
+                                )
+                                result = result.model_copy(
+                                    update={"failure_bundle_ref": bundle_ref}
+                                )
+                                ordered_results[-1] = (ordinal, result)
+                                results[-1] = result
+                            writer.append_result(result)
+                            writer.write_run(
+                                self._state_record(
+                                    machine,
+                                    context,
+                                    total_items=total_items,
+                                    completed_items=len(results),
+                                    error=None,
+                                )
+                            )
+                        while len(pending) < self._options.concurrency and launch_next():
+                            pass
+                finally:
+                    if pending:
+                        for task in pending:
+                            task.cancel()
+                        await asyncio.gather(*pending, return_exceptions=True)
+
+                results = [result for _, result in sorted(ordered_results)]
 
                 machine.transition(RunState.EVALUATING)
                 writer.write_run(
@@ -804,6 +931,7 @@ class TestRunner:
                 )
 
         summary = aggregate_run(frozen_specs, results)
+        budget_summary = budget_tracker.summary()
         mutation_score: MutationScoreReport | None = None
         if self._mutations:
             mutation_score = calculate_mutation_score(
@@ -834,6 +962,11 @@ class TestRunner:
                         "status": desired_state.value,
                         "exit_code": exit_code,
                         "summary": summary.model_dump(mode="json"),
+                        "budget": (
+                            None
+                            if budget_summary is None
+                            else budget_summary.model_dump(mode="json")
+                        ),
                         "mutation_score": (
                             None
                             if mutation_score is None
@@ -857,6 +990,7 @@ class TestRunner:
             started_at=started_at,
             ended_at=ended_at,
             summary=summary,
+            budget=budget_summary,
             results=results,
             mutation_score=mutation_score,
             error=run_error,

@@ -1,4 +1,4 @@
-# Sequential test runner
+# Test runner
 
 The T2 runner executes validated `AgentTest` specifications against injected
 `TargetAdapter` and `Evaluator` implementations. It deliberately does not know
@@ -72,12 +72,27 @@ runs cleanup, persists completed results, and returns a `CANCELLED` result.
 Preparation, target invocation, each evaluator, the total test item, and cleanup
 all have explicit timeouts.
 
-## Current scope
+## Concurrency and global budgets
 
-T2 is sequential by design. Concurrency, semaphores, and global Token/cost
-budgets belong to the deferred T2-3 task. The runner's explicit per-trial
-contexts and stable execution ordering provide the boundary for adding them
-later.
+`--concurrency N` bounds active trials with an `asyncio.Semaphore`; the default
+of `1` preserves sequential execution. Trial, trace, replay, and mutation state
+is isolated with context-local values, and returned results retain planned test
+and trial order even when completion order differs.
+
+Two optional run-wide limits stop new trials from being created:
+
+```text
+--max-total-tokens 100000
+--max-total-cost-usd 5.00
+```
+
+The scheduler updates consumption after completed trials. Once either observed
+total reaches its limit, already-running trials finish normally and unscheduled
+trials remain incomplete, producing exit code `2`. Consequently, final use may
+exceed a limit by the consumption of in-flight work. Token and cost values come
+from target metadata or complete LLM trace evidence. Missing observations stay
+unknown, do not consume budget, and are counted explicitly in the run's budget
+summary rather than being invented as zero.
 
 The built-in evaluators and their evidence semantics are described in
 [`evaluators.md`](evaluators.md).

@@ -6,6 +6,7 @@ from pydantic import ConfigDict, Field
 
 from agentqa.models.base import (
     NonEmptyString,
+    PositiveInt,
     ResourceName,
     StrictModel,
     UtcDateTime,
@@ -33,6 +34,9 @@ class RunCreateRequest(ApiModel):
     target_path: NonEmptyString | None = None
     mutations_path: NonEmptyString | None = None
     random_seed: int = 0
+    concurrency: PositiveInt = 1
+    max_total_tokens: PositiveInt | None = None
+    max_total_cost_usd: float | None = Field(default=None, gt=0)
     capture_trace_content: bool = False
     generate_failure_bundles: bool = True
     judge_enabled: bool = False

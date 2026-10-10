@@ -29,6 +29,9 @@ class RunExecutionConfig:
     mutations_path: Path | None = None
     artifact_directory: Path = Path("artifacts")
     random_seed: int = 0
+    concurrency: int = 1
+    max_total_tokens: int | None = None
+    max_total_cost_usd: float | None = None
     trace_receiver: bool = True
     otlp_port: int = 4318
     otlp_endpoint: str | None = None
@@ -44,6 +47,16 @@ class RunExecutionConfig:
     judge_provider: JudgeProvider | None = None
 
     def __post_init__(self) -> None:
+        if isinstance(self.concurrency, bool) or self.concurrency <= 0:
+            raise ValueError("concurrency must be a positive integer")
+        if self.max_total_tokens is not None and (
+            isinstance(self.max_total_tokens, bool) or self.max_total_tokens <= 0
+        ):
+            raise ValueError("max_total_tokens must be a positive integer")
+        if self.max_total_cost_usd is not None and (
+            isinstance(self.max_total_cost_usd, bool) or self.max_total_cost_usd <= 0
+        ):
+            raise ValueError("max_total_cost_usd must be positive")
         if not 0 <= self.otlp_port <= 65_535:
             raise ValueError("otlp_port must be between 0 and 65535")
         if self.trace_receiver and self.otlp_endpoint is not None:
@@ -137,6 +150,9 @@ async def execute_run(config: RunExecutionConfig) -> RunResult:
             options=RunnerOptions(
                 artifact_directory=config.artifact_directory,
                 random_seed=config.random_seed,
+                concurrency=config.concurrency,
+                max_total_tokens=config.max_total_tokens,
+                max_total_cost_usd=config.max_total_cost_usd,
                 trace_flush_timeout_seconds=config.trace_flush_timeout_seconds,
                 otlp_endpoint=endpoint,
                 replay_mode=config.replay_mode,

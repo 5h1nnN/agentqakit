@@ -525,6 +525,80 @@
       "title": "ReplayStats",
       "type": "object"
     },
+    "RunBudgetSummary": {
+      "additionalProperties": false,
+      "description": "Observed global resource use and the limits applied to one run.",
+      "properties": {
+        "consumed_cost_usd": {
+          "default": 0.0,
+          "minimum": 0,
+          "title": "Consumed Cost Usd",
+          "type": "number"
+        },
+        "consumed_total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Consumed Total Tokens",
+          "type": "integer"
+        },
+        "cost_observations": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Cost Observations",
+          "type": "integer"
+        },
+        "exhausted": {
+          "default": false,
+          "title": "Exhausted",
+          "type": "boolean"
+        },
+        "exhausted_by": {
+          "items": {
+            "enum": [
+              "tokens",
+              "cost"
+            ],
+            "type": "string"
+          },
+          "title": "Exhausted By",
+          "type": "array"
+        },
+        "max_total_cost_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Total Cost Usd"
+        },
+        "max_total_tokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Total Tokens"
+        },
+        "token_observations": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Token Observations",
+          "type": "integer"
+        }
+      },
+      "title": "RunBudgetSummary",
+      "type": "object"
+    },
     "RunSummary": {
       "additionalProperties": false,
       "description": "Recomputable aggregate counts for one run.",
@@ -966,6 +1040,17 @@
   "additionalProperties": false,
   "description": "Final state and all trial results for a run.",
   "properties": {
+    "budget": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunBudgetSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "ended_at": {
       "format": "date-time",
       "title": "Ended At",

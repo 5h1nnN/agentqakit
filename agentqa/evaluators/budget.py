@@ -83,6 +83,32 @@ def _span_sum(
     return sum(float(value) for value in values) if values else None
 
 
+def observed_token_and_cost(
+    target_metadata: Mapping[str, Any],
+    trace_status: str,
+    llm_calls: Sequence[TraceEvent],
+) -> tuple[int | None, float | None]:
+    """Return directly observed token and cost use without inventing missing values."""
+    total_tokens_value = _mapping_number(target_metadata, {"total_tokens"})
+    total_tokens: int | None
+    if total_tokens_value is not None:
+        total_tokens = int(total_tokens_value)
+    elif trace_status == "complete":
+        total_tokens = _span_tokens(llm_calls)
+    else:
+        total_tokens = None
+
+    cost_value = _mapping_number(target_metadata, _COST_KEYS)
+    cost_usd: float | None
+    if cost_value is not None:
+        cost_usd = float(cost_value)
+    elif trace_status == "complete":
+        cost_usd = _span_sum(llm_calls, _COST_KEYS, require_every=True)
+    else:
+        cost_usd = None
+    return total_tokens, cost_usd
+
+
 class BudgetEvaluator:
     """Check only metrics that are directly observed in results or traces."""
 
@@ -98,22 +124,11 @@ class BudgetEvaluator:
         target = request.target_result
         latency_ms = (target.ended_at - target.started_at).total_seconds() * 1_000
 
-        total_tokens_value = _mapping_number(target.metadata, {"total_tokens"})
-        total_tokens: int | None
-        if total_tokens_value is not None:
-            total_tokens = int(total_tokens_value)
-        elif request.trace_record.status == "complete":
-            total_tokens = _span_tokens(view.llm_calls)
-        else:
-            total_tokens = None
-        cost_value = _mapping_number(target.metadata, _COST_KEYS)
-        cost_usd: float | None
-        if cost_value is not None:
-            cost_usd = float(cost_value)
-        elif request.trace_record.status == "complete":
-            cost_usd = _span_sum(view.llm_calls, _COST_KEYS, require_every=True)
-        else:
-            cost_usd = None
+        total_tokens, cost_usd = observed_token_and_cost(
+            target.metadata,
+            request.trace_record.status,
+            view.llm_calls,
+        )
         retry_value = _mapping_number(target.metadata, _RETRY_KEYS)
         if retry_value is not None:
             retry_count: int | float | None = int(retry_value)
