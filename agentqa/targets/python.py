@@ -12,8 +12,17 @@ from typing import Any, Literal
 
 from agentqa.conventions import new_id, utc_now
 from agentqa.models import ErrorInfo, PythonTargetSpec, RunContext, TargetResult, TestInput
+from agentqa.mutations import MutationEngine, get_current_mutation_session
+from agentqa.replay import get_current_replay_session
 from agentqa.storage import redact_text_secrets
 from agentqa.targets.errors import TargetConfigurationError, TargetErrorCode
+from agentqa.targets.python_sdk import (
+    PythonSDKReplayConfig,
+    PythonSDKTraceConfig,
+    PythonSDKTrialConfig,
+    PythonSDKTrialEvidence,
+)
+from agentqa.tracing.context import get_current_trace_options, get_current_trace_store
 
 _MAX_STDERR_BYTES = 65_536
 
@@ -32,6 +41,13 @@ class PythonTargetAdapter:
         self._spec = spec
         self._persistent: _WorkerProcess | None = None
         self._lock = asyncio.Lock()
+        self._mutation_engine = MutationEngine()
+
+    def set_mutation_engine(self, engine: MutationEngine) -> None:
+        """Configure mutation specs forwarded to isolated SDK workers."""
+        if self._persistent is not None:
+            raise TargetConfigurationError("mutation engine must be configured before prepare")
+        self._mutation_engine = engine
 
     def _working_directory(self) -> Path:
         if self._spec.working_directory is None:
@@ -169,10 +185,79 @@ class PythonTargetAdapter:
             metadata=metadata or {},
         )
 
+    def _sdk_config(self, context: RunContext) -> PythonSDKTrialConfig:
+        replay_session = get_current_replay_session()
+        if replay_session is None:
+            replay = PythonSDKReplayConfig(mode="off")
+        else:
+            store = replay_session.store
+            replay = PythonSDKReplayConfig(
+                mode=replay_session.mode,
+                source_path=None if store.source_path is None else str(store.source_path),
+                output_path=None if store.output_path is None else str(store.output_path),
+                max_inline_result_bytes=store.max_inline_result_bytes,
+                allow_live_fallback=replay_session.allow_live_fallback,
+                volatile_fields=list(replay_session.volatile_fields),
+            )
+        options = get_current_trace_options()
+        return PythonSDKTrialConfig(
+            context=context,
+            mutations=list(self._mutation_engine.specs.values()),
+            replay=replay,
+            trace=PythonSDKTraceConfig(max_spans_per_trace=options.max_spans_per_trace),
+        )
+
+    @staticmethod
+    def _merge_sdk_evidence(raw: Any, context: RunContext) -> str | None:
+        try:
+            evidence = PythonSDKTrialEvidence.model_validate_json(
+                json.dumps(raw, ensure_ascii=False)
+            )
+        except Exception:
+            return "Python worker returned invalid AgentQAKit SDK evidence"
+        trace_id = context.trace_id
+        trial_id = context.trial_id
+        test_case_id = context.test_case_id
+        if any(event.trace_id != trace_id for event in evidence.trace_events):
+            return "Python worker SDK evidence used a mismatched trace_id"
+        if any(entry.trace_id != trace_id for entry in evidence.cassette_entries):
+            return "Python worker cassette evidence used a mismatched trace_id"
+        if any(
+            application.trace_id != trace_id
+            or application.trial_id != trial_id
+            or application.test_case_id != test_case_id
+            for application in evidence.mutation_applications
+        ):
+            return "Python worker mutation evidence used mismatched trial identity"
+        if any(not entry.verify_checksum() for entry in evidence.cassette_entries):
+            return "Python worker returned a cassette checksum mismatch"
+
+        replay_session = get_current_replay_session()
+        if replay_session is not None:
+            if evidence.replay.mode != replay_session.mode:
+                return "Python worker replay mode did not match the active trial"
+            for entry in evidence.cassette_entries:
+                replay_session.store.import_entry(entry)
+            replay_session.merge_stats(evidence.replay)
+        mutation_session = get_current_mutation_session()
+        if mutation_session is not None:
+            mutation_session.applications.extend(evidence.mutation_applications)
+            mutation_session.applied_mutations.update(
+                application.mutation_id
+                for application in evidence.mutation_applications
+                if application.triggered
+            )
+        trace_store = get_current_trace_store()
+        if trace_store is not None:
+            for event in evidence.trace_events:
+                trace_store.add(event)
+        return None
+
     async def _exchange(
         self,
         worker: _WorkerProcess,
         test_input: TestInput,
+        context: RunContext,
     ) -> TargetResult:
         started_at = utc_now()
         request_id = new_id()
@@ -186,6 +271,7 @@ class PythonTargetAdapter:
         request = {
             "request_id": request_id,
             "input": test_input.model_dump(mode="json"),
+            "agentqa": self._sdk_config(context).model_dump(mode="json"),
         }
         try:
             process.stdin.write(json.dumps(request, ensure_ascii=False).encode() + b"\n")
@@ -231,6 +317,14 @@ class PythonTargetAdapter:
                 started_at=started_at,
                 code=TargetErrorCode.PYTHON_PROTOCOL_ERROR.value,
                 message="Python worker returned a mismatched request_id",
+                metadata=self._stderr_metadata(worker),
+            )
+        evidence_error = self._merge_sdk_evidence(response.get("agentqa"), context)
+        if evidence_error is not None:
+            return self._error_result(
+                started_at=started_at,
+                code=TargetErrorCode.PYTHON_PROTOCOL_ERROR.value,
+                message=evidence_error,
                 metadata=self._stderr_metadata(worker),
             )
         if response.get("ok") is True:
@@ -284,7 +378,7 @@ class PythonTargetAdapter:
                         message=f"could not start Python worker: {type(exc).__name__}",
                     )
             try:
-                result = await self._exchange(worker, test_input)
+                result = await self._exchange(worker, test_input, context)
                 if not owns_worker and result.status == "TIMEOUT":
                     await self._stop_worker(worker)
                     self._persistent = None

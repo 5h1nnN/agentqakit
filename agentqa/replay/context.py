@@ -48,6 +48,16 @@ class ReplaySession:
         with self._lock:
             self.live_fallbacks += 1
 
+    def merge_stats(self, stats: ReplayStats) -> None:
+        """Merge counters collected in an isolated target worker."""
+        if stats.mode != self.mode:
+            raise ValueError("worker replay mode does not match the active trial")
+        with self._lock:
+            self.recorded += stats.recorded
+            self.hits += stats.hits
+            self.misses += stats.misses
+            self.live_fallbacks += stats.live_fallbacks
+
     def stats(self) -> ReplayStats:
         with self._lock:
             lookups = self.hits + self.misses

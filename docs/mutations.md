@@ -90,6 +90,25 @@ Sync and async callables, common runnable methods, and LangChain
 `StructuredTool` functions are supported. Without an active trial mutation the
 wrappers call the original object unchanged.
 
+For an isolated Python target, decorate the boundary directly instead of
+accepting a LangGraph runtime factory argument:
+
+```python
+import agentqa
+
+
+@agentqa.tool(name="query_course")
+def query_course(course_id: str) -> dict: ...
+
+
+@agentqa.retriever(name="campus_docs")
+async def campus_docs(query: str) -> list[dict]: ...
+```
+
+The parent runner forwards the active mutation specifications and immutable
+trial identity to the subprocess. The worker executes matching locally and
+returns validated `MutationApplication` and trace evidence for normal scoring.
+
 ## Fixed-upstream HTTP fault proxy
 
 External HTTP tools can be placed behind the local proxy:

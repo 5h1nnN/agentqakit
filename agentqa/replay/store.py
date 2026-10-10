@@ -205,6 +205,13 @@ class JsonlCassetteStore:
             self._recorded_entries.append(entry)
         return entry
 
+    def import_entry(self, entry: CassetteEntry) -> None:
+        """Import a verified entry observed by an isolated Python worker."""
+        if not entry.verify_checksum():
+            raise CassetteFormatError("imported cassette entry checksum mismatch")
+        with self._lock:
+            self._recorded_entries.append(entry)
+
     def record_error(
         self,
         *,

@@ -92,6 +92,41 @@ credential patterns are redacted. Workers receive only allowlisted environment
 variables plus AgentQAKit run, test, trace, mutation, and artifact identifiers.
 Timeout or cancellation terminates only the worker's dedicated process group.
 
+### Python SDK decorators
+
+Python targets can expose their real agent, tool, and retrieval boundaries with
+decorators. Both `@agentqa.tool` and `@agentqa.tool(name="...")` forms are
+supported; the retriever and agent decorators follow the same convention.
+
+```python
+import agentqa
+
+
+@agentqa.tool(name="course.lookup")
+def lookup_course(course_id: str) -> dict[str, str]:
+    return {"course_id": course_id, "status": "available"}
+
+
+@agentqa.retriever(name="course.docs")
+async def retrieve_docs(query: str) -> list[dict[str, str]]:
+    return [{"page_content": f"documentation for {query}"}]
+
+
+@agentqa.agent(name="course-agent")
+async def run(payload: dict) -> dict:
+    course = lookup_course(payload["input"]["course_id"])
+    docs = await retrieve_docs(course["course_id"])
+    return {**course, "docs": docs}
+```
+
+During a test, the worker automatically connects these boundaries to tracing,
+mutation injection, and record/replay. Evidence is validated and returned to
+the parent runner over the isolated JSONL protocol; it is not added to the
+agent's business result. Outside an AgentQAKit trial the decorators are
+transparent pass-through wrappers, so the same module remains directly usable.
+Existing undecorated Python targets remain valid, but AgentQAKit can then see
+only their final output and any independently exported OpenTelemetry spans.
+
 ## LangGraph
 
 LangGraph is an optional integration:

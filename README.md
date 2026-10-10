@@ -9,6 +9,9 @@ contains the package foundation, strict specifications, concurrent budget-aware 
 HTTP, isolated Python, and optional LangGraph target adapters, plus bounded
 OpenTelemetry trace collection, OTLP/HTTP instrumentation, deterministic tool,
 retriever, and HTTP mutations, and recomputable Mutation Score reports.
+Isolated Python agents can opt into those same trace, mutation, and replay
+capabilities with `@agentqa.agent`, `@agentqa.tool`, and
+`@agentqa.retriever` decorators.
 It also includes deterministic output, tool, trajectory, state, privacy, and
 budget evaluators plus an opt-in, provider-neutral LLM judge boundary, canonical
 dependency replay, and verified failure reproduction bundles.

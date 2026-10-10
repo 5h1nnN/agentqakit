@@ -43,6 +43,20 @@ def build_graph(agentqa_runtime=None):
     return build_with(tool, retriever)
 ```
 
+Isolated Python targets use the equivalent decorator boundary:
+
+```python
+import agentqa
+
+
+@agentqa.tool(name="query_course")
+def query_course(course_id: str) -> dict: ...
+```
+
+The worker receives the trial's replay policy and source cassette, then returns
+verified cassette entries and counters to the parent runner. In strict replay,
+the decorated function body is not called when an entry matches.
+
 Mutation interception is outside record/replay interception. A cassette thus
 stores the baseline dependency response, while a mutation changes the value
 seen by the agent. Mutations that short-circuit before a dependency call do not
