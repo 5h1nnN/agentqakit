@@ -93,6 +93,20 @@ The server binds to `127.0.0.1:8000`, stores indexes under `.agentqa/`, and
 accepts only workspace-relative specification paths by default. The API is also
 available without the UI at `uvicorn apps.api.main:app`.
 
+Enable semantic evaluation with DeepSeek by copying `.env.example` to the
+Git-ignored `.env.local`, setting its permissions to `600`, and running:
+
+```bash
+agentqa test run examples/specs/ci-test.yaml \
+  --target examples/specs/ci-candidate-target.yaml \
+  --judge-provider deepseek \
+  --no-trace-receiver
+```
+
+The API key is process-only secret input. Judge evidence records model identity,
+configuration hashes, verdict, rationale, and token usage, but never the key or
+raw prompt.
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.

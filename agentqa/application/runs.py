@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Literal, cast
 
 from agentqa.errors import AgentQAError
-from agentqa.evaluators import built_in_evaluators
+from agentqa.evaluators import JudgeProvider, built_in_evaluators
 from agentqa.models import AgentTestSpec, MutationSpec, RunResult, TargetSpec
 from agentqa.runner import RunnerOptions, TestRunner
 from agentqa.specs import load_specs
@@ -41,6 +41,7 @@ class RunExecutionConfig:
     generate_failure_bundles: bool = True
     original_command: str | None = None
     run_id: str | None = None
+    judge_provider: JudgeProvider | None = None
 
     def __post_init__(self) -> None:
         if not 0 <= self.otlp_port <= 65_535:
@@ -132,7 +133,7 @@ async def execute_run(config: RunExecutionConfig) -> RunResult:
     try:
         runner = TestRunner(
             adapter,
-            built_in_evaluators(),
+            built_in_evaluators(config.judge_provider),
             options=RunnerOptions(
                 artifact_directory=config.artifact_directory,
                 random_seed=config.random_seed,

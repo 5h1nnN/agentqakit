@@ -28,6 +28,12 @@ export function RunDetail({ run }: { run: StoredRunSummary }) {
     () => results.flatMap((result) => result.mutation_applications.map((item) => ({ ...item, testCaseId: result.test_case_id }))),
     [results],
   );
+  const judgeEvaluations = useMemo(
+    () => results.flatMap((result) => result.evaluations
+      .filter((evaluation) => evaluation.evaluator_type === "llm_judge")
+      .map((evaluation) => ({ ...evaluation, testCaseId: result.test_case_id, trialId: result.trial_id }))),
+    [results],
+  );
 
   const showTrace = async (traceId: string) => {
     try {
@@ -65,6 +71,11 @@ export function RunDetail({ run }: { run: StoredRunSummary }) {
       </section>
 
       <TracePanel trace={trace} />
+
+      {judgeEvaluations.length > 0 && <section className="panel table-panel">
+        <div className="panel__header"><div><p className="eyebrow">Semantic evaluation</p><h3>DeepSeek AI judge</h3></div><span className="muted">{judgeEvaluations.length} decisions</span></div>
+        <div className="judge-list">{judgeEvaluations.map((evaluation) => <article className="judge-card" key={`${evaluation.trialId}-${evaluation.evaluator_type}`}><StatusBadge status={evaluation.status} /><div><strong>{evaluation.testCaseId}</strong><p>{evaluation.message ?? "No rationale was returned."}</p></div><span className="judge-score">{evaluation.score === null ? "N/A" : percent(evaluation.score)}</span></article>)}</div>
+      </section>}
 
       <section className="panel table-panel">
         <div className="panel__header"><div><p className="eyebrow">Failure analysis</p><h3>Findings</h3></div></div>

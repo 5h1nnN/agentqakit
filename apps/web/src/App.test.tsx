@@ -7,11 +7,18 @@ describe("App", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue({
+      vi.fn().mockImplementation(async (input: RequestInfo | URL) => ({
         ok: true,
         status: 200,
-        json: async () => ({ runs: [], jobs: [] }),
-      }),
+        json: async () => String(input).includes("/api/health")
+          ? {
+              status: "ok",
+              storage: "SQLiteResultStore",
+              workspaceRoot: "/workspace",
+              judge: { configured: true, provider: "deepseek", model: "deepseek-test" },
+            }
+          : { runs: [], jobs: [] },
+      })),
     );
   });
 
@@ -24,6 +31,7 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "No runs yet" })).toBeVisible();
+    expect(screen.getByRole("checkbox", { name: /DeepSeek AI judge/ })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Compare & gate" }));
 
     expect(screen.getByRole("heading", { name: "Comparison & gate" })).toBeVisible();

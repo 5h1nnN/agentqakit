@@ -2,7 +2,7 @@
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Annotated, Literal, Protocol, cast
 
 from pydantic import Field, JsonValue
@@ -36,14 +36,30 @@ class JudgeRequest:
     attempt: Literal[1, 2]
 
 
+@dataclass(frozen=True, slots=True)
+class JudgeResponse:
+    """Provider response plus bounded, non-secret request accounting."""
+
+    content: str | Mapping[str, JsonValue]
+    metadata: Mapping[str, JsonValue] = field(default_factory=dict)
+
+
 class JudgeProvider(Protocol):
     """Minimal provider contract; implementations own transport and credentials."""
 
-    name: NonEmptyString
-    model: NonEmptyString
-    parameters: Mapping[str, JsonValue]
+    @property
+    def name(self) -> NonEmptyString: ...
 
-    async def judge(self, request: JudgeRequest) -> str | Mapping[str, JsonValue]: ...
+    @property
+    def model(self) -> NonEmptyString: ...
+
+    @property
+    def parameters(self) -> Mapping[str, JsonValue]: ...
+
+    async def judge(
+        self,
+        request: JudgeRequest,
+    ) -> str | Mapping[str, JsonValue] | JudgeResponse: ...
 
 
 def _sanitize_strings(value: JsonValue) -> JsonValue:
@@ -188,6 +204,7 @@ class LLMJudgeEvaluator:
         }
 
         decision: JudgeDecision | None = None
+        provider_attempts: list[JsonValue] = []
         for attempt in (1, 2):
             judge_request = JudgeRequest(
                 prompt=prompt,
@@ -197,16 +214,29 @@ class LLMJudgeEvaluator:
             try:
                 response = await self._provider.judge(judge_request)
             except Exception as exc:
+                if provider_attempts:
+                    metadata["provider_attempts"] = provider_attempts
                 return EvaluationResult(
                     evaluator_type=self.type,
                     status="ERROR",
                     message=f"judge provider raised {type(exc).__name__}",
                     metadata={**metadata, "attempts": attempt},
                 )
+            response_value: str | Mapping[str, JsonValue]
+            if isinstance(response, JudgeResponse):
+                response_value = response.content
+                provider_metadata = _sanitize_strings(
+                    cast(JsonValue, redact_secrets(dict(response.metadata))),
+                )
+                provider_attempts.append(provider_metadata)
+            else:
+                response_value = response
             try:
-                decision = _parse_decision(response)
+                decision = _parse_decision(response_value)
             except (json.JSONDecodeError, TypeError, ValueError):
                 if attempt == 2:
+                    if provider_attempts:
+                        metadata["provider_attempts"] = provider_attempts
                     return EvaluationResult(
                         evaluator_type=self.type,
                         status="ERROR",
@@ -219,6 +249,8 @@ class LLMJudgeEvaluator:
 
         if decision is None:
             raise RuntimeError("judge decision was not produced")
+        if provider_attempts:
+            metadata["provider_attempts"] = provider_attempts
         rationale = redact_text_secrets(decision.rationale)
         violations = []
         if decision.verdict == "FAIL":

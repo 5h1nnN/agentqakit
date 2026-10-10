@@ -72,11 +72,19 @@ The versioned application exposes OpenAPI at `/docs` and these primary routes:
 client polls the run listing or detail route until the state is finalized. Jobs
 are in-process and intentionally do not survive a server restart.
 
+When `.env.local` contains valid DeepSeek Judge settings, `/api/health` reports
+the configured provider and model without exposing credentials. Set
+`judgeEnabled: true` on `POST /api/runs` to run `llm_judge` evaluators. A request
+that enables Judge while the server has no provider is rejected before a job is
+created.
+
 ## React evidence console
 
 The Vite/React TypeScript application lives in `apps/web`. It supports the run
 ledger, run summaries, test results, trace trees, explicit not-observable
 states, findings, mutation evidence, comparisons, and quality-gate decisions.
+The launch form exposes a DeepSeek opt-in when the server is configured, and run
+details show each AI verdict, score, and rationale.
 It polls every two seconds rather than requiring a WebSocket and remains usable
 at the 1280 by 720 acceptance viewport as well as narrow screens.
 

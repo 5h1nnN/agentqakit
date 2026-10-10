@@ -35,6 +35,7 @@ class RunCreateRequest(ApiModel):
     random_seed: int = 0
     capture_trace_content: bool = False
     generate_failure_bundles: bool = True
+    judge_enabled: bool = False
 
 
 class RunJob(ApiModel):

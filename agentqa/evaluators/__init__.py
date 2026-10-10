@@ -4,10 +4,19 @@ from collections.abc import Mapping
 
 from agentqa.evaluators.base import EvaluationRequest, Evaluator
 from agentqa.evaluators.budget import BudgetEvaluator
+from agentqa.evaluators.deepseek import (
+    DeepSeekAPIError,
+    DeepSeekConfigurationError,
+    DeepSeekJudgeProvider,
+    DeepSeekJudgeSettings,
+    configured_deepseek_provider,
+    load_judge_environment,
+)
 from agentqa.evaluators.judge import (
     JudgeDecision,
     JudgeProvider,
     JudgeRequest,
+    JudgeResponse,
     LLMJudgeEvaluator,
 )
 from agentqa.evaluators.output import PrivacyEvaluator, SchemaEvaluator, TextEvaluator
@@ -34,11 +43,16 @@ def built_in_evaluators(
 
 __all__ = [
     "BudgetEvaluator",
+    "DeepSeekAPIError",
+    "DeepSeekConfigurationError",
+    "DeepSeekJudgeProvider",
+    "DeepSeekJudgeSettings",
     "EvaluationRequest",
     "Evaluator",
     "JudgeDecision",
     "JudgeProvider",
     "JudgeRequest",
+    "JudgeResponse",
     "LLMJudgeEvaluator",
     "PrivacyEvaluator",
     "SchemaEvaluator",
@@ -47,4 +61,6 @@ __all__ = [
     "ToolCallEvaluator",
     "TrajectoryEvaluator",
     "built_in_evaluators",
+    "configured_deepseek_provider",
+    "load_judge_environment",
 ]

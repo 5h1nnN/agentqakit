@@ -1,5 +1,6 @@
 import asyncio
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
@@ -7,12 +8,29 @@ from fastapi.testclient import TestClient
 from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import (
     ExportTraceServiceRequest,
 )
+from pydantic import JsonValue
 
 from agentqa.api import ApiSettings, create_app
+from agentqa.evaluators import JudgeRequest
 from agentqa.storage import FileResultStore
 from tests.fixtures.stored_runs import create_storable_run
 
 pytestmark = pytest.mark.integration
+
+
+class _PassJudgeProvider:
+    name = "fake-deepseek"
+    model = "fake-model"
+    parameters: Mapping[str, JsonValue] = {"temperature": 0.0}
+
+    async def judge(self, request: JudgeRequest) -> Mapping[str, JsonValue]:
+        assert "Return JSON" in request.prompt
+        return {
+            "verdict": "PASS",
+            "score": 1.0,
+            "rationale": "The response satisfies the rubric.",
+            "violations": [],
+        }
 
 
 def _settings(tmp_path: Path, workspace: Path | None = None) -> ApiSettings:
@@ -132,16 +150,26 @@ expect:
     requireNonEmpty: true
 evaluators:
   - type: schema
+  - type: llm_judge
+    rubric: The answer must contain a useful response.
 """,
         encoding="utf-8",
     )
     store = FileResultStore(tmp_path / "store")
-    app = create_app(_settings(tmp_path), store=store)
+    app = create_app(
+        _settings(tmp_path),
+        store=store,
+        judge_provider=_PassJudgeProvider(),
+    )
 
     with TestClient(app) as client:
         created = client.post(
             "/api/runs",
-            json={"testsPath": "test.yaml", "targetPath": "target.yaml"},
+            json={
+                "testsPath": "test.yaml",
+                "targetPath": "target.yaml",
+                "judgeEnabled": True,
+            },
         )
         assert created.status_code == 202
         run_id = created.json()["runId"]
@@ -157,6 +185,14 @@ evaluators:
         assert detail.status_code == 200
         assert detail.json()["state"] == "stored"
         assert detail.json()["storedRun"]["run"]["status"] == "COMPLETED"
+        results = client.get(f"/api/runs/{run_id}/results").json()["results"]
+        judge = next(
+            evaluation
+            for evaluation in results[0]["evaluations"]
+            if evaluation["evaluator_type"] == "llm_judge"
+        )
+        assert judge["status"] == "PASS"
+        assert judge["metadata"]["provider"] == "fake-deepseek"
 
         rejected = client.post(
             "/api/runs",

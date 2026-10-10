@@ -5,7 +5,7 @@ import { api } from "./api";
 import { QualityLab } from "./components/QualityLab";
 import { RunDetail } from "./components/RunDetail";
 import { RunList } from "./components/RunList";
-import type { RunJob, StoredRunSummary } from "./types";
+import type { HealthResponse, RunJob, StoredRunSummary } from "./types";
 
 type View = "runs" | "quality";
 
@@ -20,6 +20,12 @@ export default function App() {
   const [testsPath, setTestsPath] = useState("examples/specs/ci-test.yaml");
   const [targetPath, setTargetPath] = useState("examples/specs/ci-candidate-target.yaml");
   const [mutationsPath, setMutationsPath] = useState("");
+  const [judgeEnabled, setJudgeEnabled] = useState(false);
+  const [health, setHealth] = useState<HealthResponse | null>(null);
+
+  useEffect(() => {
+    api.health().then(setHealth).catch(() => setHealth(null));
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -46,7 +52,7 @@ export default function App() {
   const launch = async (event: FormEvent) => {
     event.preventDefault(); setLaunching(true); setError(null);
     try {
-      const job = await api.createRun({ projectId, testsPath, targetPath: targetPath || undefined, mutationsPath: mutationsPath || undefined });
+      const job = await api.createRun({ projectId, testsPath, targetPath: targetPath || undefined, mutationsPath: mutationsPath || undefined, judgeEnabled });
       setJobs((current) => [job, ...current]);
       await refresh();
     } catch (reason) { setError((reason as Error).message); }
@@ -65,7 +71,7 @@ export default function App() {
         {error && <div className="notice notice--bad global-notice">{error}</div>}
         {view === "runs" && !selected && <>
           <section className="intro"><div><p className="eyebrow">Local-first agent assurance</p><h1>Turn every run into<br /><em>reviewable evidence.</em></h1><p>Execute deterministic tests, inspect traces, and carry verified findings into release decisions.</p></div>
-            <form className="launch-card" onSubmit={(event) => void launch(event)}><div className="launch-card__title"><span>+</span><div><strong>Launch a run</strong><small>Workspace-relative specs only</small></div></div><label>Project<input value={projectId} onChange={(event) => setProjectId(event.target.value)} required /></label><label>Tests path<input value={testsPath} onChange={(event) => setTestsPath(event.target.value)} required /></label><label>Target path<input value={targetPath} onChange={(event) => setTargetPath(event.target.value)} /></label><label>Mutations path <small>optional</small><input value={mutationsPath} onChange={(event) => setMutationsPath(event.target.value)} /></label><button className="button button--accent" disabled={launching}>{launching ? "Submitting…" : "Run test suite"}</button></form>
+            <form className="launch-card" onSubmit={(event) => void launch(event)}><div className="launch-card__title"><span>+</span><div><strong>Launch a run</strong><small>Workspace-relative specs only</small></div></div><label>Project<input value={projectId} onChange={(event) => setProjectId(event.target.value)} required /></label><label>Tests path<input value={testsPath} onChange={(event) => setTestsPath(event.target.value)} required /></label><label>Target path<input value={targetPath} onChange={(event) => setTargetPath(event.target.value)} /></label><label>Mutations path <small>optional</small><input value={mutationsPath} onChange={(event) => setMutationsPath(event.target.value)} /></label><label className="check-row"><input type="checkbox" checked={judgeEnabled} disabled={!health?.judge?.configured} onChange={(event) => setJudgeEnabled(event.target.checked)} /><span>DeepSeek AI judge<small>{health?.judge?.configured ? health.judge.model : "not configured"}</small></span></label><button className="button button--accent" disabled={launching}>{launching ? "Submitting…" : "Run test suite"}</button></form>
           </section>
           <RunList runs={runs} jobs={jobs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />
         </>}

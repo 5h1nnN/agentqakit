@@ -8,6 +8,12 @@ from typing import Annotated, Literal, cast
 import typer
 
 from agentqa.application import RunExecutionConfig, RunServiceError, execute_run
+from agentqa.evaluators import (
+    DeepSeekConfigurationError,
+    DeepSeekJudgeProvider,
+    JudgeProvider,
+    load_judge_environment,
+)
 from agentqa.specs import SpecLoadError, load_specs
 from agentqa.targets import TargetConfigurationError
 
@@ -155,6 +161,21 @@ def run_tests(
             help="Create a verified reproduction ZIP for each failed trial.",
         ),
     ] = True,
+    judge_provider: Annotated[
+        Literal["none", "deepseek"],
+        typer.Option(
+            "--judge-provider",
+            help="Optional live LLM judge provider.",
+        ),
+    ] = "none",
+    judge_env_file: Annotated[
+        Path,
+        typer.Option(
+            "--judge-env-file",
+            resolve_path=True,
+            help="Private dotenv file containing DeepSeek Judge settings.",
+        ),
+    ] = Path(".env.local"),
 ) -> None:
     """Execute AgentTest specifications against a configured target."""
     if replay_mode not in {"off", "record", "replay"}:
@@ -198,9 +219,17 @@ def run_tests(
         command.extend(["--replay-cassette", str(replay_cassette)])
     if allow_live_fallback:
         command.append("--allow-live-fallback")
+    configured_judge: JudgeProvider | None = None
+    if judge_provider == "deepseek":
+        command.extend(["--judge-provider", "deepseek"])
+        if judge_env_file != Path(".env.local"):
+            command.extend(["--judge-env-file", str(judge_env_file)])
     for field in volatile_field or ():
         command.extend(["--volatile-field", field])
     try:
+        if judge_provider == "deepseek":
+            load_judge_environment(judge_env_file)
+            configured_judge = DeepSeekJudgeProvider.from_environment()
         result = asyncio.run(
             execute_run(
                 RunExecutionConfig(
@@ -219,6 +248,7 @@ def run_tests(
                     replay_volatile_fields=tuple(volatile_field or ()),
                     generate_failure_bundles=failure_bundles,
                     original_command=shlex.join(command),
+                    judge_provider=configured_judge,
                 )
             )
         )
@@ -226,7 +256,12 @@ def run_tests(
         for issue in exc.issues:
             typer.echo(f"ERROR {issue.format()}", err=True)
         raise typer.Exit(code=2) from None
-    except (RunServiceError, TargetConfigurationError, ValueError) as exc:
+    except (
+        DeepSeekConfigurationError,
+        RunServiceError,
+        TargetConfigurationError,
+        ValueError,
+    ) as exc:
         message = getattr(exc, "message", str(exc))
         typer.echo(f"ERROR {message}", err=True)
         raise typer.Exit(code=2) from None

@@ -11,6 +11,7 @@ from agentqa.evaluators import (
     BudgetEvaluator,
     EvaluationRequest,
     JudgeRequest,
+    JudgeResponse,
     LLMJudgeEvaluator,
     PrivacyEvaluator,
     SchemaEvaluator,
@@ -445,11 +446,17 @@ class FakeJudgeProvider:
     model = "fake-model"
     parameters: Mapping[str, JsonValue] = {"temperature": 0.0, "api_key": "hidden"}
 
-    def __init__(self, responses: list[str | Mapping[str, JsonValue]]) -> None:
+    def __init__(
+        self,
+        responses: list[str | Mapping[str, JsonValue] | JudgeResponse],
+    ) -> None:
         self.responses = responses
         self.requests: list[JudgeRequest] = []
 
-    async def judge(self, request: JudgeRequest) -> str | Mapping[str, JsonValue]:
+    async def judge(
+        self,
+        request: JudgeRequest,
+    ) -> str | Mapping[str, JsonValue] | JudgeResponse:
         self.requests.append(request)
         return self.responses.pop(0)
 
@@ -517,6 +524,36 @@ async def test_llm_judge_fail_invalid_output_and_disabled_provider() -> None:
     assert invalid.status == "ERROR"
     assert invalid.metadata["attempts"] == 2
     assert disabled.status == "SKIPPED"
+
+
+async def test_llm_judge_records_redacted_provider_accounting() -> None:
+    spec = _spec(
+        {"output": {"requireNonEmpty": True}},
+        {"type": "llm_judge", "rubric": "Answer correctly."},
+    )
+    provider = FakeJudgeProvider(
+        [
+            JudgeResponse(
+                content={
+                    "verdict": "PASS",
+                    "score": 1.0,
+                    "rationale": "Correct.",
+                    "violations": [],
+                },
+                metadata={
+                    "usage": {"total_tokens": 42},
+                    "api_key": "must-not-persist",
+                },
+            )
+        ]
+    )
+
+    result = await LLMJudgeEvaluator(provider).evaluate(_request(spec, output="answer"))
+
+    assert result.status == "PASS"
+    assert result.metadata["provider_attempts"] == [
+        {"usage": {"total_tokens": 42}, "api_key": "***"}
+    ]
 
 
 def test_builtin_registry_and_spec_safety_validation() -> None:

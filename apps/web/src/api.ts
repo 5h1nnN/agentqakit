@@ -1,6 +1,7 @@
 import type {
   ComparisonReport,
   GateResult,
+  HealthResponse,
   RunJob,
   RunsResponse,
   StoredFinding,
@@ -38,6 +39,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health() {
+    return request<HealthResponse>("/api/health");
+  },
   listRuns(projectId = "default") {
     return request<RunsResponse>(`/api/runs?project_id=${encodeURIComponent(projectId)}`);
   },
@@ -46,6 +50,7 @@ export const api = {
     testsPath: string;
     targetPath?: string;
     mutationsPath?: string;
+    judgeEnabled?: boolean;
   }) {
     return request<RunJob>("/api/runs", { method: "POST", body: JSON.stringify(input) });
   },

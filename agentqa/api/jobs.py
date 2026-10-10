@@ -7,6 +7,7 @@ from agentqa.api.models import RunCreateRequest, RunJob
 from agentqa.application import RunExecutionConfig, execute_run
 from agentqa.conventions import new_id, utc_now
 from agentqa.errors import AgentQAError
+from agentqa.evaluators import JudgeProvider
 from agentqa.models import ErrorInfo
 from agentqa.specs import SpecLoadError
 from agentqa.storage import ResultStore
@@ -21,11 +22,13 @@ class RunJobManager:
         *,
         workspace_root: Path,
         artifact_directory: Path,
+        judge_provider: JudgeProvider | None = None,
         max_concurrent_runs: int = 2,
     ) -> None:
         self._store = store
         self._workspace_root = workspace_root.resolve()
         self._artifact_directory = artifact_directory.resolve()
+        self._judge_provider = judge_provider
         self._semaphore = asyncio.Semaphore(max_concurrent_runs)
         self._jobs: dict[str, RunJob] = {}
         self._tasks: dict[str, asyncio.Task[None]] = {}
@@ -55,6 +58,8 @@ class RunJobManager:
         return resolved
 
     async def submit(self, request: RunCreateRequest) -> RunJob:
+        if request.judge_enabled and self._judge_provider is None:
+            raise ValueError("DeepSeek Judge is not configured on this server")
         tests_path = self.resolve_workspace_path(request.tests_path)
         target_path = (
             None
@@ -114,6 +119,7 @@ class RunJobManager:
                         generate_failure_bundles=request.generate_failure_bundles,
                         original_command="agentqa API background run",
                         run_id=job.run_id,
+                        judge_provider=(self._judge_provider if request.judge_enabled else None),
                     )
                 )
                 artifact_path = self._artifact_directory / "runs" / result.run_id

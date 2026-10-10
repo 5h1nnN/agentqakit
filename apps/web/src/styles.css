@@ -53,6 +53,9 @@ main { width: min(1440px, 94vw); margin: 0 auto; flex: 1; padding: 48px 0 72px; 
 .launch-card__title div { display: grid; }
 .launch-card__title small, label small { color: var(--muted); }
 label { display: grid; gap: 6px; color: #b8c6c3; font-size: 0.82rem; }
+.check-row { grid-template-columns: auto 1fr; align-items: center; gap: 10px; padding: 4px 0; }
+.check-row input { width: 16px; height: 16px; accent-color: var(--accent); }
+.check-row span { display: grid; gap: 2px; }
 input, select { width: 100%; background: #091316; border: 1px solid #2a3c40; border-radius: 8px; color: var(--ink); padding: 10px 12px; outline: none; }
 input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(96, 217, 207, 0.1); }
 .button { border: 1px solid #385052; background: #1a2a2e; color: var(--ink); border-radius: 8px; padding: 10px 15px; cursor: pointer; font-weight: 600; transition: transform 120ms ease, border-color 120ms ease; }
@@ -116,6 +119,11 @@ details summary { cursor: pointer; color: #c5d3d0; }
 .finding { padding: 18px 22px; display: grid; grid-template-columns: minmax(240px, 1fr) minmax(220px, 1fr) auto; gap: 18px; align-items: center; border-bottom: 1px solid var(--line); }
 .finding:last-child { border-bottom: 0; }
 .finding h4 { margin: 10px 0 4px; }
+.judge-list { display: grid; }
+.judge-card { display: grid; grid-template-columns: auto 1fr auto; align-items: start; gap: 14px; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+.judge-card:last-child { border-bottom: 0; }
+.judge-card p { margin: 5px 0 0; color: var(--muted); line-height: 1.55; }
+.judge-score { color: var(--cyan); font-weight: 600; }
 
 .quality-controls { padding-bottom: 24px; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; padding: 22px; }
@@ -144,6 +152,8 @@ footer { border-top: 1px solid var(--line); min-height: 58px; display: flex; ali
   .intro { grid-template-columns: 1fr; gap: 28px; }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .finding { grid-template-columns: 1fr; }
+  .judge-card { grid-template-columns: auto 1fr; }
+  .judge-score { grid-column: 2; }
   footer { margin-bottom: 56px; }
 }
 

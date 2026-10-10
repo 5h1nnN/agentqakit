@@ -55,6 +55,17 @@ export interface RunsResponse {
   jobs: RunJob[];
 }
 
+export interface HealthResponse {
+  status: string;
+  storage: string;
+  workspaceRoot: string;
+  judge: {
+    configured: boolean;
+    provider: string | null;
+    model: string | null;
+  };
+}
+
 export interface Violation {
   type: string;
   message: string;
@@ -90,6 +101,7 @@ export interface TestResult {
     status: string;
     score: number | null;
     message: string | null;
+    metadata: Record<string, unknown>;
   }>;
   violations: Violation[];
   mutation_applications: MutationApplication[];

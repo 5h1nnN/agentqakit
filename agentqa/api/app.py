@@ -22,6 +22,11 @@ from agentqa.api.models import (
 )
 from agentqa.comparison import ComparisonError, compare_runs, load_run_artifact
 from agentqa.conventions import utc_now
+from agentqa.evaluators import (
+    JudgeProvider,
+    configured_deepseek_provider,
+    load_judge_environment,
+)
 from agentqa.gates import GateError, evaluate_gate
 from agentqa.models import QualityGateSpec
 from agentqa.models.storage import FindingReview
@@ -61,9 +66,12 @@ def create_app(
     settings: ApiSettings | None = None,
     *,
     store: ResultStore | None = None,
+    judge_provider: JudgeProvider | None = None,
 ) -> FastAPI:
     """Build an injectable local API without global database connections."""
     settings = settings or ApiSettings.defaults()
+    load_judge_environment(settings.workspace_root / ".env.local")
+    active_judge = judge_provider or configured_deepseek_provider()
     result_store = store or SQLiteResultStore(settings.database_path)
     trace_options = TraceOptions(max_receiver_bytes=settings.max_receiver_bytes)
     live_traces = InMemoryTraceStore(max_spans_per_trace=trace_options.max_spans_per_trace)
@@ -71,6 +79,7 @@ def create_app(
         result_store,
         workspace_root=settings.workspace_root,
         artifact_directory=settings.artifact_directory,
+        judge_provider=active_judge,
         max_concurrent_runs=settings.max_concurrent_runs,
     )
 
@@ -92,6 +101,7 @@ def create_app(
     app.state.result_store = result_store
     app.state.run_jobs = jobs
     app.state.live_traces = live_traces
+    app.state.judge_provider = active_judge
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
@@ -115,6 +125,11 @@ def create_app(
             "status": "ok",
             "storage": type(result_store).__name__,
             "workspaceRoot": str(settings.workspace_root.resolve()),
+            "judge": {
+                "configured": active_judge is not None,
+                "provider": None if active_judge is None else active_judge.name,
+                "model": None if active_judge is None else active_judge.model,
+            },
         }
 
     @app.get("/api/runs")
