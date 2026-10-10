@@ -1,0 +1,13 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: opensource-v1-fixed
+  version: 1.0.0
+type: langgraph
+entrypoint: examples.agents.opensource_langgraph:build_graph
+outputPath: result
+stateDiffAllowlist:
+  - result
+  - audit
+timeoutMs: 2000
+

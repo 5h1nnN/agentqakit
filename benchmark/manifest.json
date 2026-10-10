@@ -1,0 +1,23 @@
+{
+  "caseCount": 110,
+  "categoryCounts": {
+    "boundary_input": 15,
+    "normal_task": 30,
+    "permission_privacy": 15,
+    "prompt_injection_security": 10,
+    "retrieval_knowledge_fault": 10,
+    "tool_call_arguments": 15,
+    "tool_failure_recovery": 15
+  },
+  "files": [
+    "cases/campus.yaml",
+    "cases/opensource.yaml",
+    "mutations.yaml"
+  ],
+  "goldCaseCount": 20,
+  "hash": "sha256:10d57248f93834c0674ec38c61b6a371435b502790662ee252e465e24b73878e",
+  "license": "Apache-2.0",
+  "mutationCount": 35,
+  "name": "AgentQA-Bench",
+  "version": "1.0.0"
+}

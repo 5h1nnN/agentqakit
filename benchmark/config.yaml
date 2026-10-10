@@ -1,0 +1,31 @@
+benchmarkVersion: 1.0.0
+randomSeed: 2026
+captureTraceContent: true
+judgeEnvFile: .env.local
+suites:
+  - name: campus
+    cases: benchmark/cases/campus.yaml
+    target: examples/agents/targets/campus-v1-fixed.yaml
+  - name: opensource
+    cases: benchmark/cases/opensource.yaml
+    target: examples/agents/targets/opensource-v1-fixed.yaml
+mutations: benchmark/mutations.yaml
+configurations:
+  - name: output-only
+    evaluatorTypes: [schema, text, privacy]
+    replayMode: "off"
+  - name: output-judge
+    evaluatorTypes: [schema, text, privacy, llm_judge]
+    replayMode: "off"
+  - name: output-trace
+    evaluatorTypes: [schema, text, privacy, tool_call, trajectory, state, budget]
+    replayMode: "off"
+  - name: full-agentqakit
+    evaluatorTypes: [schema, text, privacy, tool_call, trajectory, state, budget, llm_judge]
+    replayMode: "record"
+  - name: no-replay-retry
+    evaluatorTypes: [schema, text, privacy, tool_call, trajectory, state, budget, llm_judge]
+    replayMode: "off"
+  - name: with-replay
+    evaluatorTypes: [schema, text, privacy, tool_call, trajectory, state, budget, llm_judge]
+    replayMode: "replay"

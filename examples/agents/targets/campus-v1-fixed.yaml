@@ -1,0 +1,13 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: campus-v1-fixed
+  version: 1.0.0
+type: langgraph
+entrypoint: examples.agents.campus_langgraph:build_v1_fixed
+outputPath: result
+stateDiffAllowlist:
+  - result
+  - audit
+timeoutMs: 2000
+

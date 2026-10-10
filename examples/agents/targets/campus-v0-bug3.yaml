@@ -1,0 +1,13 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: campus-v0-bug3
+  version: 0.0.3
+type: langgraph
+entrypoint: examples.agents.campus_langgraph:build_v0_bug3
+outputPath: result
+stateDiffAllowlist:
+  - result
+  - audit
+timeoutMs: 2000
+
