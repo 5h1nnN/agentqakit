@@ -1,6 +1,16 @@
 """Core data models."""
 
 from agentqa.models.base import API_VERSION
+from agentqa.models.comparison import (
+    COMPARISON_SCHEMA_VERSION,
+    CaseComparison,
+    ComparisonCounts,
+    ComparisonDeltas,
+    ComparisonReport,
+    MetricChange,
+    ReplayCompleteness,
+    RunMetrics,
+)
 from agentqa.models.mutations import (
     InterceptionPoint,
     MutationApplication,
@@ -34,14 +44,21 @@ from agentqa.models.specs import (
     LangGraphTargetSpec,
     MutationSpec,
     PythonTargetSpec,
+    QualityGateRules,
+    QualityGateSpec,
     TargetSpec,
     TrialPolicy,
 )
 
 __all__ = [
     "API_VERSION",
+    "COMPARISON_SCHEMA_VERSION",
     "AgentManifest",
     "AgentTestSpec",
+    "CaseComparison",
+    "ComparisonCounts",
+    "ComparisonDeltas",
+    "ComparisonReport",
     "ErrorInfo",
     "EvaluationResult",
     "GateResult",
@@ -49,6 +66,7 @@ __all__ = [
     "HttpTargetSpec",
     "InterceptionPoint",
     "LangGraphTargetSpec",
+    "MetricChange",
     "MetricSummary",
     "MutationApplication",
     "MutationMatch",
@@ -57,8 +75,12 @@ __all__ = [
     "MutationScoreReport",
     "MutationSpec",
     "PythonTargetSpec",
+    "QualityGateRules",
+    "QualityGateSpec",
+    "ReplayCompleteness",
     "ReplayStats",
     "RunContext",
+    "RunMetrics",
     "RunResult",
     "RunSummary",
     "TargetResult",

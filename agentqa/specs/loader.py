@@ -11,7 +11,13 @@ from yaml.constructor import ConstructorError
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 
 from agentqa.errors import AgentQAError
-from agentqa.models import AgentManifest, AgentTestSpec, MutationSpec, TargetSpec
+from agentqa.models import (
+    AgentManifest,
+    AgentTestSpec,
+    MutationSpec,
+    QualityGateSpec,
+    TargetSpec,
+)
 from agentqa.models.specs import HttpTargetSpec, LangGraphTargetSpec, PythonTargetSpec
 from agentqa.specs.hashing import hash_spec, hash_spec_collection
 from agentqa.specs.migrations import UnsupportedSpecVersionError, migrate_document
@@ -24,6 +30,7 @@ SpecDocument: TypeAlias = (
     | LangGraphTargetSpec
     | MutationSpec
     | AgentManifest
+    | QualityGateSpec
 )
 LocationPath: TypeAlias = tuple[str | int, ...]
 
@@ -33,6 +40,7 @@ _MODEL_BY_KIND: dict[str, type[BaseModel] | TypeAdapter[Any]] = {
     "Target": _TARGET_ADAPTER,
     "Mutation": MutationSpec,
     "AgentManifest": AgentManifest,
+    "QualityGate": QualityGateSpec,
 }
 
 

@@ -3,7 +3,7 @@ from textwrap import dedent
 
 import pytest
 
-from agentqa.models import AgentTestSpec, HttpTargetSpec, PythonTargetSpec
+from agentqa.models import AgentTestSpec, HttpTargetSpec, PythonTargetSpec, QualityGateSpec
 from agentqa.specs import (
     SpecLoadError,
     load_spec_file,
@@ -74,6 +74,38 @@ def test_loads_valid_http_and_python_targets(tmp_path: Path) -> None:
     assert str(http.spec.url) == "http://localhost:8000/chat"
     assert isinstance(python.spec, PythonTargetSpec)
     assert python.spec.entrypoint == "examples.agent:run"
+
+
+def test_loads_quality_gate_and_rejects_empty_rules(tmp_path: Path) -> None:
+    valid = _write(
+        tmp_path / "gate.yaml",
+        """
+        apiVersion: agentqa.dev/v1alpha1
+        kind: QualityGate
+        metadata:
+          name: ci
+        rules:
+          minPassRate: 0.9
+          maxNewRegressions: 0
+        """,
+    )
+    loaded = load_spec_file(valid)[0]
+
+    assert isinstance(loaded.spec, QualityGateSpec)
+    assert loaded.spec.rules.min_pass_rate == 0.9
+
+    invalid = _write(
+        tmp_path / "empty-gate.yaml",
+        """
+        apiVersion: agentqa.dev/v1alpha1
+        kind: QualityGate
+        metadata:
+          name: empty
+        rules: {}
+        """,
+    )
+    with pytest.raises(SpecLoadError, match="spec validation failed"):
+        load_spec_file(invalid)
 
 
 @pytest.mark.parametrize(

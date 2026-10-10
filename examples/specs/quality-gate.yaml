@@ -1,0 +1,9 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: ci-regression
+rules:
+  minPassRate: 1.0
+  maxNewRegressions: 0
+  maxHighRiskFailures: 0
+  requireReplayBundleForFailures: true

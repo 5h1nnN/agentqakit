@@ -1,0 +1,510 @@
+{
+  "$defs": {
+    "CaseComparison": {
+      "additionalProperties": false,
+      "description": "One test case aligned by stable test_case_id.",
+      "properties": {
+        "baseline_passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Passed"
+        },
+        "candidate_passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Passed"
+        },
+        "classification": {
+          "enum": [
+            "NEW_REGRESSION",
+            "FIXED",
+            "PERSISTENT_FAILURE",
+            "STABLE",
+            "NEW",
+            "REMOVED"
+          ],
+          "title": "Classification",
+          "type": "string"
+        },
+        "risk": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk"
+        },
+        "test_case_id": {
+          "minLength": 1,
+          "title": "Test Case Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "test_case_id",
+        "classification"
+      ],
+      "title": "CaseComparison",
+      "type": "object"
+    },
+    "ComparisonCounts": {
+      "additionalProperties": false,
+      "description": "Counts of case transition classifications.",
+      "properties": {
+        "fixed": {
+          "minimum": 0,
+          "title": "Fixed",
+          "type": "integer"
+        },
+        "new": {
+          "minimum": 0,
+          "title": "New",
+          "type": "integer"
+        },
+        "new_regressions": {
+          "minimum": 0,
+          "title": "New Regressions",
+          "type": "integer"
+        },
+        "persistent_failures": {
+          "minimum": 0,
+          "title": "Persistent Failures",
+          "type": "integer"
+        },
+        "removed": {
+          "minimum": 0,
+          "title": "Removed",
+          "type": "integer"
+        },
+        "stable": {
+          "minimum": 0,
+          "title": "Stable",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "new_regressions",
+        "fixed",
+        "persistent_failures",
+        "stable",
+        "new",
+        "removed"
+      ],
+      "title": "ComparisonCounts",
+      "type": "object"
+    },
+    "ComparisonDeltas": {
+      "additionalProperties": false,
+      "description": "Candidate-minus-baseline metric changes.",
+      "properties": {
+        "average_cost_usd": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "average_tokens": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "average_tool_calls": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "high_risk_failures": {
+          "title": "High Risk Failures",
+          "type": "integer"
+        },
+        "mutation_score": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mutation Score"
+        },
+        "p50_latency_ms": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "p95_latency_ms": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "pass_rate": {
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "replay_hit_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replay Hit Rate"
+        }
+      },
+      "required": [
+        "pass_rate",
+        "high_risk_failures",
+        "p50_latency_ms",
+        "p95_latency_ms",
+        "average_tokens",
+        "average_cost_usd",
+        "average_tool_calls"
+      ],
+      "title": "ComparisonDeltas",
+      "type": "object"
+    },
+    "MetricChange": {
+      "additionalProperties": false,
+      "description": "A relative change with explicit unavailable and zero-baseline states.",
+      "properties": {
+        "absolute_change": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Absolute Change"
+        },
+        "baseline": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline"
+        },
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate"
+        },
+        "relative_increase": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Relative Increase"
+        },
+        "status": {
+          "enum": [
+            "available",
+            "unbounded",
+            "unobservable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "MetricChange",
+      "type": "object"
+    },
+    "MetricSummary": {
+      "additionalProperties": false,
+      "description": "Deterministic descriptive statistics for one numeric metric.",
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean"
+        },
+        "p50": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P50"
+        },
+        "p95": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95"
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "title": "MetricSummary",
+      "type": "object"
+    },
+    "ReplayCompleteness": {
+      "additionalProperties": false,
+      "description": "Replay and failure-bundle evidence available for one run.",
+      "properties": {
+        "failed_trials": {
+          "minimum": 0,
+          "title": "Failed Trials",
+          "type": "integer"
+        },
+        "failure_bundle_coverage": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Failure Bundle Coverage",
+          "type": "number"
+        },
+        "failure_bundles": {
+          "minimum": 0,
+          "title": "Failure Bundles",
+          "type": "integer"
+        },
+        "live_fallbacks": {
+          "minimum": 0,
+          "title": "Live Fallbacks",
+          "type": "integer"
+        },
+        "replay_hit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Replay Hit Rate"
+        },
+        "replay_hits": {
+          "minimum": 0,
+          "title": "Replay Hits",
+          "type": "integer"
+        },
+        "replay_misses": {
+          "minimum": 0,
+          "title": "Replay Misses",
+          "type": "integer"
+        },
+        "replay_trials": {
+          "minimum": 0,
+          "title": "Replay Trials",
+          "type": "integer"
+        },
+        "total_trials": {
+          "minimum": 0,
+          "title": "Total Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_trials",
+        "replay_trials",
+        "replay_hits",
+        "replay_misses",
+        "live_fallbacks",
+        "failed_trials",
+        "failure_bundles",
+        "failure_bundle_coverage"
+      ],
+      "title": "ReplayCompleteness",
+      "type": "object"
+    },
+    "RunMetrics": {
+      "additionalProperties": false,
+      "description": "Comparable quality, performance, cost, and replay metrics for one run.",
+      "properties": {
+        "cost_usd": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "high_risk_failures": {
+          "minimum": 0,
+          "title": "High Risk Failures",
+          "type": "integer"
+        },
+        "latency_ms": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "mutation_score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mutation Score"
+        },
+        "pass_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed": {
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "replay": {
+          "$ref": "#/$defs/ReplayCompleteness"
+        },
+        "tool_calls": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "$ref": "#/$defs/MetricSummary"
+        }
+      },
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "pass_rate",
+        "high_risk_failures",
+        "latency_ms",
+        "total_tokens",
+        "cost_usd",
+        "tool_calls",
+        "replay"
+      ],
+      "title": "RunMetrics",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Deterministic comparison between two completed run artifacts.",
+  "properties": {
+    "baseline": {
+      "$ref": "#/$defs/RunMetrics"
+    },
+    "baseline_run_id": {
+      "minLength": 1,
+      "title": "Baseline Run Id",
+      "type": "string"
+    },
+    "candidate": {
+      "$ref": "#/$defs/RunMetrics"
+    },
+    "candidate_effective_pass_rate": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Candidate Effective Pass Rate",
+      "type": "number"
+    },
+    "candidate_run_id": {
+      "minLength": 1,
+      "title": "Candidate Run Id",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/CaseComparison"
+      },
+      "title": "Cases",
+      "type": "array"
+    },
+    "counts": {
+      "$ref": "#/$defs/ComparisonCounts"
+    },
+    "deltas": {
+      "$ref": "#/$defs/ComparisonDeltas"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "agentqa.comparison/v1alpha1",
+      "default": "agentqa.comparison/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "generated_at",
+    "baseline_run_id",
+    "candidate_run_id",
+    "baseline",
+    "candidate",
+    "candidate_effective_pass_rate",
+    "counts",
+    "deltas"
+  ],
+  "title": "ComparisonReport",
+  "type": "object"
+}

@@ -15,7 +15,7 @@ def test_validate_example_specs() -> None:
     result = runner.invoke(app, ["test", "validate", str(examples)])
 
     assert result.exit_code == 0
-    assert "Validated 16 specification(s)." in result.stdout
+    assert "Validated 20 specification(s)." in result.stdout
 
 
 def test_validate_reports_safe_error_and_nonzero_exit(tmp_path: Path) -> None:

@@ -1,0 +1,170 @@
+{
+  "$defs": {
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "QualityGateRules": {
+      "additionalProperties": false,
+      "description": "Optional quality thresholds evaluated against a candidate run.",
+      "properties": {
+        "maxAverageCostIncrease": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxaveragecostincrease"
+        },
+        "maxHighRiskFailures": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxhighriskfailures"
+        },
+        "maxNewRegressions": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxnewregressions"
+        },
+        "maxP95LatencyIncrease": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxp95Latencyincrease"
+        },
+        "minMutationScore": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minmutationscore"
+        },
+        "minPassRate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minpassrate"
+        },
+        "requireReplayBundleForFailures": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requirereplaybundleforfailures"
+        }
+      },
+      "title": "QualityGateRules",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Declarative quality gate evaluated by ``agentqa gate evaluate``.",
+  "properties": {
+    "apiVersion": {
+      "const": "agentqa.dev/v1alpha1",
+      "default": "agentqa.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "kind": {
+      "const": "QualityGate",
+      "default": "QualityGate",
+      "title": "Kind",
+      "type": "string"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "rules": {
+      "$ref": "#/$defs/QualityGateRules"
+    }
+  },
+  "required": [
+    "metadata",
+    "rules"
+  ],
+  "title": "QualityGateSpec",
+  "type": "object"
+}

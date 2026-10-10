@@ -59,3 +59,77 @@ jobs:
           name: ci-logs-python-${{ matrix.python-version }}
           path: ci-logs/
           if-no-files-found: ignore
+
+  agent-regression:
+    name: Agent regression gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install AgentQAKit
+        run: python -m pip install -e .
+
+      - name: Run frozen baseline
+        run: |
+          agentqa test run examples/specs/ci-test.yaml \
+            --target examples/specs/ci-baseline-target.yaml \
+            --artifacts ci-artifacts/baseline \
+            --no-trace-receiver
+
+      - name: Run candidate
+        run: |
+          set +e
+          agentqa test run examples/specs/ci-test.yaml \
+            --target examples/specs/ci-candidate-target.yaml \
+            --artifacts ci-artifacts/candidate \
+            --no-trace-receiver
+          status=$?
+          set -e
+          if [ "$status" -eq 2 ]; then exit 2; fi
+
+      - name: Locate run artifacts
+        run: |
+          echo "BASELINE_RUN=$(find ci-artifacts/baseline/runs -mindepth 1 -maxdepth 1 -type d | head -n 1)" >> "$GITHUB_ENV"
+          echo "CANDIDATE_RUN=$(find ci-artifacts/candidate/runs -mindepth 1 -maxdepth 1 -type d | head -n 1)" >> "$GITHUB_ENV"
+
+      - name: Compare and enforce quality gate
+        run: |
+          mkdir -p ci-artifacts/reports
+          agentqa compare "$BASELINE_RUN" "$CANDIDATE_RUN" \
+            --output ci-artifacts/reports/comparison.json \
+            > ci-artifacts/reports/comparison.txt
+          set +e
+          agentqa gate evaluate examples/specs/quality-gate.yaml \
+            --baseline "$BASELINE_RUN" \
+            --result "$CANDIDATE_RUN" \
+            --output ci-artifacts/reports/gate-result.json \
+            > ci-artifacts/reports/gate.txt 2>&1
+          status=$?
+          set -e
+          cat ci-artifacts/reports/comparison.txt
+          cat ci-artifacts/reports/gate.txt
+          {
+            echo "## AgentQAKit regression gate"
+            echo '```text'
+            cat ci-artifacts/reports/comparison.txt
+            cat ci-artifacts/reports/gate.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+
+      - name: Upload AgentQAKit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agentqa-regression-evidence
+          path: ci-artifacts/
+          if-no-files-found: error

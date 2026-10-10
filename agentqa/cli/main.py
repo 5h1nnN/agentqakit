@@ -5,6 +5,8 @@ from typing import Annotated
 import typer
 
 from agentqa import __version__
+from agentqa.cli.compare import compare
+from agentqa.cli.gate import app as gate_app
 from agentqa.cli.instrument import instrument
 from agentqa.cli.mutation import app as mutation_app
 from agentqa.cli.replay import run_replay
@@ -18,6 +20,8 @@ app = typer.Typer(
 )
 app.add_typer(test_app, name="test")
 app.add_typer(mutation_app, name="mutation")
+app.add_typer(gate_app, name="gate")
+app.command("compare")(compare)
 app.command("replay")(run_replay)
 app.command("instrument")(instrument)
 

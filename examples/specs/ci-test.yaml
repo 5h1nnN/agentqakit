@@ -1,0 +1,20 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: campus-course-query
+  labels:
+    category: functional
+    risk: high
+targetRef: campus-ci
+scenario:
+  input:
+    message: 查询人工智能导论的上课时间
+expect:
+  output:
+    exactFields:
+      answer: 查询成功
+      course: 人工智能导论
+      classTime: 周一 09:00
+      room: A101
+evaluators:
+  - type: schema

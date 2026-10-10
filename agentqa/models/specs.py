@@ -633,3 +633,42 @@ class AgentManifest(SpecModel):
     prompts: PromptIdentity | None = None
     tools: list[ToolIdentity] = Field(default_factory=list)
     knowledge: KnowledgeIdentity | None = None
+
+
+class QualityGateRules(SpecModel):
+    """Optional quality thresholds evaluated against a candidate run."""
+
+    min_pass_rate: UnitInterval | None = None
+    min_mutation_score: UnitInterval | None = None
+    max_new_regressions: NonNegativeInt | None = None
+    max_high_risk_failures: NonNegativeInt | None = None
+    max_p95_latency_increase: Annotated[float, Field(ge=0)] | None = None
+    max_average_cost_increase: Annotated[float, Field(ge=0)] | None = None
+    require_replay_bundle_for_failures: bool | None = None
+
+    @model_validator(mode="after")
+    def require_rule(self) -> "QualityGateRules":
+        if all(
+            value is None
+            for value in (
+                self.min_pass_rate,
+                self.min_mutation_score,
+                self.max_new_regressions,
+                self.max_high_risk_failures,
+                self.max_p95_latency_increase,
+                self.max_average_cost_increase,
+                self.require_replay_bundle_for_failures,
+            )
+        ):
+            msg = "quality gate rules must define at least one threshold"
+            raise ValueError(msg)
+        return self
+
+
+class QualityGateSpec(SpecModel):
+    """Declarative quality gate evaluated by ``agentqa gate evaluate``."""
+
+    api_version: ApiVersion = Field(default="agentqa.dev/v1alpha1", alias="apiVersion")
+    kind: Literal["QualityGate"] = "QualityGate"
+    metadata: Metadata
+    rules: QualityGateRules

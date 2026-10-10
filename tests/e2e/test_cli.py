@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 
 from agentqa import __version__
 from agentqa.cli import app
+from tests.fixtures.artifact_runs import create_run_artifact
 
 runner = CliRunner()
 pytestmark = pytest.mark.e2e
@@ -23,6 +24,82 @@ def test_version() -> None:
 
     assert result.exit_code == 0
     assert result.stdout.strip() == f"AgentQAKit {__version__}"
+
+
+def test_compare_and_gate_commands_write_checksummed_reports(tmp_path: Path) -> None:
+    baseline = create_run_artifact(
+        tmp_path / "baseline", "baseline-run", {"case": True, "removed": True}
+    )
+    candidate = create_run_artifact(tmp_path / "candidate", "candidate-run", {"case": False})
+    comparison_path = tmp_path / "comparison.json"
+
+    compared = runner.invoke(
+        app,
+        ["compare", str(baseline), str(candidate), "--output", str(comparison_path)],
+    )
+
+    assert compared.exit_code == 0
+    assert "1 regressions" in compared.stdout
+    assert "1 removed" in compared.stdout
+    assert comparison_path.is_file()
+    assert (tmp_path / "comparison.json.sha256").is_file()
+
+    gate = tmp_path / "gate.yaml"
+    gate.write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: e2e
+rules:
+  minPassRate: 1.0
+  maxNewRegressions: 0
+""",
+        encoding="utf-8",
+    )
+    gate_path = tmp_path / "gate-result.json"
+    gated = runner.invoke(
+        app,
+        [
+            "gate",
+            "evaluate",
+            str(gate),
+            "--baseline",
+            str(baseline),
+            "--result",
+            str(candidate),
+            "--output",
+            str(gate_path),
+        ],
+    )
+
+    assert gated.exit_code == 1
+    assert "FAIL minPassRate" in gated.stdout
+    assert "Quality gate: FAIL" in gated.stdout
+    assert gate_path.is_file()
+    assert (tmp_path / "gate-result.json.sha256").is_file()
+
+
+def test_gate_returns_exit_two_when_relative_rule_has_no_baseline(tmp_path: Path) -> None:
+    candidate = create_run_artifact(tmp_path, "candidate-run", {"case": True})
+    gate = tmp_path / "gate.yaml"
+    gate.write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: e2e
+rules:
+  maxNewRegressions: 0
+""",
+        encoding="utf-8",
+    )
+
+    result = runner.invoke(
+        app,
+        ["gate", "evaluate", str(gate), "--result", str(candidate)],
+    )
+
+    assert result.exit_code == 2
+    assert "GATE_BASELINE_REQUIRED" in result.stderr
 
 
 def test_run_executes_python_target_with_builtin_schema_evaluator(

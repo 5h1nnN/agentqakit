@@ -12,6 +12,8 @@ retriever, and HTTP mutations, and recomputable Mutation Score reports.
 It also includes deterministic output, tool, trajectory, state, privacy, and
 budget evaluators plus an opt-in, provider-neutral LLM judge boundary, canonical
 dependency replay, and verified failure reproduction bundles.
+It also compares verified runs and enforces declarative quality gates with
+CI-friendly exit codes and checksummed reports.
 
 ## Requirements
 
@@ -64,6 +66,16 @@ Reproduce a failed trial without calling its recorded wrapped dependencies:
 agentqa replay artifacts/runs/<run-id>/failures/failure-<trial-id>.zip
 ```
 
+Compare a baseline and candidate, then enforce a quality gate:
+
+```bash
+agentqa compare artifacts/baseline/runs/<id> artifacts/candidate/runs/<id> \
+  --output artifacts/comparison.json
+agentqa gate evaluate quality-gate.yaml \
+  --baseline artifacts/baseline/runs/<id> \
+  --result artifacts/candidate/runs/<id>
+```
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
@@ -81,6 +93,9 @@ status semantics, and Judge integration are documented in
 [`docs/evaluators.md`](docs/evaluators.md). Cassette matching, privacy,
 strict replay, and verified failure bundles are documented in
 [`docs/replay.md`](docs/replay.md).
+Run alignment, removed-test semantics, metric observability, gate rules, and CI
+integration are documented in
+[`docs/comparison-and-gates.md`](docs/comparison-and-gates.md).
 
 ## Repository layout
 
