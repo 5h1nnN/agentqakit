@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import httpx
@@ -164,6 +165,7 @@ def test_private_judge_environment_loads_only_known_values(
     assert provider.model == "deepseek-test"
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are unavailable")
 def test_judge_environment_rejects_broad_permissions(tmp_path: Path) -> None:
     source = tmp_path / ".env.local"
     source.write_text("AGENTQA_JUDGE_MODEL=deepseek-test\n", encoding="utf-8")

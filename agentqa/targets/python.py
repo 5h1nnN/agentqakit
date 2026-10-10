@@ -47,6 +47,12 @@ class PythonTargetAdapter:
             for name in self._spec.environment_allowlist
             if name in os.environ
         }
+        # CreateProcess accepts a replacement environment, but Python's Windows
+        # runtime needs SystemRoot to initialize system DLL-backed modules such
+        # as _overlapped. This is OS metadata rather than target configuration or
+        # a secret, so retain it without widening the target's explicit allowlist.
+        if os.name == "nt" and "SYSTEMROOT" in os.environ:
+            environment["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
         environment.update(
             {
                 "PYTHONIOENCODING": "utf-8",
@@ -140,8 +146,10 @@ class PythonTargetAdapter:
     def _stderr_metadata(worker: _WorkerProcess) -> dict[str, Any]:
         if not worker.stderr:
             return {}
+        worker_log = worker.stderr.decode("utf-8", errors="replace")
+        worker_log = worker_log.replace("\r\n", "\n").replace("\r", "\n")
         return {
-            "worker_log": redact_text_secrets(worker.stderr.decode("utf-8", errors="replace")),
+            "worker_log": redact_text_secrets(worker_log),
             "worker_log_truncated": len(worker.stderr) >= _MAX_STDERR_BYTES,
         }
 
