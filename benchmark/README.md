@@ -5,7 +5,7 @@ Regenerate and validate the versioned corpus:
 ```bash
 python scripts/generate_benchmark.py
 agentqa test validate benchmark/cases
-agentqa mutation validate benchmark/mutations.yaml
+agentqa test validate benchmark/mutations.yaml
 ```
 
 Run every baseline and ablation, producing only script-derived evidence:

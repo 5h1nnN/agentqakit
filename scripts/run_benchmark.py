@@ -52,6 +52,19 @@ class BenchmarkConfig:
     configurations: tuple[Configuration, ...]
 
 
+class BenchmarkExecutionError(RuntimeError):
+    """Raised when an underlying AgentQAKit run cannot produce evidence."""
+
+
+def _require_completed(run: RunResult, *, profile: str, suite: str) -> None:
+    if run.status == "COMPLETED" and run.summary.incomplete == 0:
+        return
+    detail = "run did not complete"
+    if run.error is not None:
+        detail = f"{run.error.code}: {run.error.message}"
+    raise BenchmarkExecutionError(f"{profile}/{suite}: {detail}")
+
+
 def _workspace_path(root: Path, raw: Any, *, field: str) -> Path:
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError(f"{field} must be a non-empty path")
@@ -152,7 +165,8 @@ def _profile_documents(
 
 def _write_documents(path: Path, documents: list[dict[str, Any]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    _write_text(
+        path,
         yaml.safe_dump_all(
             documents,
             allow_unicode=True,
@@ -160,8 +174,13 @@ def _write_documents(path: Path, documents: list[dict[str, Any]]) -> None:
             sort_keys=False,
             width=100,
         ),
-        encoding="utf-8",
     )
+
+
+def _write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(content)
 
 
 def _case_metadata(documents: list[dict[str, Any]]) -> dict[str, dict[str, str]]:
@@ -260,6 +279,7 @@ async def _standard_run(
         provider=provider,
         replay_mode=profile.replay_mode,
     )
+    _require_completed(run, profile=profile.name, suite=suite.name)
     labels = _case_metadata(documents)
     return [
         _raw_row(
@@ -302,6 +322,7 @@ async def _replay_run(
         provider=None,
         replay_mode="record",
     )
+    _require_completed(record, profile=f"{profile.name}:record", suite=suite.name)
     cassettes = {
         result.test_case_id: (
             record_artifacts / "runs" / record.run_id / result.cassette_ref
@@ -330,6 +351,7 @@ async def _replay_run(
             replay_mode="replay",
             replay_cassette=cassette,
         )
+        _require_completed(run, profile=profile.name, suite=suite.name)
         result = run.results[0]
         rows.append(
             _raw_row(
@@ -407,7 +429,7 @@ def _metrics(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], fields: list[str]) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows({field: row.get(field) for field in fields} for row in rows)
 
@@ -453,7 +475,7 @@ def _write_chart(path: Path, metrics: list[dict[str, Any]]) -> None:
         '<text x="20" y="28" fill="#b9f36a" font-size="18" font-weight="bold">'
         "AgentQA-Bench pass rate</text>" + "".join(bars) + "</svg>\n"
     )
-    path.write_text(svg, encoding="utf-8")
+    _write_text(path, svg)
 
 
 async def run_benchmark(
@@ -538,19 +560,22 @@ def main() -> None:
     if requested is not None and not requested <= known:
         parser.error("unknown configuration(s): " + ", ".join(sorted(requested - known)))
     provider = _provider(arguments.judge_provider, benchmark)
-    rows = asyncio.run(
-        run_benchmark(
-            benchmark=benchmark,
-            output=output,
-            configuration_names=requested,
-            limit=arguments.limit,
-            provider=provider,
+    try:
+        rows = asyncio.run(
+            run_benchmark(
+                benchmark=benchmark,
+                output=output,
+                configuration_names=requested,
+                limit=arguments.limit,
+                provider=provider,
+            )
         )
-    )
+    except BenchmarkExecutionError as exc:
+        parser.exit(2, f"ERROR: {exc}\n")
     raw_path = output / "raw_results.jsonl"
-    raw_path.write_text(
+    _write_text(
+        raw_path,
         "".join(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n" for row in rows),
-        encoding="utf-8",
     )
     metrics = _metrics(rows)
     summary = {
@@ -562,9 +587,9 @@ def main() -> None:
         "categoryCounts": dict(Counter(row["labels"]["category"] for row in rows)),
         "rawResultsHash": _file_hash(raw_path),
     }
-    (output / "summary.json").write_text(
+    _write_text(
+        output / "summary.json",
         json.dumps(summary, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     metric_fields = list(metrics[0]) if metrics else ["configuration"]
     _write_csv(output / "metrics.csv", metrics, metric_fields)
@@ -601,9 +626,9 @@ def main() -> None:
         "randomSeed": benchmark.random_seed,
         "selectedConfigurations": sorted(requested or known),
     }
-    (output / "environment.json").write_text(
+    _write_text(
+        output / "environment.json",
         json.dumps(environment, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     print(f"Results: {output}")
 

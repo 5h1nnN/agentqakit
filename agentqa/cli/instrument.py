@@ -37,7 +37,7 @@ def _forward_signal(process: subprocess.Popen[Any], signum: int) -> None:
         return
     if os.name == "posix":
         try:
-            os.killpg(process.pid, signum)
+            os.killpg(process.pid, signum)  # type: ignore[attr-defined]
         except ProcessLookupError:
             return
     else:

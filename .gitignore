@@ -22,6 +22,7 @@ dist/
 
 # AgentQAKit runtime data
 artifacts/
+.tmp/
 *.db
 *.db-journal
 *.sqlite

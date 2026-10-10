@@ -73,7 +73,7 @@ Issues = "https://github.com/5h1nnN/agentqakit/issues"
 Repository = "https://github.com/5h1nnN/agentqakit"
 
 [tool.setuptools.packages.find]
-include = ["agentqa*"]
+include = ["agentqa*", "examples*"]
 
 [tool.setuptools.package-data]
 agentqa = ["py.typed"]

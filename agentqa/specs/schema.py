@@ -70,7 +70,8 @@ def _atomic_write(path: Path, payload: bytes) -> None:
     temporary = Path(temporary_name)
     try:
         with os.fdopen(descriptor, "wb") as handle:
-            os.fchmod(handle.fileno(), 0o644)
+            if hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), 0o644)
             handle.write(payload)
             handle.flush()
             os.fsync(handle.fileno())

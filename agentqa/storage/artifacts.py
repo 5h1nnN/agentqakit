@@ -76,11 +76,15 @@ class ArtifactWriter:
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temporary, path)
-            directory_descriptor = os.open(path.parent, os.O_RDONLY)
-            try:
-                os.fsync(directory_descriptor)
-            finally:
-                os.close(directory_descriptor)
+            # POSIX permits opening a directory so the rename itself can be
+            # flushed. Windows does not, and the file contents have already
+            # been flushed above before the atomic replacement.
+            if os.name != "nt":
+                directory_descriptor = os.open(path.parent, os.O_RDONLY)
+                try:
+                    os.fsync(directory_descriptor)
+                finally:
+                    os.close(directory_descriptor)
         except BaseException:
             temporary.unlink(missing_ok=True)
             raise

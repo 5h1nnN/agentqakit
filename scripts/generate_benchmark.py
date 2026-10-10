@@ -243,7 +243,7 @@ def _normal_cases() -> list[dict[str, Any]]:
                 required_tools=["register_event"],
             )
         )
-    open_inputs = [
+    open_inputs: list[tuple[str, dict[str, Any], dict[str, Any], str | None]] = [
         ("search_repository", {"query": "AgentQAKit"}, {"status": "ok"}, "search_repository"),
         ("search_repository", {"query": "TestRunner"}, {"status": "ok"}, "search_repository"),
         ("search_repository", {"query": "replay"}, {"status": "ok"}, "search_repository"),
@@ -453,7 +453,7 @@ def _argument_cases() -> list[dict[str, Any]]:
 def _fault_cases() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     cases: list[dict[str, Any]] = []
     mutations: list[dict[str, Any]] = []
-    operations = [
+    operations: list[tuple[dict[str, Any], str]] = [
         ({"type": "tool_timeout", "delayMs": 10}, "ok"),
         ({"type": "tool_exception"}, "temporary_failure"),
         ({"type": "invalid_json"}, "invalid_tool_response"),
@@ -485,7 +485,7 @@ def _fault_cases() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
                 max_error_spans=1,
             )
         )
-    open_operations = [
+    open_operations: list[tuple[dict[str, Any], str]] = [
         ({"type": "tool_timeout", "delayMs": 10}, "temporary_failure"),
         ({"type": "tool_exception"}, "temporary_failure"),
         ({"type": "invalid_json"}, "invalid_tool_response"),
@@ -647,7 +647,8 @@ def build_documents() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
 
 
 def _dump_yaml(path: Path, documents: list[dict[str, Any]]) -> None:
-    path.write_text(
+    _write_text(
+        path,
         yaml.safe_dump_all(
             documents,
             allow_unicode=True,
@@ -655,8 +656,13 @@ def _dump_yaml(path: Path, documents: list[dict[str, Any]]) -> None:
             sort_keys=False,
             width=100,
         ),
-        encoding="utf-8",
     )
+
+
+def _write_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(content)
 
 
 def generate(output: Path) -> dict[str, Any]:
@@ -699,11 +705,11 @@ def generate(output: Path) -> dict[str, Any]:
         "categoryCounts": dict(category_counts),
         "files": ["cases/campus.yaml", "cases/opensource.yaml", "mutations.yaml"],
     }
-    (output / "manifest.json").write_text(
+    _write_text(
+        output / "manifest.json",
         json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
-    (output / "VERSION").write_text(VERSION + "\n", encoding="utf-8")
+    _write_text(output / "VERSION", VERSION + "\n")
 
     load_specs(cases_dir / "campus.yaml")
     load_specs(cases_dir / "opensource.yaml")
