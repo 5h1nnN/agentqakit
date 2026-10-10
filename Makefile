@@ -1,4 +1,4 @@
-.PHONY: lint test e2e
+.PHONY: lint test e2e web
 
 lint:
 	ruff check .
@@ -6,7 +6,10 @@ lint:
 	mypy
 
 test:
-	pytest -q
+	python -m pytest -q
 
 e2e:
-	pytest -q -m e2e tests/e2e
+	python -m pytest -q -m e2e tests/e2e
+
+web:
+	cd apps/web && npm ci && npm test && npm run build

@@ -14,6 +14,9 @@ budget evaluators plus an opt-in, provider-neutral LLM judge boundary, canonical
 dependency replay, and verified failure reproduction bundles.
 It also compares verified runs and enforces declarative quality gates with
 CI-friendly exit codes and checksummed reports.
+Completed runs can now be indexed in a checksummed file store or transactional
+SQLite database, queried through a local FastAPI service, and inspected in the
+React evidence console.
 
 ## Requirements
 
@@ -76,6 +79,20 @@ agentqa gate evaluate quality-gate.yaml \
   --result artifacts/candidate/runs/<id>
 ```
 
+Build and launch the local evidence console:
+
+```bash
+cd apps/web
+npm ci
+npm run build
+cd ../..
+agentqa serve
+```
+
+The server binds to `127.0.0.1:8000`, stores indexes under `.agentqa/`, and
+accepts only workspace-relative specification paths by default. The API is also
+available without the UI at `uvicorn apps.api.main:app`.
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
@@ -96,6 +113,9 @@ strict replay, and verified failure bundles are documented in
 Run alignment, removed-test semantics, metric observability, gate rules, and CI
 integration are documented in
 [`docs/comparison-and-gates.md`](docs/comparison-and-gates.md).
+Result-store guarantees, SQLite layout, HTTP endpoints, server security, and
+Web development are documented in
+[`docs/storage-api-web.md`](docs/storage-api-web.md).
 
 ## Repository layout
 

@@ -1,0 +1,1080 @@
+{
+  "$defs": {
+    "ErrorInfo": {
+      "additionalProperties": false,
+      "description": "A safe, structured failure without an attached traceback.",
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorInfo",
+      "type": "object"
+    },
+    "EvaluationResult": {
+      "additionalProperties": false,
+      "description": "Outcome from one evaluator.",
+      "properties": {
+        "evaluator_type": {
+          "minLength": 1,
+          "title": "Evaluator Type",
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Metadata",
+          "type": "object"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "status": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "ERROR",
+            "SKIPPED",
+            "NOT_OBSERVABLE",
+            "NEEDS_REVIEW"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "violations": {
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "title": "Violations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evaluator_type",
+        "status"
+      ],
+      "title": "EvaluationResult",
+      "type": "object"
+    },
+    "InterceptionPoint": {
+      "additionalProperties": false,
+      "description": "A named runtime boundary at which a mutation can be applied.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "tool",
+            "retriever",
+            "http"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "name"
+      ],
+      "title": "InterceptionPoint",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "MetricSummary": {
+      "additionalProperties": false,
+      "description": "Deterministic descriptive statistics for one numeric metric.",
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean"
+        },
+        "p50": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P50"
+        },
+        "p95": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95"
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "title": "MetricSummary",
+      "type": "object"
+    },
+    "MutationApplication": {
+      "additionalProperties": false,
+      "description": "Evidence emitted for one active-mutation interception attempt.",
+      "properties": {
+        "applied_at": {
+          "format": "date-time",
+          "title": "Applied At",
+          "type": "string"
+        },
+        "behavior": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Behavior",
+          "type": "object"
+        },
+        "call_index": {
+          "minimum": 1,
+          "title": "Call Index",
+          "type": "integer"
+        },
+        "interception": {
+          "$ref": "#/$defs/InterceptionPoint"
+        },
+        "invocation_summary": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "match": {
+          "$ref": "#/$defs/MutationMatch"
+        },
+        "mutation_id": {
+          "minLength": 1,
+          "title": "Mutation Id",
+          "type": "string"
+        },
+        "operation_type": {
+          "minLength": 1,
+          "title": "Operation Type",
+          "type": "string"
+        },
+        "result_summary": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "span_id": {
+          "minLength": 1,
+          "title": "Span Id",
+          "type": "string"
+        },
+        "test_case_id": {
+          "minLength": 1,
+          "title": "Test Case Id",
+          "type": "string"
+        },
+        "trace_id": {
+          "minLength": 1,
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "trial_id": {
+          "minLength": 1,
+          "title": "Trial Id",
+          "type": "string"
+        },
+        "triggered": {
+          "title": "Triggered",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "mutation_id",
+        "operation_type",
+        "interception",
+        "call_index",
+        "triggered",
+        "match",
+        "invocation_summary",
+        "test_case_id",
+        "trial_id",
+        "trace_id",
+        "span_id",
+        "applied_at"
+      ],
+      "title": "MutationApplication",
+      "type": "object"
+    },
+    "MutationMatch": {
+      "additionalProperties": false,
+      "description": "Deterministic condition-by-condition matcher decision.",
+      "properties": {
+        "conditions": {
+          "additionalProperties": {
+            "type": "boolean"
+          },
+          "title": "Conditions",
+          "type": "object"
+        },
+        "matched": {
+          "title": "Matched",
+          "type": "boolean"
+        },
+        "mutation_id": {
+          "minLength": 1,
+          "title": "Mutation Id",
+          "type": "string"
+        },
+        "probability_sample": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Probability Sample"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        }
+      },
+      "required": [
+        "mutation_id",
+        "matched"
+      ],
+      "title": "MutationMatch",
+      "type": "object"
+    },
+    "MutationOutcome": {
+      "additionalProperties": false,
+      "description": "One mutation's classification across all associated test trials.",
+      "properties": {
+        "failed_test_case_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Failed Test Case Ids",
+          "type": "array"
+        },
+        "mutation_id": {
+          "minLength": 1,
+          "title": "Mutation Id",
+          "type": "string"
+        },
+        "operation_type": {
+          "minLength": 1,
+          "title": "Operation Type",
+          "type": "string"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "status": {
+          "enum": [
+            "KILLED",
+            "SURVIVED",
+            "NOT_REACHED",
+            "INVALID"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_kind": {
+          "minLength": 1,
+          "title": "Target Kind",
+          "type": "string"
+        },
+        "test_case_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Test Case Ids",
+          "type": "array"
+        },
+        "triggered_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Triggered Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mutation_id",
+        "operation_type",
+        "target_kind",
+        "status"
+      ],
+      "title": "MutationOutcome",
+      "type": "object"
+    },
+    "MutationScoreBucket": {
+      "additionalProperties": false,
+      "description": "Recomputable counts and score for a group of mutation outcomes.",
+      "properties": {
+        "invalid": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Invalid",
+          "type": "integer"
+        },
+        "killed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Killed",
+          "type": "integer"
+        },
+        "not_reached": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Not Reached",
+          "type": "integer"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Score"
+        },
+        "survived": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Survived",
+          "type": "integer"
+        }
+      },
+      "title": "MutationScoreBucket",
+      "type": "object"
+    },
+    "MutationScoreReport": {
+      "additionalProperties": false,
+      "description": "Overall and per-operation mutation score report.",
+      "properties": {
+        "by_operation": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MutationScoreBucket"
+          },
+          "title": "By Operation",
+          "type": "object"
+        },
+        "outcomes": {
+          "items": {
+            "$ref": "#/$defs/MutationOutcome"
+          },
+          "title": "Outcomes",
+          "type": "array"
+        },
+        "overall": {
+          "$ref": "#/$defs/MutationScoreBucket"
+        }
+      },
+      "required": [
+        "overall"
+      ],
+      "title": "MutationScoreReport",
+      "type": "object"
+    },
+    "ReplayStats": {
+      "additionalProperties": false,
+      "description": "Per-trial record/replay accounting persisted with the test result.",
+      "properties": {
+        "hit_rate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hit Rate"
+        },
+        "hits": {
+          "minimum": 0,
+          "title": "Hits",
+          "type": "integer"
+        },
+        "live_fallbacks": {
+          "minimum": 0,
+          "title": "Live Fallbacks",
+          "type": "integer"
+        },
+        "misses": {
+          "minimum": 0,
+          "title": "Misses",
+          "type": "integer"
+        },
+        "mode": {
+          "enum": [
+            "off",
+            "record",
+            "replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "recorded": {
+          "minimum": 0,
+          "title": "Recorded",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "mode",
+        "recorded",
+        "hits",
+        "misses",
+        "live_fallbacks"
+      ],
+      "title": "ReplayStats",
+      "type": "object"
+    },
+    "RunResult": {
+      "additionalProperties": false,
+      "description": "Final state and all trial results for a run.",
+      "properties": {
+        "ended_at": {
+          "format": "date-time",
+          "title": "Ended At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "exit_code": {
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "mutation_score": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MutationScoreReport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/TestResult"
+          },
+          "title": "Results",
+          "type": "array"
+        },
+        "run_id": {
+          "minLength": 1,
+          "title": "Run Id",
+          "type": "string"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "COMPLETED",
+            "FAILED",
+            "CANCELLED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "summary": {
+          "$ref": "#/$defs/RunSummary"
+        }
+      },
+      "required": [
+        "run_id",
+        "status",
+        "exit_code",
+        "started_at",
+        "ended_at",
+        "summary"
+      ],
+      "title": "RunResult",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "Recomputable aggregate counts for one run.",
+      "properties": {
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/TestCaseSummary"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "completed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Completed Trials",
+          "type": "integer"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "failed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Failed Trials",
+          "type": "integer"
+        },
+        "incomplete": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Incomplete",
+          "type": "integer"
+        },
+        "inconsistent_cases": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Inconsistent Cases",
+          "type": "integer"
+        },
+        "pass_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed": {
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "passed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Passed Trials",
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "total_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "pass_rate"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "TargetResult": {
+      "additionalProperties": false,
+      "description": "Normalized output from any target adapter.",
+      "properties": {
+        "ended_at": {
+          "format": "date-time",
+          "title": "Ended At",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ErrorInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "metadata": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Metadata",
+          "type": "object"
+        },
+        "output": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "raw_response_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Response Ref"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "OK",
+            "ERROR",
+            "TIMEOUT"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "started_at",
+        "ended_at"
+      ],
+      "title": "TargetResult",
+      "type": "object"
+    },
+    "TestCaseSummary": {
+      "additionalProperties": false,
+      "description": "Trial aggregation and stability metrics for one test case.",
+      "properties": {
+        "completed_trials": {
+          "minimum": 0,
+          "title": "Completed Trials",
+          "type": "integer"
+        },
+        "failed_trials": {
+          "minimum": 0,
+          "title": "Failed Trials",
+          "type": "integer"
+        },
+        "inconsistent": {
+          "title": "Inconsistent",
+          "type": "boolean"
+        },
+        "latency_ms": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "min_pass_rate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Pass Rate"
+        },
+        "pass_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Passed"
+        },
+        "passed_trials": {
+          "minimum": 0,
+          "title": "Passed Trials",
+          "type": "integer"
+        },
+        "planned_trials": {
+          "exclusiveMinimum": 0,
+          "title": "Planned Trials",
+          "type": "integer"
+        },
+        "steps": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "strategy": {
+          "enum": [
+            "all",
+            "majority",
+            "minPassRate"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "test_case_id": {
+          "minLength": 1,
+          "title": "Test Case Id",
+          "type": "string"
+        },
+        "total_tokens": {
+          "$ref": "#/$defs/MetricSummary"
+        }
+      },
+      "required": [
+        "test_case_id",
+        "strategy",
+        "planned_trials",
+        "completed_trials",
+        "passed_trials",
+        "failed_trials",
+        "pass_rate",
+        "passed",
+        "inconsistent",
+        "latency_ms",
+        "total_tokens",
+        "steps"
+      ],
+      "title": "TestCaseSummary",
+      "type": "object"
+    },
+    "TestResult": {
+      "additionalProperties": false,
+      "description": "Combined target and evaluator result for one test trial.",
+      "properties": {
+        "cassette_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cassette Ref"
+        },
+        "ended_at": {
+          "format": "date-time",
+          "title": "Ended At",
+          "type": "string"
+        },
+        "evaluations": {
+          "items": {
+            "$ref": "#/$defs/EvaluationResult"
+          },
+          "title": "Evaluations",
+          "type": "array"
+        },
+        "failure_bundle_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Bundle Ref"
+        },
+        "mutation_applications": {
+          "items": {
+            "$ref": "#/$defs/MutationApplication"
+          },
+          "title": "Mutation Applications",
+          "type": "array"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "replay": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReplayStats"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "scores": {
+          "additionalProperties": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "title": "Scores",
+          "type": "object"
+        },
+        "started_at": {
+          "format": "date-time",
+          "title": "Started At",
+          "type": "string"
+        },
+        "target_result": {
+          "$ref": "#/$defs/TargetResult"
+        },
+        "test_case_id": {
+          "minLength": 1,
+          "title": "Test Case Id",
+          "type": "string"
+        },
+        "trace_id": {
+          "minLength": 1,
+          "title": "Trace Id",
+          "type": "string"
+        },
+        "trace_ref": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace Ref"
+        },
+        "trace_status": {
+          "default": "missing",
+          "enum": [
+            "complete",
+            "partial",
+            "missing"
+          ],
+          "title": "Trace Status",
+          "type": "string"
+        },
+        "trial_id": {
+          "minLength": 1,
+          "title": "Trial Id",
+          "type": "string"
+        },
+        "trial_index": {
+          "exclusiveMinimum": 0,
+          "title": "Trial Index",
+          "type": "integer"
+        },
+        "trial_seed": {
+          "title": "Trial Seed",
+          "type": "integer"
+        },
+        "violations": {
+          "items": {
+            "$ref": "#/$defs/Violation"
+          },
+          "title": "Violations",
+          "type": "array"
+        }
+      },
+      "required": [
+        "test_case_id",
+        "trial_id",
+        "trace_id",
+        "trial_index",
+        "trial_seed",
+        "started_at",
+        "ended_at",
+        "passed",
+        "target_result"
+      ],
+      "title": "TestResult",
+      "type": "object"
+    },
+    "Violation": {
+      "additionalProperties": false,
+      "description": "A concrete failed assertion with optional trace evidence.",
+      "properties": {
+        "details": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "span_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Span Id"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "message"
+      ],
+      "title": "Violation",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "A persisted RunResult plus project and artifact location metadata.",
+  "properties": {
+    "artifact_path": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifact Path"
+    },
+    "project_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "run": {
+      "$ref": "#/$defs/RunResult"
+    }
+  },
+  "required": [
+    "project_id",
+    "run"
+  ],
+  "title": "StoredRun",
+  "type": "object"
+}

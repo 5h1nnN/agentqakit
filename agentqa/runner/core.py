@@ -560,7 +560,7 @@ class TestRunner:
         self._has_run = True
         frozen_specs = list(specs)
         started_at = utc_now()
-        run_id = new_id()
+        run_id = self._options.run_id or new_id()
         hashes = [hash_spec(target), *(hash_spec(spec) for spec in frozen_specs)]
         hashes.extend(hash_spec(spec) for _, spec in sorted(self._mutations.items()))
         manifest_hash = None

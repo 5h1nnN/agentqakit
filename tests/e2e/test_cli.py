@@ -26,6 +26,16 @@ def test_version() -> None:
     assert result.stdout.strip() == f"AgentQAKit {__version__}"
 
 
+def test_serve_is_listed_and_rejects_remote_binding_without_opt_in() -> None:
+    help_result = runner.invoke(app, ["serve", "--help"])
+    remote_result = runner.invoke(app, ["serve", "--host", "0.0.0.0"])
+
+    assert help_result.exit_code == 0
+    assert "local AgentQAKit API" in help_result.stdout
+    assert remote_result.exit_code == 2
+    assert "non-loopback hosts require --allow-remote" in remote_result.stderr
+
+
 def test_compare_and_gate_commands_write_checksummed_reports(tmp_path: Path) -> None:
     baseline = create_run_artifact(
         tmp_path / "baseline", "baseline-run", {"case": True, "removed": True}

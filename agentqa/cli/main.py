@@ -10,6 +10,7 @@ from agentqa.cli.gate import app as gate_app
 from agentqa.cli.instrument import instrument
 from agentqa.cli.mutation import app as mutation_app
 from agentqa.cli.replay import run_replay
+from agentqa.cli.serve import serve
 from agentqa.cli.test import app as test_app
 
 app = typer.Typer(
@@ -23,6 +24,7 @@ app.add_typer(mutation_app, name="mutation")
 app.add_typer(gate_app, name="gate")
 app.command("compare")(compare)
 app.command("replay")(run_replay)
+app.command("serve")(serve)
 app.command("instrument")(instrument)
 
 

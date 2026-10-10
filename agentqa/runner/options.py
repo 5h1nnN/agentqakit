@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from agentqa.conventions import is_uuid
+
 
 @dataclass(frozen=True, slots=True)
 class RunnerOptions:
@@ -26,6 +28,7 @@ class RunnerOptions:
     replay_trial_seed: int | None = None
     generate_failure_bundles: bool = True
     original_command: str | None = None
+    run_id: str | None = None
 
     def __post_init__(self) -> None:
         timeouts = {
@@ -49,3 +52,5 @@ class RunnerOptions:
             raise ValueError("replay_max_inline_result_bytes must be positive")
         if any(not path.strip() for path in self.replay_volatile_fields):
             raise ValueError("replay volatile field paths must be non-empty")
+        if self.run_id is not None and not is_uuid(self.run_id):
+            raise ValueError("run_id must be a canonical UUID")

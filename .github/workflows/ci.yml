@@ -50,7 +50,7 @@ jobs:
       - name: pytest
         run: |
           set -o pipefail
-          pytest -q --junitxml=ci-logs/pytest.xml 2>&1 | tee ci-logs/pytest.log
+          python -m pytest -q --junitxml=ci-logs/pytest.xml 2>&1 | tee ci-logs/pytest.log
 
       - name: Upload failure logs
         if: failure()
@@ -59,6 +59,33 @@ jobs:
           name: ci-logs-python-${{ matrix.python-version }}
           path: ci-logs/
           if-no-files-found: ignore
+
+  web:
+    name: React web
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install web dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Test web application
+        working-directory: apps/web
+        run: npm test
+
+      - name: Build web application
+        working-directory: apps/web
+        run: npm run build
 
   agent-regression:
     name: Agent regression gate

@@ -1,0 +1,325 @@
+{
+  "$defs": {
+    "MetricSummary": {
+      "additionalProperties": false,
+      "description": "Deterministic descriptive statistics for one numeric metric.",
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean"
+        },
+        "p50": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P50"
+        },
+        "p95": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95"
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "title": "MetricSummary",
+      "type": "object"
+    },
+    "RunSummary": {
+      "additionalProperties": false,
+      "description": "Recomputable aggregate counts for one run.",
+      "properties": {
+        "cases": {
+          "items": {
+            "$ref": "#/$defs/TestCaseSummary"
+          },
+          "title": "Cases",
+          "type": "array"
+        },
+        "completed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Completed Trials",
+          "type": "integer"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "failed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Failed Trials",
+          "type": "integer"
+        },
+        "incomplete": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Incomplete",
+          "type": "integer"
+        },
+        "inconsistent_cases": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Inconsistent Cases",
+          "type": "integer"
+        },
+        "pass_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed": {
+          "minimum": 0,
+          "title": "Passed",
+          "type": "integer"
+        },
+        "passed_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Passed Trials",
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "total_trials": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "passed",
+        "failed",
+        "pass_rate"
+      ],
+      "title": "RunSummary",
+      "type": "object"
+    },
+    "TestCaseSummary": {
+      "additionalProperties": false,
+      "description": "Trial aggregation and stability metrics for one test case.",
+      "properties": {
+        "completed_trials": {
+          "minimum": 0,
+          "title": "Completed Trials",
+          "type": "integer"
+        },
+        "failed_trials": {
+          "minimum": 0,
+          "title": "Failed Trials",
+          "type": "integer"
+        },
+        "inconsistent": {
+          "title": "Inconsistent",
+          "type": "boolean"
+        },
+        "latency_ms": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "min_pass_rate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min Pass Rate"
+        },
+        "pass_rate": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Pass Rate",
+          "type": "number"
+        },
+        "passed": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Passed"
+        },
+        "passed_trials": {
+          "minimum": 0,
+          "title": "Passed Trials",
+          "type": "integer"
+        },
+        "planned_trials": {
+          "exclusiveMinimum": 0,
+          "title": "Planned Trials",
+          "type": "integer"
+        },
+        "steps": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "strategy": {
+          "enum": [
+            "all",
+            "majority",
+            "minPassRate"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        },
+        "test_case_id": {
+          "minLength": 1,
+          "title": "Test Case Id",
+          "type": "string"
+        },
+        "total_tokens": {
+          "$ref": "#/$defs/MetricSummary"
+        }
+      },
+      "required": [
+        "test_case_id",
+        "strategy",
+        "planned_trials",
+        "completed_trials",
+        "passed_trials",
+        "failed_trials",
+        "pass_rate",
+        "passed",
+        "inconsistent",
+        "latency_ms",
+        "total_tokens",
+        "steps"
+      ],
+      "title": "TestCaseSummary",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "List-view metadata unavailable in the aggregate RunSummary alone.",
+  "properties": {
+    "artifact_path": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifact Path"
+    },
+    "ended_at": {
+      "format": "date-time",
+      "title": "Ended At",
+      "type": "string"
+    },
+    "exit_code": {
+      "enum": [
+        0,
+        1,
+        2
+      ],
+      "title": "Exit Code",
+      "type": "integer"
+    },
+    "finding_count": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Finding Count",
+      "type": "integer"
+    },
+    "mutation_score": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mutation Score"
+    },
+    "project_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+      "title": "Project Id",
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "started_at": {
+      "format": "date-time",
+      "title": "Started At",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "summary": {
+      "$ref": "#/$defs/RunSummary"
+    }
+  },
+  "required": [
+    "project_id",
+    "run_id",
+    "status",
+    "exit_code",
+    "started_at",
+    "ended_at",
+    "summary"
+  ],
+  "title": "StoredRunSummary",
+  "type": "object"
+}

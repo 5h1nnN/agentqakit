@@ -26,6 +26,17 @@ def test_spec_schemas_use_external_camel_case_names() -> None:
     assert "api_version" not in properties
 
 
+def test_storage_schemas_are_part_of_the_public_contract() -> None:
+    schemas = build_json_schemas()
+
+    assert {
+        "finding-review",
+        "stored-finding",
+        "stored-run",
+        "stored-run-summary",
+    }.issubset(schemas)
+
+
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first = export_json_schemas(tmp_path)
     first_payloads: dict[str, bytes] = {path.name: path.read_bytes() for path in first}

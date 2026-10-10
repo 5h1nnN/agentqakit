@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "description": "Human review state stored independently from immutable evidence.",
+  "properties": {
+    "finding_id": {
+      "minLength": 1,
+      "title": "Finding Id",
+      "type": "string"
+    },
+    "note": {
+      "default": "",
+      "title": "Note",
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "unreviewed",
+        "confirmed",
+        "false_positive",
+        "resolved"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "updated_at": {
+      "format": "date-time",
+      "title": "Updated At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "finding_id",
+    "status",
+    "updated_at"
+  ],
+  "title": "FindingReview",
+  "type": "object"
+}

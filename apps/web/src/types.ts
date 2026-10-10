@@ -1,0 +1,167 @@
+export type RunStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+
+export interface MetricSummary {
+  count: number;
+  mean: number | null;
+  p50: number | null;
+  p95: number | null;
+}
+
+export interface CaseSummary {
+  test_case_id: string;
+  passed: boolean | null;
+  pass_rate: number;
+  completed_trials: number;
+  planned_trials: number;
+  inconsistent: boolean;
+  latency_ms: MetricSummary;
+  total_tokens: MetricSummary;
+}
+
+export interface RunSummary {
+  total: number;
+  passed: number;
+  failed: number;
+  incomplete: number;
+  pass_rate: number;
+  inconsistent_cases: number;
+  cases: CaseSummary[];
+}
+
+export interface StoredRunSummary {
+  project_id: string;
+  run_id: string;
+  status: RunStatus;
+  exit_code: number;
+  started_at: string;
+  ended_at: string;
+  summary: RunSummary;
+  mutation_score: number | null;
+  artifact_path: string | null;
+  finding_count: number;
+}
+
+export interface RunJob {
+  runId: string;
+  projectId: string;
+  status: RunStatus;
+  submittedAt: string;
+  finishedAt: string | null;
+  error: { code: string; message: string } | null;
+}
+
+export interface RunsResponse {
+  runs: StoredRunSummary[];
+  jobs: RunJob[];
+}
+
+export interface Violation {
+  type: string;
+  message: string;
+  span_id: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface MutationApplication {
+  mutation_id: string;
+  operation_type: string;
+  triggered: boolean;
+  call_index: number;
+  behavior: Record<string, unknown>;
+}
+
+export interface TestResult {
+  test_case_id: string;
+  trial_id: string;
+  trace_id: string;
+  trial_index: number;
+  passed: boolean;
+  started_at: string;
+  ended_at: string;
+  trace_status: "complete" | "partial" | "missing";
+  target_result: {
+    status: "OK" | "ERROR" | "TIMEOUT";
+    output: unknown;
+    metadata: Record<string, unknown>;
+    error: { code: string; message: string } | null;
+  };
+  evaluations: Array<{
+    evaluator_type: string;
+    status: string;
+    score: number | null;
+    message: string | null;
+  }>;
+  violations: Violation[];
+  mutation_applications: MutationApplication[];
+}
+
+export interface StoredFinding {
+  finding_id: string;
+  run_id: string;
+  test_case_id: string;
+  trial_id: string;
+  type: string;
+  message: string;
+  span_id: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface TraceEvent {
+  trace_id: string;
+  span_id: string;
+  parent_span_id: string | null;
+  kind: string;
+  name: string;
+  started_at: string;
+  ended_at: string;
+  status: string;
+  attributes: Record<string, unknown>;
+  input: unknown;
+  output: unknown;
+}
+
+export interface TraceRecord {
+  trace_id: string;
+  status: "complete" | "partial" | "missing";
+  root_span_id: string | null;
+  events: TraceEvent[];
+  diagnostics: string[];
+  dropped_spans: number;
+}
+
+export interface CaseComparison {
+  test_case_id: string;
+  classification: string;
+  baseline_passed: boolean | null;
+  candidate_passed: boolean | null;
+  risk: string | null;
+}
+
+export interface ComparisonReport {
+  baseline_run_id: string;
+  candidate_run_id: string;
+  candidate_effective_pass_rate: number;
+  counts: {
+    new_regressions: number;
+    fixed: number;
+    persistent_failures: number;
+    stable: number;
+    new: number;
+    removed: number;
+  };
+  baseline: { pass_rate: number; mutation_score: number | null };
+  candidate: { pass_rate: number; mutation_score: number | null };
+  cases: CaseComparison[];
+}
+
+export interface GateResult {
+  passed: boolean;
+  exit_code: number;
+  rules: Array<{
+    name: string;
+    passed: boolean;
+    actual: unknown;
+    expected: unknown;
+    message: string | null;
+  }>;
+}

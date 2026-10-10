@@ -49,6 +49,7 @@ from agentqa.models.specs import (
     TargetSpec,
     TrialPolicy,
 )
+from agentqa.models.storage import FindingReview, StoredFinding, StoredRun, StoredRunSummary
 
 __all__ = [
     "API_VERSION",
@@ -61,6 +62,7 @@ __all__ = [
     "ComparisonReport",
     "ErrorInfo",
     "EvaluationResult",
+    "FindingReview",
     "GateResult",
     "GateRuleResult",
     "HttpTargetSpec",
@@ -83,6 +85,9 @@ __all__ = [
     "RunMetrics",
     "RunResult",
     "RunSummary",
+    "StoredFinding",
+    "StoredRun",
+    "StoredRunSummary",
     "TargetResult",
     "TargetSpec",
     "TestCaseSummary",

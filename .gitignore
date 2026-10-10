@@ -30,6 +30,7 @@ artifacts/
 # Web build output
 apps/web/node_modules/
 apps/web/dist/
+*.tsbuildinfo
 
 # Editors and operating systems
 .DS_Store
