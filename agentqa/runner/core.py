@@ -762,9 +762,9 @@ class TestRunner:
                         )
                     return ordinal, spec, result, trace_record
 
-                pending: set[
-                    asyncio.Task[tuple[int, AgentTestSpec, TestResult, TraceRecord]]
-                ] = set()
+                pending: set[asyncio.Task[tuple[int, AgentTestSpec, TestResult, TraceRecord]]] = (
+                    set()
+                )
 
                 def launch_next() -> bool:
                     if budget_tracker.exhausted:

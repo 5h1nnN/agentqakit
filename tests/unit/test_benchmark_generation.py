@@ -25,9 +25,9 @@ def test_benchmark_generation_is_deterministic_and_versioned(tmp_path: Path) -> 
     assert json.loads((first / "manifest.json").read_text(encoding="utf-8")) == first_manifest
     for relative in (*first_manifest["files"], "manifest.json", "VERSION"):
         assert (first / relative).read_bytes() == (second / relative).read_bytes()
-        assert (first / relative).read_text(encoding="utf-8") == (
-            checked_in / relative
-        ).read_text(encoding="utf-8")
+        assert (first / relative).read_text(encoding="utf-8") == (checked_in / relative).read_text(
+            encoding="utf-8"
+        )
 
 
 def test_benchmark_rejects_an_underlying_failed_run() -> None:

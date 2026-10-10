@@ -115,7 +115,7 @@ class PythonTargetAdapter:
             except TimeoutError:
                 if os.name == "posix":
                     with contextlib.suppress(ProcessLookupError):
-                        os.killpg(process.pid, signal.SIGTERM)  # type: ignore[attr-defined]
+                        os.killpg(process.pid, signal.SIGTERM)
                 else:
                     process.terminate()
                 try:
@@ -123,9 +123,7 @@ class PythonTargetAdapter:
                 except TimeoutError:
                     if os.name == "posix":
                         with contextlib.suppress(ProcessLookupError):
-                            os.killpg(  # type: ignore[attr-defined]
-                                process.pid, signal.SIGKILL  # type: ignore[attr-defined]
-                            )
+                            os.killpg(process.pid, signal.SIGKILL)
                     else:
                         process.kill()
                     await process.wait()

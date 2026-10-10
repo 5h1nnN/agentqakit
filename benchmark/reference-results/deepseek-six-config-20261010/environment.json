@@ -1,0 +1,20 @@
+{
+  "agentqakitVersion": "0.1.0a0",
+  "benchmarkManifestHash": "sha256:811f17625388f349a8f78f337be7fced4aa90115f3fa9070cc810612c3c4c680",
+  "configHash": "sha256:2178372e97ec91bd403b1c12a36c1cb1722742ca3d88cbb67327b35929ab3ee8",
+  "judgeConfigured": true,
+  "judgeModel": "deepseek-flash",
+  "judgeProvider": "deepseek",
+  "limitPerSuite": null,
+  "platform": "macOS-26.6.2-arm64-arm-64bit",
+  "python": "3.11.15 (main, Mar  3 2026, 00:52:57) [Clang 17.0.0 (clang-1700.6.3.2)]",
+  "randomSeed": 2026,
+  "selectedConfigurations": [
+    "full-agentqakit",
+    "no-replay-retry",
+    "output-judge",
+    "output-only",
+    "output-trace",
+    "with-replay"
+  ]
+}

@@ -1,0 +1,7 @@
+configuration,total,passed,failed,pass_rate,judge_pass,judge_error,judge_skipped,mutation_applications,mutation_detection_rate,replay_hits,replay_misses
+full-agentqakit,110,90,20,0.8181818181818182,15,5,0,37,0.14285714285714285,0,0
+no-replay-retry,110,61,49,0.5545454545454546,15,5,0,37,0.08571428571428572,0,0
+output-judge,110,104,6,0.9454545454545454,14,4,0,37,0.11428571428571428,0,0
+output-only,110,110,0,1.0,0,0,0,37,0.0,0,0
+output-trace,110,64,46,0.5818181818181818,0,0,0,37,0.0,0,0
+with-replay,110,92,18,0.8363636363636363,17,3,0,37,0.08571428571428572,58,0

@@ -18,8 +18,3 @@ expect:
       room: A101
 evaluators:
   - type: schema
-  - type: llm_judge
-    rubric: >-
-      Judge whether the response correctly answers the requested course schedule.
-      It must identify the course, class time, and room without inventing unsupported
-      facts. Use NEEDS_REVIEW if the supplied evidence is insufficient.

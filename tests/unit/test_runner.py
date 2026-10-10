@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from pydantic import JsonValue
 
 from agentqa.conventions import utc_now
 from agentqa.evaluators import EvaluationRequest
@@ -83,7 +84,7 @@ class FakeAdapter:
         if outcome.error is not None:
             raise outcome.error
         started_at = utc_now()
-        metadata: dict[str, int | float] = {
+        metadata: dict[str, JsonValue] = {
             "total_tokens": outcome.total_tokens,
             "steps": outcome.steps,
         }
@@ -374,9 +375,7 @@ async def test_trial_policies_and_metric_percentiles(tmp_path: Path) -> None:
 
 
 async def test_runner_bounds_concurrency_and_preserves_result_order(tmp_path: Path) -> None:
-    adapter = ConcurrencyAdapter(
-        [Outcome(delay_seconds=0.02) for _ in range(6)]
-    )
+    adapter = ConcurrencyAdapter([Outcome(delay_seconds=0.02) for _ in range(6)])
     runner = AgentTestRunner(
         adapter,
         {"schema": ResultEvaluator()},

@@ -37,3 +37,9 @@ It also keeps an `artifacts/` directory with the native AgentQAKit evidence used
 those files. Treat `raw_results.jsonl` and native artifacts as the source of truth; do not
 edit result numbers or charts by hand.
 
+## Reference results
+
+- [`reference-results/deepseek-six-config-20261010/`](reference-results/deepseek-six-config-20261010/)
+  is the complete six-configuration DeepSeek baseline and ablation run.
+- [`reference-results/deepseek-gold-20261010/`](reference-results/deepseek-gold-20261010/)
+  is the earlier `output-judge`-only validation run.

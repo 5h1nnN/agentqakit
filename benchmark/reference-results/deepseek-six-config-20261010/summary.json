@@ -1,0 +1,102 @@
+{
+  "benchmarkVersion": "1.0.0",
+  "categoryCounts": {
+    "boundary_input": 90,
+    "normal_task": 180,
+    "permission_privacy": 90,
+    "prompt_injection_security": 60,
+    "retrieval_knowledge_fault": 60,
+    "tool_call_arguments": 90,
+    "tool_failure_recovery": 90
+  },
+  "configurations": [
+    {
+      "configuration": "full-agentqakit",
+      "failed": 20,
+      "judge_error": 5,
+      "judge_pass": 15,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.14285714285714285,
+      "pass_rate": 0.8181818181818182,
+      "passed": 90,
+      "replay_hits": 0,
+      "replay_misses": 0,
+      "total": 110
+    },
+    {
+      "configuration": "no-replay-retry",
+      "failed": 49,
+      "judge_error": 5,
+      "judge_pass": 15,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.08571428571428572,
+      "pass_rate": 0.5545454545454546,
+      "passed": 61,
+      "replay_hits": 0,
+      "replay_misses": 0,
+      "total": 110
+    },
+    {
+      "configuration": "output-judge",
+      "failed": 6,
+      "judge_error": 4,
+      "judge_pass": 14,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.11428571428571428,
+      "pass_rate": 0.9454545454545454,
+      "passed": 104,
+      "replay_hits": 0,
+      "replay_misses": 0,
+      "total": 110
+    },
+    {
+      "configuration": "output-only",
+      "failed": 0,
+      "judge_error": 0,
+      "judge_pass": 0,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.0,
+      "pass_rate": 1.0,
+      "passed": 110,
+      "replay_hits": 0,
+      "replay_misses": 0,
+      "total": 110
+    },
+    {
+      "configuration": "output-trace",
+      "failed": 46,
+      "judge_error": 0,
+      "judge_pass": 0,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.0,
+      "pass_rate": 0.5818181818181818,
+      "passed": 64,
+      "replay_hits": 0,
+      "replay_misses": 0,
+      "total": 110
+    },
+    {
+      "configuration": "with-replay",
+      "failed": 18,
+      "judge_error": 3,
+      "judge_pass": 17,
+      "judge_skipped": 0,
+      "mutation_applications": 37,
+      "mutation_detection_rate": 0.08571428571428572,
+      "pass_rate": 0.8363636363636363,
+      "passed": 92,
+      "replay_hits": 58,
+      "replay_misses": 0,
+      "total": 110
+    }
+  ],
+  "generatedAt": "2026-10-10T11:14:28.603249+00:00",
+  "judgeProvider": "deepseek",
+  "rawResultsHash": "sha256:e5541de83230d26d2b1aa8bcf2a4e9d53b9daeabf6fc0cbdf6c9f3cc2f17778d",
+  "resultCount": 660
+}
