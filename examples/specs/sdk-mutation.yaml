@@ -1,0 +1,14 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Mutation
+metadata:
+  name: sdk-course-wrong-room
+target:
+  kind: tool
+  name: query_course
+when:
+  callIndex: 1
+  probability: 1.0
+operation:
+  type: wrong_value
+  field: room
+  value: UNKNOWN

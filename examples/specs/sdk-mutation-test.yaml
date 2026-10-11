@@ -1,0 +1,60 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: sdk-course-baseline
+  labels:
+    category: functional
+    risk: high
+targetRef: sdk-course-agent
+scenario:
+  input:
+    course_id: AI101
+expect:
+  output:
+    exactFields:
+      status: ok
+      answer: 查询成功
+      course: 人工智能导论
+      classTime: 周一 09:00
+      room: A101
+  tools:
+    required:
+      - query_course
+    maxCalls: 1
+  trajectory:
+    maxErrorSpans: 0
+evaluators:
+  - type: schema
+  - type: tool_call
+  - type: trajectory
+---
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: sdk-course-mutated
+  labels:
+    category: mutation
+    risk: high
+targetRef: sdk-course-agent
+mutation: sdk-course-wrong-room
+scenario:
+  input:
+    course_id: AI101
+expect:
+  output:
+    exactFields:
+      status: ok
+      answer: 查询成功
+      course: 人工智能导论
+      classTime: 周一 09:00
+      room: A101
+  tools:
+    required:
+      - query_course
+    maxCalls: 1
+  trajectory:
+    maxErrorSpans: 0
+evaluators:
+  - type: schema
+  - type: tool_call
+  - type: trajectory

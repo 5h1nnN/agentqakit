@@ -1,0 +1,9 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: sdk-course-agent
+type: python
+entrypoint: examples.sdk_decorator_agent:run_agent
+isolation: subprocess
+workerMode: perInvocation
+timeoutMs: 5000
