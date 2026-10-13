@@ -1,5 +1,395 @@
 {
   "$defs": {
+    "AgentCapability": {
+      "additionalProperties": false,
+      "description": "One named capability advertised by the agent.",
+      "properties": {
+        "description": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "title": "AgentCapability",
+      "type": "object"
+    },
+    "AgentInterfaces": {
+      "additionalProperties": false,
+      "description": "Public input and output contracts exposed by an agent.",
+      "properties": {
+        "inputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inputschema"
+        },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outputschema"
+        }
+      },
+      "title": "AgentInterfaces",
+      "type": "object"
+    },
+    "AgentInvariant": {
+      "additionalProperties": false,
+      "description": "A stable business or safety rule used to derive tests.",
+      "properties": {
+        "description": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Severity",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "description",
+        "severity"
+      ],
+      "title": "AgentInvariant",
+      "type": "object"
+    },
+    "AgentPolicies": {
+      "additionalProperties": false,
+      "description": "Business invariants and prohibited or permission-sensitive behavior.",
+      "properties": {
+        "forbiddenBehaviors": {
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Forbiddenbehaviors",
+          "type": "array"
+        },
+        "invariants": {
+          "items": {
+            "$ref": "#/$defs/AgentInvariant"
+          },
+          "maxItems": 200,
+          "title": "Invariants",
+          "type": "array"
+        },
+        "permissionRequirements": {
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Permissionrequirements",
+          "type": "array"
+        }
+      },
+      "title": "AgentPolicies",
+      "type": "object"
+    },
+    "AgentPurpose": {
+      "additionalProperties": false,
+      "description": "Declared product purpose and explicit out-of-scope behavior.",
+      "properties": {
+        "outOfScope": {
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Outofscope",
+          "type": "array"
+        },
+        "summary": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "summary"
+      ],
+      "title": "AgentPurpose",
+      "type": "object"
+    },
+    "AgentQuality": {
+      "additionalProperties": false,
+      "description": "Quality objectives and default resource budgets for generated tests.",
+      "properties": {
+        "budgets": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BudgetExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "objectives": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Objectives",
+          "type": "array"
+        }
+      },
+      "required": [
+        "objectives"
+      ],
+      "title": "AgentQuality",
+      "type": "object"
+    },
+    "AgentTestHints": {
+      "additionalProperties": false,
+      "description": "Non-authoritative scenarios suggested for AI-assisted generation.",
+      "properties": {
+        "importantScenarios": {
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Importantscenarios",
+          "type": "array"
+        }
+      },
+      "title": "AgentTestHints",
+      "type": "object"
+    },
+    "BudgetExpectation": {
+      "additionalProperties": false,
+      "description": "Positive execution budgets.",
+      "properties": {
+        "maxCostUsd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxcostusd"
+        },
+        "maxLatencyMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlatencyms"
+        },
+        "maxLlmCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxllmcalls"
+        },
+        "maxRetries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxretries"
+        },
+        "maxSteps": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxsteps"
+        },
+        "maxToolCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtoolcalls"
+        },
+        "maxTotalTokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtotaltokens"
+        }
+      },
+      "title": "BudgetExpectation",
+      "type": "object"
+    },
+    "GeneratedBy": {
+      "additionalProperties": false,
+      "description": "Optional model identity for inferred manifest content.",
+      "properties": {
+        "model": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "promptHash": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompthash"
+        },
+        "provider": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "title": "GeneratedBy",
+      "type": "object"
+    },
+    "HumanInteractionPolicy": {
+      "additionalProperties": false,
+      "description": "Human-in-the-loop behavior and intervention budget.",
+      "properties": {
+        "allowed": {
+          "title": "Allowed",
+          "type": "boolean"
+        },
+        "maxInterventions": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxinterventions"
+        },
+        "requiredWhen": {
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 100,
+          "title": "Requiredwhen",
+          "type": "array"
+        }
+      },
+      "required": [
+        "allowed"
+      ],
+      "title": "HumanInteractionPolicy",
+      "type": "object"
+    },
     "JsonValue": {},
     "KnowledgeIdentity": {
       "additionalProperties": false,
@@ -12,6 +402,7 @@
         "indexHash": {
           "anyOf": [
             {
+              "maxLength": 4000,
               "minLength": 1,
               "type": "string"
             },
@@ -27,6 +418,65 @@
         "enabled"
       ],
       "title": "KnowledgeIdentity",
+      "type": "object"
+    },
+    "ManifestProvenance": {
+      "additionalProperties": false,
+      "description": "Origin and review state for semantic manifest information.",
+      "properties": {
+        "declaredBy": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declaredby"
+        },
+        "defaultLevel": {
+          "default": "declared",
+          "enum": [
+            "declared",
+            "discovered",
+            "inferred",
+            "verified"
+          ],
+          "title": "Defaultlevel",
+          "type": "string"
+        },
+        "discoveredFrom": {
+          "items": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Discoveredfrom",
+          "type": "array"
+        },
+        "generatedBy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GeneratedBy"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reviewed": {
+          "default": false,
+          "title": "Reviewed",
+          "type": "boolean"
+        }
+      },
+      "title": "ManifestProvenance",
       "type": "object"
     },
     "Metadata": {
@@ -72,6 +522,7 @@
       "description": "Model provider and generation parameters.",
       "properties": {
         "name": {
+          "maxLength": 4000,
           "minLength": 1,
           "title": "Name",
           "type": "string"
@@ -80,10 +531,12 @@
           "additionalProperties": {
             "$ref": "#/$defs/JsonValue"
           },
+          "maxProperties": 100,
           "title": "Parameters",
           "type": "object"
         },
         "provider": {
+          "maxLength": 4000,
           "minLength": 1,
           "title": "Provider",
           "type": "string"
@@ -100,9 +553,26 @@
       "additionalProperties": false,
       "description": "Hashes that identify the prompt assets under test.",
       "properties": {
+        "assetHashes": {
+          "maxProperties": 200,
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "title": "Assethashes",
+          "type": "object"
+        },
         "systemPromptHash": {
           "anyOf": [
             {
+              "maxLength": 4000,
               "minLength": 1,
               "type": "string"
             },
@@ -121,9 +591,38 @@
       "additionalProperties": false,
       "description": "Agent implementation language and framework.",
       "properties": {
+        "dependencyHash": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependencyhash"
+        },
+        "entrypoint": {
+          "anyOf": [
+            {
+              "minLength": 3,
+              "pattern": "^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entrypoint"
+        },
         "framework": {
           "anyOf": [
             {
+              "maxLength": 4000,
               "minLength": 1,
               "type": "string"
             },
@@ -135,6 +634,7 @@
           "title": "Framework"
         },
         "language": {
+          "maxLength": 4000,
           "minLength": 1,
           "title": "Language",
           "type": "string"
@@ -151,15 +651,42 @@
       "description": "Source repository identity for an agent build.",
       "properties": {
         "commit": {
+          "maxLength": 4000,
           "minLength": 1,
           "title": "Commit",
           "type": "string"
+        },
+        "dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dirty"
         },
         "repository": {
           "format": "uri",
           "minLength": 1,
           "title": "Repository",
           "type": "string"
+        },
+        "sourceHash": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sourcehash"
         }
       },
       "required": [
@@ -171,8 +698,49 @@
     },
     "ToolIdentity": {
       "additionalProperties": false,
-      "description": "A tool and its input-schema identity.",
+      "description": "A tool identity plus the side-effect semantics needed by test generation.",
       "properties": {
+        "description": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "idempotent": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Idempotent"
+        },
+        "inputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inputschema"
+        },
         "name": {
           "maxLength": 128,
           "minLength": 1,
@@ -180,9 +748,48 @@
           "title": "Name",
           "type": "string"
         },
+        "outputSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outputschema"
+        },
+        "requiresConfirmation": {
+          "default": false,
+          "title": "Requiresconfirmation",
+          "type": "boolean"
+        },
+        "risk": {
+          "anyOf": [
+            {
+              "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk"
+        },
         "schemaHash": {
           "anyOf": [
             {
+              "maxLength": 4000,
               "minLength": 1,
               "type": "string"
             },
@@ -192,6 +799,17 @@
           ],
           "default": null,
           "title": "Schemahash"
+        },
+        "sideEffect": {
+          "default": "none",
+          "enum": [
+            "none",
+            "local-write",
+            "external-write",
+            "irreversible"
+          ],
+          "title": "Sideeffect",
+          "type": "string"
         }
       },
       "required": [
@@ -202,13 +820,43 @@
     }
   },
   "additionalProperties": false,
-  "description": "A reproducible identity for the agent version under test.",
+  "description": "A reproducible identity and semantic contract for the agent under test.",
   "properties": {
     "apiVersion": {
-      "const": "agentqa.dev/v1alpha1",
-      "default": "agentqa.dev/v1alpha1",
+      "const": "agentqa.dev/v1alpha2",
+      "default": "agentqa.dev/v1alpha2",
       "title": "Apiversion",
       "type": "string"
+    },
+    "capabilities": {
+      "items": {
+        "$ref": "#/$defs/AgentCapability"
+      },
+      "maxItems": 200,
+      "title": "Capabilities",
+      "type": "array"
+    },
+    "humanInteraction": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HumanInteractionPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "interfaces": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentInterfaces"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "kind": {
       "const": "AgentManifest",
@@ -241,10 +889,46 @@
       ],
       "default": null
     },
+    "policies": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentPolicies"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "prompts": {
       "anyOf": [
         {
           "$ref": "#/$defs/PromptIdentity"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "provenance": {
+      "$ref": "#/$defs/ManifestProvenance"
+    },
+    "purpose": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentPurpose"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "quality": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentQuality"
         },
         {
           "type": "null"
@@ -266,10 +950,22 @@
       ],
       "default": null
     },
+    "testHints": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentTestHints"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "tools": {
       "items": {
         "$ref": "#/$defs/ToolIdentity"
       },
+      "maxItems": 500,
       "title": "Tools",
       "type": "array"
     }

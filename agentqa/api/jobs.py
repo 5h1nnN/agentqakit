@@ -7,7 +7,7 @@ from agentqa.api.models import RunCreateRequest, RunJob
 from agentqa.application import RunExecutionConfig, execute_run
 from agentqa.conventions import new_id, utc_now
 from agentqa.errors import AgentQAError
-from agentqa.evaluators import JudgeProvider
+from agentqa.evaluators import JudgeProviderLike
 from agentqa.models import ErrorInfo
 from agentqa.specs import SpecLoadError
 from agentqa.storage import ResultStore
@@ -22,7 +22,7 @@ class RunJobManager:
         *,
         workspace_root: Path,
         artifact_directory: Path,
-        judge_provider: JudgeProvider | None = None,
+        judge_provider: JudgeProviderLike | None = None,
         max_concurrent_runs: int = 2,
     ) -> None:
         self._store = store
@@ -71,6 +71,14 @@ class RunJobManager:
             if request.mutations_path is None
             else self.resolve_workspace_path(request.mutations_path)
         )
+        manifest_path = (
+            None
+            if request.manifest_path is None
+            else self.resolve_workspace_path(
+                request.manifest_path,
+                directory_okay=False,
+            )
+        )
         run_id = new_id()
         job = RunJob(
             run_id=run_id,
@@ -87,6 +95,7 @@ class RunJobManager:
                     tests_path,
                     target_path,
                     mutations_path,
+                    manifest_path,
                 ),
                 name=f"agentqa-run-{run_id}",
             )
@@ -103,6 +112,7 @@ class RunJobManager:
         tests_path: Path,
         target_path: Path | None,
         mutations_path: Path | None,
+        manifest_path: Path | None,
     ) -> None:
         async with self._semaphore:
             await self._set_job(job.model_copy(update={"status": "RUNNING"}))
@@ -112,6 +122,7 @@ class RunJobManager:
                         tests_path=tests_path,
                         target_path=target_path,
                         mutations_path=mutations_path,
+                        manifest_path=manifest_path,
                         artifact_directory=self._artifact_directory,
                         random_seed=request.random_seed,
                         concurrency=request.concurrency,

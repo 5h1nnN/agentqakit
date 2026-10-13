@@ -31,6 +31,7 @@ describe("App", () => {
     render(<App />);
 
     expect(await screen.findByRole("heading", { name: "No runs yet" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: /Manifest path/ })).toBeVisible();
     expect(screen.getByRole("checkbox", { name: /DeepSeek AI judge/ })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Compare & gate" }));
 

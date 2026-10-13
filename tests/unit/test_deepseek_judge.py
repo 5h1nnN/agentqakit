@@ -9,7 +9,9 @@ from agentqa.evaluators import (
     DeepSeekConfigurationError,
     DeepSeekJudgeProvider,
     DeepSeekJudgeSettings,
+    DeepSeekProvider,
     JudgeRequest,
+    StructuredRequest,
     load_judge_environment,
 )
 
@@ -98,6 +100,49 @@ async def test_deepseek_provider_requests_json_and_records_safe_usage() -> None:
 
 
 @pytest.mark.asyncio
+async def test_deepseek_structured_provider_preserves_use_case_and_system_prompt() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": '{"tests":[]}'},
+                    }
+                ],
+                "usage": {"total_tokens": 7},
+            },
+        )
+
+    provider = DeepSeekProvider(_settings(), transport=httpx.MockTransport(handler))
+    response = await provider.complete(
+        StructuredRequest(
+            use_case="test_generation",
+            system_prompt="Generate only schema-valid test plans.",
+            prompt='{"manifest":"bounded"}',
+            response_schema={"type": "object"},
+            evidence_hash="sha256:evidence",
+            max_output_tokens=256,
+            request_id="local-request-1",
+        )
+    )
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert body["messages"][0]["content"].startswith("Generate only schema-valid test plans.")
+    assert "Draft 2020-12 schema" in body["messages"][0]["content"]
+    assert body["max_tokens"] == 256
+    assert response.metadata["use_case"] == "test_generation"
+    assert response.metadata["client_request_id"] == "local-request-1"
+    assert response.metadata["transport_attempts"] == 1
+    assert response.metadata["usage"] == {"total_tokens": 7}
+
+
+@pytest.mark.asyncio
 async def test_deepseek_provider_retries_transient_status_once() -> None:
     calls = 0
 
@@ -144,6 +189,9 @@ def test_private_judge_environment_loads_only_known_values(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     for name in (
+        "AGENTQA_LLM_API_KEY",
+        "AGENTQA_LLM_BASE_URL",
+        "AGENTQA_LLM_MODEL",
         "AGENTQA_JUDGE_API_KEY",
         "AGENTQA_JUDGE_BASE_URL",
         "AGENTQA_JUDGE_MODEL",
@@ -163,6 +211,19 @@ def test_private_judge_environment_loads_only_known_values(
 
     assert provider.name == "deepseek"
     assert provider.model == "deepseek-test"
+
+
+def test_structured_llm_environment_names_take_precedence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AGENTQA_LLM_API_KEY", "structured-secret")
+    monkeypatch.setenv("AGENTQA_LLM_MODEL", "structured-model")
+    monkeypatch.setenv("AGENTQA_JUDGE_API_KEY", "legacy-secret-key")
+    monkeypatch.setenv("AGENTQA_JUDGE_MODEL", "legacy-model")
+
+    provider = DeepSeekProvider.from_environment()
+
+    assert provider.model == "structured-model"
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX mode bits are unavailable")

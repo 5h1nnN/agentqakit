@@ -32,6 +32,7 @@ class RunnerOptions:
     generate_failure_bundles: bool = True
     original_command: str | None = None
     run_id: str | None = None
+    manifest_workspace: Path | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.concurrency, bool) or self.concurrency <= 0:

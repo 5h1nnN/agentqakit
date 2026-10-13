@@ -69,10 +69,13 @@ The API key is never placed in provider metadata, prompts, artifacts, database
 records, error messages, or the reconstructed CLI command.
 
 The provider stores only safe accounting evidence: resolved model, request ID,
-finish reason, system fingerprint, and token usage. Each result also records
-provider/model/configuration, Rubric Hash, Prompt Hash, and the number of parse
-attempts. DeepSeek JSON mode can occasionally return empty content; that is
-handled as invalid structured output and retried once by the evaluator.
+finish reason, system fingerprint, latency, use case, and token usage. Each
+result also records provider/model/configuration, Rubric Hash, System Prompt
+Hash, Prompt Hash, Evidence Hash, Response Schema Hash, status, and the number
+of parse and transport attempts. A local request ID follows retries without
+exposing credentials. Per-request output-token, timeout, and retry limits can
+only tighten the configured provider limits. DeepSeek JSON mode can occasionally return empty content;
+that is handled as invalid structured output and retried once by the evaluator.
 
 Without `--judge-provider deepseek`, `llm_judge` returns `SKIPPED`, preserving
 offline and deterministic CI. The local API exposes whether a Judge is
@@ -80,29 +83,34 @@ configured through `/api/health`; a run opts in with `judgeEnabled: true`.
 
 ## Custom providers
 
-Applications can still inject another implementation through the public
-provider-neutral protocol:
+DeepSeek now implements the provider-neutral `StructuredLLMProvider` used by
+semantic judging and the planned test-generation and failure-analysis services:
 
 ```python
 from collections.abc import Mapping
 
 from pydantic import JsonValue
 
-from agentqa.evaluators import JudgeRequest, built_in_evaluators
+from agentqa.evaluators import StructuredRequest, StructuredResponse, built_in_evaluators
 
 
-class MyJudgeProvider:
+class MyStructuredProvider:
     name = "my-provider"
     model = "my-model"
     parameters: Mapping[str, JsonValue] = {"temperature": 0.0}
 
-    async def judge(self, request: JudgeRequest) -> str:
-        # Send request.prompt and request.response_schema using your own client.
-        ...
+    async def complete(self, request: StructuredRequest) -> StructuredResponse:
+        # Send request.system_prompt, request.prompt, and request.response_schema.
+        return StructuredResponse(
+            content={"verdict": "PASS", "score": 1.0, "rationale": "Correct.", "violations": []}
+        )
 
 
-evaluators = built_in_evaluators(MyJudgeProvider())
+evaluators = built_in_evaluators(MyStructuredProvider())
 ```
+
+The previous `JudgeProvider.judge()` contract remains accepted for backward
+compatibility, but new integrations should implement `complete()`.
 
 Every provider receives only bounded, redacted scenario/output evidence and a
 summary of trace tool names and error count. It must return JSON matching the

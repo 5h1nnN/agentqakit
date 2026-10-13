@@ -23,7 +23,7 @@ from agentqa.api.models import (
 from agentqa.comparison import ComparisonError, compare_runs, load_run_artifact
 from agentqa.conventions import utc_now
 from agentqa.evaluators import (
-    JudgeProvider,
+    JudgeProviderLike,
     configured_deepseek_provider,
     load_judge_environment,
 )
@@ -66,7 +66,7 @@ def create_app(
     settings: ApiSettings | None = None,
     *,
     store: ResultStore | None = None,
-    judge_provider: JudgeProvider | None = None,
+    judge_provider: JudgeProviderLike | None = None,
 ) -> FastAPI:
     """Build an injectable local API without global database connections."""
     settings = settings or ApiSettings.defaults()

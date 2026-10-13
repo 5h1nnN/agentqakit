@@ -142,6 +142,17 @@ class ArtifactWriter:
                 mutations = {"mutations": mutations}
             return self._write_json("resolved-mutations.json", mutations)
 
+    def write_resolved_manifest(self, manifest: Any, snapshot: Any) -> str:
+        """Write the declared manifest and its runtime verification snapshot."""
+        with self._lock:
+            return self._write_json(
+                "resolved-manifest.json",
+                {
+                    "manifest": manifest,
+                    "snapshot": self._as_mapping(snapshot),
+                },
+            )
+
     def write_mutation_score(self, score: Any) -> str:
         """Write a recomputable mutation score report."""
         with self._lock:

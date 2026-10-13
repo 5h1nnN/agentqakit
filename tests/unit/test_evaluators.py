@@ -489,6 +489,11 @@ async def test_llm_judge_is_provider_neutral_redacted_and_retries_parse_once() -
     assert "prompt_hash" in result.metadata
     assert "rubric_hash" in result.metadata
     assert result.metadata["parameters"] == {"temperature": 0.0, "api_key": "***"}
+    llm_call = result.metadata["llm_call"]
+    assert isinstance(llm_call, dict)
+    assert llm_call["use_case"] == "semantic_judge"
+    assert llm_call["status"] == "SUCCEEDED"
+    assert llm_call["request_id"]
     assert [request.attempt for request in provider.requests] == [1, 2]
     assert "top-secret" not in provider.requests[0].prompt
     assert "authorization=private" not in provider.requests[0].prompt
@@ -543,6 +548,7 @@ async def test_llm_judge_records_redacted_provider_accounting() -> None:
                 metadata={
                     "usage": {"total_tokens": 42},
                     "api_key": "must-not-persist",
+                    "raw_prompt": "unredacted provider evidence must not persist",
                 },
             )
         ]
@@ -551,9 +557,10 @@ async def test_llm_judge_records_redacted_provider_accounting() -> None:
     result = await LLMJudgeEvaluator(provider).evaluate(_request(spec, output="answer"))
 
     assert result.status == "PASS"
-    assert result.metadata["provider_attempts"] == [
-        {"usage": {"total_tokens": 42}, "api_key": "***"}
-    ]
+    assert result.metadata["provider_attempts"] == [{"usage": {"total_tokens": 42}}]
+    llm_call = result.metadata["llm_call"]
+    assert isinstance(llm_call, dict)
+    assert llm_call["token_usage"] == {"total_tokens": 42}
 
 
 def test_builtin_registry_and_spec_safety_validation() -> None:

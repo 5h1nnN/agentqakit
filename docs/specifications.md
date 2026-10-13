@@ -1,8 +1,10 @@
 # Specification and artifact contracts
 
-AgentQAKit specifications are strict, versioned YAML documents. The current API
-version is `agentqa.dev/v1alpha1`. Supported kinds are `AgentTest`, `Target`,
-`Mutation`, and `AgentManifest`.
+AgentQAKit specifications are strict, versioned YAML documents. `AgentTest`,
+`Target`, `Mutation`, and `QualityGate` remain at `agentqa.dev/v1alpha1`.
+`AgentManifest` uses `agentqa.dev/v1alpha2`; the loader explicitly migrates the
+identity-only v1alpha1 manifest without inventing purpose, capability, policy,
+or risk claims.
 
 Run validation before executing a test suite:
 
@@ -14,6 +16,33 @@ Validation rejects unknown fields, duplicate YAML keys, unknown evaluator and
 target types, invalid cross-field combinations, and unsupported API versions.
 Diagnostics identify the source file, YAML document, field path, line, and
 column without echoing rejected values.
+
+## AgentManifest v1alpha2
+
+The manifest now has two responsibilities: identify the exact agent build and
+provide a bounded semantic contract for AI-assisted test generation. Optional
+semantic sections describe `purpose`, public `interfaces`, `capabilities`, tool
+side effects and risk, `policies`, `humanInteraction`, quality objectives,
+budgets, and non-authoritative `testHints`. `provenance` distinguishes declared,
+discovered, inferred, and verified content.
+
+Tools with side effects must declare both `risk` and `idempotent`. A tool with
+`requiresConfirmation: true` also requires `humanInteraction.allowed: true`.
+Capability names, tool names, and invariant IDs must be unique. All embedded
+input/output schemas are checked as JSON Schema Draft 2020-12.
+
+Pass a manifest into a run with:
+
+```bash
+agentqa test run tests/ \
+  --target targets/agent.yaml \
+  --manifest agent-manifest.yaml
+```
+
+The run stores `resolved-manifest.json`, containing the normalized declaration
+and a bounded runtime snapshot. When the manifest declares a Git commit, the
+local checkout is compared and marked `VERIFIED`, `STALE_MANIFEST`, or
+`UNVERIFIED`. Drift is reported; declared data is never silently overwritten.
 
 ## Templates
 

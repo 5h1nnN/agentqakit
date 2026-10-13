@@ -11,7 +11,7 @@ from agentqa.application import RunExecutionConfig, RunServiceError, execute_run
 from agentqa.evaluators import (
     DeepSeekConfigurationError,
     DeepSeekJudgeProvider,
-    JudgeProvider,
+    JudgeProviderLike,
     load_judge_environment,
 )
 from agentqa.specs import SpecLoadError, load_specs
@@ -92,6 +92,18 @@ def run_tests(
                 "A path containing Mutation specs. Defaults to PATH, allowing tests, "
                 "target, and mutations in one multi-document YAML file."
             ),
+        ),
+    ] = None,
+    manifest: Annotated[
+        Path | None,
+        typer.Option(
+            "--manifest",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            resolve_path=True,
+            help="Optional AgentManifest used for identity, AI context, and drift detection.",
         ),
     ] = None,
     artifacts: Annotated[
@@ -210,6 +222,8 @@ def run_tests(
         command.extend(["--target", str(target)])
     if mutations is not None:
         command.extend(["--mutations", str(mutations)])
+    if manifest is not None:
+        command.extend(["--manifest", str(manifest)])
     command.extend(
         [
             "--artifacts",
@@ -237,7 +251,7 @@ def run_tests(
         command.extend(["--replay-cassette", str(replay_cassette)])
     if allow_live_fallback:
         command.append("--allow-live-fallback")
-    configured_judge: JudgeProvider | None = None
+    configured_judge: JudgeProviderLike | None = None
     if judge_provider == "deepseek":
         command.extend(["--judge-provider", "deepseek"])
         if judge_env_file != Path(".env.local"):
@@ -254,6 +268,7 @@ def run_tests(
                     tests_path=path,
                     target_path=target,
                     mutations_path=mutations,
+                    manifest_path=manifest,
                     artifact_directory=artifacts,
                     random_seed=seed,
                     concurrency=concurrency,

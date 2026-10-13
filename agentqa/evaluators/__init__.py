@@ -9,12 +9,16 @@ from agentqa.evaluators.deepseek import (
     DeepSeekConfigurationError,
     DeepSeekJudgeProvider,
     DeepSeekJudgeSettings,
+    DeepSeekProvider,
+    DeepSeekSettings,
     configured_deepseek_provider,
     load_judge_environment,
+    load_llm_environment,
 )
 from agentqa.evaluators.judge import (
     JudgeDecision,
     JudgeProvider,
+    JudgeProviderLike,
     JudgeRequest,
     JudgeResponse,
     LLMJudgeEvaluator,
@@ -22,10 +26,16 @@ from agentqa.evaluators.judge import (
 from agentqa.evaluators.output import PrivacyEvaluator, SchemaEvaluator, TextEvaluator
 from agentqa.evaluators.state import StateEvaluator
 from agentqa.evaluators.trace import ToolCallEvaluator, TrajectoryEvaluator
+from agentqa.llm import (
+    LLMCallEvidence,
+    StructuredLLMProvider,
+    StructuredRequest,
+    StructuredResponse,
+)
 
 
 def built_in_evaluators(
-    judge_provider: JudgeProvider | None = None,
+    judge_provider: JudgeProviderLike | None = None,
 ) -> Mapping[str, Evaluator]:
     """Create a fresh registry for one runner instance."""
     evaluators: list[Evaluator] = [
@@ -47,20 +57,28 @@ __all__ = [
     "DeepSeekConfigurationError",
     "DeepSeekJudgeProvider",
     "DeepSeekJudgeSettings",
+    "DeepSeekProvider",
+    "DeepSeekSettings",
     "EvaluationRequest",
     "Evaluator",
     "JudgeDecision",
     "JudgeProvider",
+    "JudgeProviderLike",
     "JudgeRequest",
     "JudgeResponse",
+    "LLMCallEvidence",
     "LLMJudgeEvaluator",
     "PrivacyEvaluator",
     "SchemaEvaluator",
     "StateEvaluator",
+    "StructuredLLMProvider",
+    "StructuredRequest",
+    "StructuredResponse",
     "TextEvaluator",
     "ToolCallEvaluator",
     "TrajectoryEvaluator",
     "built_in_evaluators",
     "configured_deepseek_provider",
     "load_judge_environment",
+    "load_llm_environment",
 ]

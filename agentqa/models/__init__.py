@@ -1,6 +1,6 @@
 """Core data models."""
 
-from agentqa.models.base import API_VERSION
+from agentqa.models.base import AGENT_MANIFEST_API_VERSION, API_VERSION
 from agentqa.models.comparison import (
     COMPARISON_SCHEMA_VERSION,
     CaseComparison,
@@ -10,6 +10,11 @@ from agentqa.models.comparison import (
     MetricChange,
     ReplayCompleteness,
     RunMetrics,
+)
+from agentqa.models.manifest import (
+    RUN_MANIFEST_SCHEMA_VERSION,
+    RunManifestSnapshot,
+    SourceVerification,
 )
 from agentqa.models.mutations import (
     InterceptionPoint,
@@ -53,8 +58,10 @@ from agentqa.models.specs import (
 from agentqa.models.storage import FindingReview, StoredFinding, StoredRun, StoredRunSummary
 
 __all__ = [
+    "AGENT_MANIFEST_API_VERSION",
     "API_VERSION",
     "COMPARISON_SCHEMA_VERSION",
+    "RUN_MANIFEST_SCHEMA_VERSION",
     "AgentManifest",
     "AgentTestSpec",
     "CaseComparison",
@@ -84,9 +91,11 @@ __all__ = [
     "ReplayStats",
     "RunBudgetSummary",
     "RunContext",
+    "RunManifestSnapshot",
     "RunMetrics",
     "RunResult",
     "RunSummary",
+    "SourceVerification",
     "StoredFinding",
     "StoredRun",
     "StoredRunSummary",

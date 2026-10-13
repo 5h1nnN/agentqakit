@@ -27,6 +27,13 @@ the explicit `TraceRecord`, and the trial `RunContext`. An assertion mismatch is
 `ERROR`. This distinction keeps product regressions separate from test
 infrastructure defects.
 
+When `--manifest` is supplied, preparation first freezes a normalized manifest
+and a bounded runtime snapshot in `resolved-manifest.json`. The snapshot records
+the declared and observed Git revision/dirty state plus the resolved Prompt
+hashes, canonical tool-schema hashes, and non-secret model parameters. A source
+mismatch is exposed as `STALE_MANIFEST` in `run.json`; declarations are never
+silently rewritten.
+
 ## Trial policy
 
 Multiple trials are reduced to one test-case decision with `trialPolicy`:

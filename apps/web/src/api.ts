@@ -50,6 +50,7 @@ export const api = {
     testsPath: string;
     targetPath?: string;
     mutationsPath?: string;
+    manifestPath?: string;
     judgeEnabled?: boolean;
   }) {
     return request<RunJob>("/api/runs", { method: "POST", body: JSON.stringify(input) });

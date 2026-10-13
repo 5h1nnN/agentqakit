@@ -28,6 +28,36 @@
       "default": null,
       "title": "Manifest Hash"
     },
+    "manifest_snapshot_ref": {
+      "anyOf": [
+        {
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Manifest Snapshot Ref"
+    },
+    "manifest_status": {
+      "anyOf": [
+        {
+          "enum": [
+            "VERIFIED",
+            "STALE_MANIFEST",
+            "UNVERIFIED"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Manifest Status"
+    },
     "mutation_id": {
       "anyOf": [
         {

@@ -33,6 +33,7 @@ class RunCreateRequest(ApiModel):
     tests_path: NonEmptyString
     target_path: NonEmptyString | None = None
     mutations_path: NonEmptyString | None = None
+    manifest_path: NonEmptyString | None = None
     random_seed: int = 0
     concurrency: PositiveInt = 1
     max_total_tokens: PositiveInt | None = None

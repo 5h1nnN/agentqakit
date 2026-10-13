@@ -33,6 +33,8 @@ class RunContext(StrictModel):
     started_at: UtcDateTime
     random_seed: int
     manifest_hash: NonEmptyString | None = None
+    manifest_snapshot_ref: NonEmptyString | None = None
+    manifest_status: Literal["VERIFIED", "STALE_MANIFEST", "UNVERIFIED"] | None = None
     artifact_dir: NonEmptyString | None = None
     test_case_id: NonEmptyString | None = None
     trial_id: NonEmptyString | None = None

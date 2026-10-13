@@ -1,4 +1,5 @@
 import asyncio
+import json
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -155,6 +156,21 @@ evaluators:
 """,
         encoding="utf-8",
     )
+    manifest = tmp_path / "manifest.yaml"
+    manifest.write_text(
+        """apiVersion: agentqa.dev/v1alpha2
+kind: AgentManifest
+metadata:
+  name: api-python
+runtime:
+  language: python
+  framework: custom
+  entrypoint: tests.fixtures.python_targets:echo
+purpose:
+  summary: Echo a bounded API test input.
+""",
+        encoding="utf-8",
+    )
     store = FileResultStore(tmp_path / "store")
     app = create_app(
         _settings(tmp_path),
@@ -168,6 +184,7 @@ evaluators:
             json={
                 "testsPath": "test.yaml",
                 "targetPath": "target.yaml",
+                "manifestPath": "manifest.yaml",
                 "judgeEnabled": True,
             },
         )
@@ -185,6 +202,11 @@ evaluators:
         assert detail.status_code == 200
         assert detail.json()["state"] == "stored"
         assert detail.json()["storedRun"]["run"]["status"] == "COMPLETED"
+        run_record = json.loads(
+            (tmp_path / "api-artifacts" / "runs" / run_id / "run.json").read_text(encoding="utf-8")
+        )
+        assert run_record["manifest_snapshot_ref"] == "resolved-manifest.json"
+        assert run_record["manifest_status"] == "UNVERIFIED"
         results = client.get(f"/api/runs/{run_id}/results").json()["results"]
         judge = next(
             evaluation

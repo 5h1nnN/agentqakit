@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -144,6 +145,25 @@ evaluators:
 """,
         encoding="utf-8",
     )
+    manifest = tmp_path / "manifest.yaml"
+    manifest.write_text(
+        """apiVersion: agentqa.dev/v1alpha2
+kind: AgentManifest
+metadata:
+  name: python-fixture
+runtime:
+  language: python
+  framework: custom
+  entrypoint: tests.fixtures.python_targets:echo
+purpose:
+  summary: Echo one bounded input for testing.
+provenance:
+  defaultLevel: declared
+  declaredBy: e2e test
+  reviewed: true
+""",
+        encoding="utf-8",
+    )
     artifacts = tmp_path / "artifacts"
 
     result = runner.invoke(
@@ -154,6 +174,8 @@ evaluators:
             str(test),
             "--target",
             str(target),
+            "--manifest",
+            str(manifest),
             "--artifacts",
             str(artifacts),
             "--no-trace-receiver",
@@ -165,6 +187,11 @@ evaluators:
     run_directories = list((artifacts / "runs").iterdir())
     assert len(run_directories) == 1
     assert (run_directories[0] / "summary.json").is_file()
+    assert (run_directories[0] / "resolved-manifest.json").is_file()
+    run_record = json.loads((run_directories[0] / "run.json").read_text(encoding="utf-8"))
+    assert run_record["manifest_hash"].startswith("sha256:")
+    assert run_record["manifest_snapshot_ref"] == "resolved-manifest.json"
+    assert run_record["manifest_status"] == "UNVERIFIED"
 
 
 def test_run_loads_mutation_and_score_command_recomputes_artifact(

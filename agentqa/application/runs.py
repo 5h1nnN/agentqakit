@@ -5,8 +5,8 @@ from pathlib import Path
 from typing import Literal, cast
 
 from agentqa.errors import AgentQAError
-from agentqa.evaluators import JudgeProvider, built_in_evaluators
-from agentqa.models import AgentTestSpec, MutationSpec, RunResult, TargetSpec
+from agentqa.evaluators import JudgeProviderLike, built_in_evaluators
+from agentqa.models import AgentManifest, AgentTestSpec, MutationSpec, RunResult, TargetSpec
 from agentqa.runner import RunnerOptions, TestRunner
 from agentqa.specs import load_specs
 from agentqa.targets import create_target_adapter
@@ -27,6 +27,7 @@ class RunExecutionConfig:
     tests_path: Path
     target_path: Path | None = None
     mutations_path: Path | None = None
+    manifest_path: Path | None = None
     artifact_directory: Path = Path("artifacts")
     random_seed: int = 0
     concurrency: int = 1
@@ -44,7 +45,7 @@ class RunExecutionConfig:
     generate_failure_bundles: bool = True
     original_command: str | None = None
     run_id: str | None = None
-    judge_provider: JudgeProvider | None = None
+    judge_provider: JudgeProviderLike | None = None
 
     def __post_init__(self) -> None:
         if isinstance(self.concurrency, bool) or self.concurrency <= 0:
@@ -65,7 +66,7 @@ class RunExecutionConfig:
 
 def _load_inputs(
     config: RunExecutionConfig,
-) -> tuple[list[AgentTestSpec], TargetSpec, dict[str, MutationSpec]]:
+) -> tuple[list[AgentTestSpec], TargetSpec, dict[str, MutationSpec], AgentManifest | None]:
     loaded_tests = load_specs(config.tests_path)
     tests = [item.spec for item in loaded_tests if isinstance(item.spec, AgentTestSpec)]
     target_documents = (
@@ -115,18 +116,35 @@ def _load_inputs(
             "AgentTest references unknown mutation(s): " + ", ".join(missing),
             code="RUN_SERVICE_MUTATION_MISSING",
         )
-    return tests, target, mutations
+    manifest_documents = (
+        loaded_tests if config.manifest_path is None else load_specs(config.manifest_path)
+    )
+    manifests = [item.spec for item in manifest_documents if isinstance(item.spec, AgentManifest)]
+    if len(manifests) > 1:
+        raise RunServiceError(
+            "manifest path must contain at most one AgentManifest",
+            code="RUN_SERVICE_MANIFEST_SELECTION_ERROR",
+        )
+    return tests, target, mutations, manifests[0] if manifests else None
 
 
 async def execute_run(config: RunExecutionConfig) -> RunResult:
     """Load specs, configure tracing, and execute one run through the core runner."""
-    tests, target, mutations = _load_inputs(config)
+    tests, target, mutations, manifest = _load_inputs(config)
     adapter = create_target_adapter(target)
     trace_options = TraceOptions(
         flush_timeout_seconds=config.trace_flush_timeout_seconds,
         capture_content=config.capture_trace_content,
     )
     trace_store = InMemoryTraceStore(max_spans_per_trace=trace_options.max_spans_per_trace)
+    manifest_workspace = None
+    if manifest is not None:
+        if config.manifest_path is not None:
+            manifest_workspace = config.manifest_path.parent
+        else:
+            manifest_workspace = (
+                config.tests_path if config.tests_path.is_dir() else config.tests_path.parent
+            )
     receiver: LocalOTLPReceiver | None = None
     endpoint = config.otlp_endpoint
     if config.trace_receiver:
@@ -162,12 +180,13 @@ async def execute_run(config: RunExecutionConfig) -> RunResult:
                 generate_failure_bundles=config.generate_failure_bundles,
                 original_command=config.original_command,
                 run_id=config.run_id,
+                manifest_workspace=manifest_workspace,
             ),
             trace_store=trace_store,
             trace_options=trace_options,
             mutations=mutations,
         )
-        return await runner.run(tests, target)
+        return await runner.run(tests, target, manifest=manifest)
     finally:
         if receiver is not None:
             receiver.stop()

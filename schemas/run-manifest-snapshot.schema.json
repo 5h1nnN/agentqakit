@@ -1,0 +1,240 @@
+{
+  "$defs": {
+    "JsonValue": {},
+    "ModelRuntimeSnapshot": {
+      "additionalProperties": false,
+      "description": "Non-secret model identity and parameters resolved for the run.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "maxProperties": 100,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "name"
+      ],
+      "title": "ModelRuntimeSnapshot",
+      "type": "object"
+    },
+    "RuntimeContractSnapshot": {
+      "additionalProperties": false,
+      "description": "Prompt, tool, and model identities frozen at run start.",
+      "properties": {
+        "model": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ModelRuntimeSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prompt_asset_hashes": {
+          "maxProperties": 200,
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "title": "Prompt Asset Hashes",
+          "type": "object"
+        },
+        "system_prompt_hash": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "System Prompt Hash"
+        },
+        "tool_schemas": {
+          "maxProperties": 500,
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+              "$ref": "#/$defs/ToolSchemaSnapshot"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "title": "Tool Schemas",
+          "type": "object"
+        }
+      },
+      "title": "RuntimeContractSnapshot",
+      "type": "object"
+    },
+    "SourceVerification": {
+      "additionalProperties": false,
+      "description": "Declared and locally observed Git identity for an evaluated agent.",
+      "properties": {
+        "actual_commit": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Commit"
+        },
+        "actual_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Actual Dirty"
+        },
+        "declared_commit": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Commit"
+        },
+        "declared_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Dirty"
+        }
+      },
+      "title": "SourceVerification",
+      "type": "object"
+    },
+    "ToolSchemaSnapshot": {
+      "additionalProperties": false,
+      "description": "Declared and canonical hashes for one tool contract.",
+      "properties": {
+        "computed_hash": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Computed Hash"
+        },
+        "declared_hash": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Declared Hash"
+        }
+      },
+      "title": "ToolSchemaSnapshot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Immutable verification snapshot captured when a test run starts.",
+  "properties": {
+    "captured_at": {
+      "format": "date-time",
+      "title": "Captured At",
+      "type": "string"
+    },
+    "declared_manifest_hash": {
+      "minLength": 1,
+      "title": "Declared Manifest Hash",
+      "type": "string"
+    },
+    "runtime_contract": {
+      "$ref": "#/$defs/RuntimeContractSnapshot"
+    },
+    "schema_version": {
+      "const": "agentqa.run-manifest/v1alpha1",
+      "default": "agentqa.run-manifest/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceVerification"
+    },
+    "status": {
+      "enum": [
+        "VERIFIED",
+        "STALE_MANIFEST",
+        "UNVERIFIED"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 20,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "captured_at",
+    "declared_manifest_hash",
+    "status",
+    "source"
+  ],
+  "title": "RunManifestSnapshot",
+  "type": "object"
+}

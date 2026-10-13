@@ -1,4 +1,4 @@
-apiVersion: agentqa.dev/v1alpha1
+apiVersion: agentqa.dev/v1alpha2
 kind: AgentManifest
 metadata:
   name: campus-agent
@@ -6,9 +6,11 @@ metadata:
 source:
   repository: https://example.org/agentqakit/campus-agent
   commit: example-commit
+  dirty: false
 runtime:
   language: python
   framework: custom
+  entrypoint: examples.campus_agent:run
 model:
   provider: openai-compatible
   name: example-model
@@ -19,5 +21,29 @@ prompts:
 tools:
   - name: query_course
     schemaHash: sha256:example-schema
+    description: Query the course catalog.
+    sideEffect: none
+    risk: low
+    idempotent: true
+purpose:
+  summary: Answer campus course questions using the approved catalog tool.
+  outOfScope:
+    - Change grades or bypass enrollment permissions.
+capabilities:
+  - name: query-course
+    description: Query course schedules and availability.
+policies:
+  forbiddenBehaviors:
+    - Disclose another student's private academic data.
+quality:
+  objectives:
+    - task-success
+    - privacy
+  budgets:
+    maxTotalTokens: 4000
+provenance:
+  defaultLevel: declared
+  declaredBy: AgentQAKit example maintainers
+  reviewed: true
 knowledge:
   enabled: false

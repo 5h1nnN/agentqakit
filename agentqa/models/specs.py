@@ -1,5 +1,6 @@
 """Declarative AgentQAKit specification models."""
 
+import json
 from typing import Annotated, Literal, TypeAlias
 
 import regex
@@ -17,6 +18,15 @@ from agentqa.models.base import (
 )
 
 ApiVersion: TypeAlias = Literal["agentqa.dev/v1alpha1"]
+ManifestApiVersion: TypeAlias = Literal["agentqa.dev/v1alpha2"]
+ManifestText: TypeAlias = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=4_000),
+]
+ManifestPath: TypeAlias = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=1_024),
+]
 Entrypoint: TypeAlias = Annotated[
     str,
     StringConstraints(
@@ -25,6 +35,18 @@ Entrypoint: TypeAlias = Annotated[
         pattern=r"^[A-Za-z_][A-Za-z0-9_.]*:[A-Za-z_][A-Za-z0-9_]*$",
     ),
 ]
+
+
+def _bounded_json_size(value: JsonValue, *, label: str, max_bytes: int = 65_536) -> None:
+    encoded = json.dumps(
+        value,
+        ensure_ascii=False,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    if len(encoded) > max_bytes:
+        raise ValueError(f"{label} exceeds {max_bytes} bytes")
 
 
 class Metadata(SpecModel):
@@ -576,42 +598,81 @@ class SourceRevision(SpecModel):
     """Source repository identity for an agent build."""
 
     repository: AnyHttpUrl
-    commit: NonEmptyString
+    commit: ManifestText
+    dirty: bool | None = None
+    source_hash: ManifestText | None = None
 
 
 class RuntimeIdentity(SpecModel):
     """Agent implementation language and framework."""
 
-    language: NonEmptyString
-    framework: NonEmptyString | None = None
+    language: ManifestText
+    framework: ManifestText | None = None
+    entrypoint: Entrypoint | None = None
+    dependency_hash: ManifestText | None = None
 
 
 class ModelIdentity(SpecModel):
     """Model provider and generation parameters."""
 
-    provider: NonEmptyString
-    name: NonEmptyString
-    parameters: dict[str, JsonValue] = Field(default_factory=dict)
+    provider: ManifestText
+    name: ManifestText
+    parameters: dict[str, JsonValue] = Field(default_factory=dict, max_length=100)
+
+    @model_validator(mode="after")
+    def bound_parameters(self) -> "ModelIdentity":
+        _bounded_json_size(self.parameters, label="model parameters")
+        return self
 
 
 class PromptIdentity(SpecModel):
     """Hashes that identify the prompt assets under test."""
 
-    system_prompt_hash: NonEmptyString | None = None
+    system_prompt_hash: ManifestText | None = None
+    asset_hashes: dict[ResourceName, ManifestText] = Field(
+        default_factory=dict,
+        max_length=200,
+    )
 
 
 class ToolIdentity(SpecModel):
-    """A tool and its input-schema identity."""
+    """A tool identity plus the side-effect semantics needed by test generation."""
 
     name: ResourceName
-    schema_hash: NonEmptyString | None = None
+    description: ManifestText | None = None
+    schema_hash: ManifestText | None = None
+    input_schema: dict[str, JsonValue] | None = None
+    output_schema: dict[str, JsonValue] | None = None
+    side_effect: Literal["none", "local-write", "external-write", "irreversible"] = "none"
+    risk: Literal["low", "medium", "high", "critical"] | None = None
+    idempotent: bool | None = None
+    requires_confirmation: bool = False
+
+    @model_validator(mode="after")
+    def validate_tool_semantics(self) -> "ToolIdentity":
+        for label, schema in (
+            ("inputSchema", self.input_schema),
+            ("outputSchema", self.output_schema),
+        ):
+            if schema is None:
+                continue
+            try:
+                Draft202012Validator.check_schema(schema)
+            except SchemaError:
+                msg = f"tool {label} must be a valid Draft 2020-12 schema"
+                raise ValueError(msg) from None
+            _bounded_json_size(schema, label=f"tool {label}")
+        if self.side_effect != "none" and (self.risk is None or self.idempotent is None):
+            msg = "tools with side effects require risk and idempotent"
+            raise ValueError(msg)
+        return self
 
 
 class KnowledgeIdentity(SpecModel):
     """Optional knowledge-index identity."""
 
     enabled: bool
-    index_hash: NonEmptyString | None = None
+    index_hash: ManifestText | None = None
 
     @model_validator(mode="after")
     def require_enabled_index_hash(self) -> "KnowledgeIdentity":
@@ -621,18 +682,185 @@ class KnowledgeIdentity(SpecModel):
         return self
 
 
-class AgentManifest(SpecModel):
-    """A reproducible identity for the agent version under test."""
+class AgentPurpose(SpecModel):
+    """Declared product purpose and explicit out-of-scope behavior."""
 
-    api_version: ApiVersion = Field(default="agentqa.dev/v1alpha1", alias="apiVersion")
+    summary: ManifestText
+    out_of_scope: list[ManifestText] = Field(default_factory=list, max_length=100)
+
+
+class AgentInterfaces(SpecModel):
+    """Public input and output contracts exposed by an agent."""
+
+    input_schema: dict[str, JsonValue] | None = None
+    output_schema: dict[str, JsonValue] | None = None
+
+    @model_validator(mode="after")
+    def validate_schemas(self) -> "AgentInterfaces":
+        for label, schema in (
+            ("inputSchema", self.input_schema),
+            ("outputSchema", self.output_schema),
+        ):
+            if schema is None:
+                continue
+            try:
+                Draft202012Validator.check_schema(schema)
+            except SchemaError:
+                msg = f"interfaces.{label} must be a valid Draft 2020-12 schema"
+                raise ValueError(msg) from None
+            _bounded_json_size(schema, label=f"interfaces.{label}")
+        if self.input_schema is None and self.output_schema is None:
+            msg = "interfaces must define inputSchema or outputSchema"
+            raise ValueError(msg)
+        return self
+
+
+class AgentCapability(SpecModel):
+    """One named capability advertised by the agent."""
+
+    name: ResourceName
+    description: ManifestText
+
+
+class AgentInvariant(SpecModel):
+    """A stable business or safety rule used to derive tests."""
+
+    id: ResourceName
+    description: ManifestText
+    severity: Literal["low", "medium", "high", "critical"]
+
+
+class AgentPolicies(SpecModel):
+    """Business invariants and prohibited or permission-sensitive behavior."""
+
+    invariants: list[AgentInvariant] = Field(default_factory=list, max_length=200)
+    forbidden_behaviors: list[ManifestText] = Field(default_factory=list, max_length=100)
+    permission_requirements: list[ManifestText] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def require_policy(self) -> "AgentPolicies":
+        if not (self.invariants or self.forbidden_behaviors or self.permission_requirements):
+            msg = "policies must define at least one constraint"
+            raise ValueError(msg)
+        ids = [item.id for item in self.invariants]
+        if len(ids) != len(set(ids)):
+            msg = "policy invariant ids must be unique"
+            raise ValueError(msg)
+        return self
+
+
+class HumanInteractionPolicy(SpecModel):
+    """Human-in-the-loop behavior and intervention budget."""
+
+    allowed: bool
+    required_when: list[ManifestText] = Field(default_factory=list, max_length=100)
+    max_interventions: NonNegativeInt | None = None
+
+    @model_validator(mode="after")
+    def validate_allowed_interactions(self) -> "HumanInteractionPolicy":
+        if not self.allowed and (self.required_when or self.max_interventions not in {None, 0}):
+            msg = "disabled human interaction cannot define requiredWhen or a positive budget"
+            raise ValueError(msg)
+        return self
+
+
+class AgentQuality(SpecModel):
+    """Quality objectives and default resource budgets for generated tests."""
+
+    objectives: list[ResourceName] = Field(min_length=1, max_length=50)
+    budgets: BudgetExpectation | None = None
+
+    @model_validator(mode="after")
+    def unique_objectives(self) -> "AgentQuality":
+        if len(self.objectives) != len(set(self.objectives)):
+            msg = "quality objectives must be unique"
+            raise ValueError(msg)
+        return self
+
+
+class AgentTestHints(SpecModel):
+    """Non-authoritative scenarios suggested for AI-assisted generation."""
+
+    important_scenarios: list[ManifestText] = Field(default_factory=list, max_length=200)
+
+    @model_validator(mode="after")
+    def require_hint(self) -> "AgentTestHints":
+        if not self.important_scenarios:
+            msg = "testHints must define at least one important scenario"
+            raise ValueError(msg)
+        return self
+
+
+class GeneratedBy(SpecModel):
+    """Optional model identity for inferred manifest content."""
+
+    provider: ResourceName
+    model: ManifestText
+    prompt_hash: ManifestText | None = None
+
+
+class ManifestProvenance(SpecModel):
+    """Origin and review state for semantic manifest information."""
+
+    default_level: Literal["declared", "discovered", "inferred", "verified"] = "declared"
+    declared_by: ManifestText | None = None
+    discovered_from: list[ManifestPath] = Field(default_factory=list, max_length=200)
+    generated_by: GeneratedBy | None = None
+    reviewed: bool = False
+
+    @model_validator(mode="after")
+    def validate_origin(self) -> "ManifestProvenance":
+        if self.default_level == "inferred" and self.generated_by is None:
+            msg = "inferred provenance requires generatedBy"
+            raise ValueError(msg)
+        if self.default_level == "verified" and not self.reviewed:
+            msg = "verified provenance requires reviewed=true"
+            raise ValueError(msg)
+        return self
+
+
+class AgentManifest(SpecModel):
+    """A reproducible identity and semantic contract for the agent under test."""
+
+    api_version: ManifestApiVersion = Field(default="agentqa.dev/v1alpha2", alias="apiVersion")
     kind: Literal["AgentManifest"] = "AgentManifest"
     metadata: Metadata
     source: SourceRevision | None = None
     runtime: RuntimeIdentity
     model: ModelIdentity | None = None
     prompts: PromptIdentity | None = None
-    tools: list[ToolIdentity] = Field(default_factory=list)
+    purpose: AgentPurpose | None = None
+    interfaces: AgentInterfaces | None = None
+    capabilities: list[AgentCapability] = Field(default_factory=list, max_length=200)
+    tools: list[ToolIdentity] = Field(default_factory=list, max_length=500)
+    policies: AgentPolicies | None = None
+    human_interaction: HumanInteractionPolicy | None = None
+    quality: AgentQuality | None = None
     knowledge: KnowledgeIdentity | None = None
+    test_hints: AgentTestHints | None = None
+    provenance: ManifestProvenance = Field(default_factory=ManifestProvenance)
+
+    @model_validator(mode="after")
+    def validate_semantic_contract(self) -> "AgentManifest":
+        capability_names = [item.name for item in self.capabilities]
+        if len(capability_names) != len(set(capability_names)):
+            msg = "capability names must be unique"
+            raise ValueError(msg)
+        tool_names = [item.name for item in self.tools]
+        if len(tool_names) != len(set(tool_names)):
+            msg = "tool names must be unique"
+            raise ValueError(msg)
+        if any(tool.requires_confirmation for tool in self.tools) and (
+            self.human_interaction is None or not self.human_interaction.allowed
+        ):
+            msg = "tools requiring confirmation need humanInteraction.allowed=true"
+            raise ValueError(msg)
+        _bounded_json_size(
+            self.model_dump(mode="json", by_alias=True),
+            label="AgentManifest",
+            max_bytes=1024 * 1024,
+        )
+        return self
 
 
 class QualityGateRules(SpecModel):

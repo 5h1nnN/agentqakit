@@ -12,6 +12,7 @@ from typing import Any, Literal, TypeVar, cast
 from agentqa.conventions import new_id, to_utc_iso8601, utc_now
 from agentqa.evaluators import EvaluationRequest, Evaluator
 from agentqa.evaluators.budget import observed_token_and_cost
+from agentqa.manifest import capture_run_manifest
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
@@ -569,6 +570,8 @@ class TestRunner:
             "updated_at": to_utc_iso8601(machine.history[-1].at),
             "spec_hash": context.spec_hash,
             "manifest_hash": context.manifest_hash,
+            "manifest_snapshot_ref": context.manifest_snapshot_ref,
+            "manifest_status": context.manifest_status,
             "random_seed": context.random_seed,
             "total_items": total_items,
             "completed_items": completed_items,
@@ -628,9 +631,14 @@ class TestRunner:
         hashes = [hash_spec(target), *(hash_spec(spec) for spec in frozen_specs)]
         hashes.extend(hash_spec(spec) for _, spec in sorted(self._mutations.items()))
         manifest_hash = None
+        manifest_snapshot = None
         if manifest is not None:
             manifest_hash = hash_spec(manifest)
             hashes.append(manifest_hash)
+            manifest_snapshot = capture_run_manifest(
+                manifest,
+                workspace=self._options.manifest_workspace,
+            )
         context = RunContext(
             run_id=run_id,
             spec_hash=hash_spec_collection(hashes),
@@ -638,6 +646,10 @@ class TestRunner:
             started_at=started_at,
             random_seed=self._options.random_seed,
             artifact_dir=str((self._options.artifact_directory / "runs" / run_id).resolve()),
+            manifest_snapshot_ref=(
+                "resolved-manifest.json" if manifest_snapshot is not None else None
+            ),
+            manifest_status=None if manifest_snapshot is None else manifest_snapshot.status,
             otlp_endpoint=self._options.otlp_endpoint,
         )
         writer = ArtifactWriter(self._options.artifact_directory, run_id)
@@ -678,6 +690,8 @@ class TestRunner:
                 writer.write_resolved_mutations(
                     [normalize_spec(spec) for _, spec in sorted(self._mutations.items())]
                 )
+            if manifest is not None and manifest_snapshot is not None:
+                writer.write_resolved_manifest(normalize_spec(manifest), manifest_snapshot)
         except ArtifactError:
             artifact_healthy = False
             run_error = ErrorInfo(

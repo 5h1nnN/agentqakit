@@ -56,7 +56,8 @@ Execute a test against one target:
 
 ```bash
 agentqa test run examples/specs/basic-test.yaml \
-  --target examples/specs/http-target.yaml
+  --target examples/specs/http-target.yaml \
+  --manifest examples/specs/agent-manifest.yaml
 ```
 
 Run tests with mutation specifications and inspect the resulting score:
@@ -106,9 +107,9 @@ agentqa test run examples/specs/ci-test.yaml \
   --no-trace-receiver
 ```
 
-The API key is process-only secret input. Judge evidence records model identity,
-configuration hashes, verdict, rationale, and token usage, but never the key or
-raw prompt.
+The API key is process-only secret input. Structured LLM evidence records model
+identity, configuration and evidence hashes, bounded request IDs, verdict,
+rationale, latency, attempts, and token usage, but never the key or raw prompt.
 
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See

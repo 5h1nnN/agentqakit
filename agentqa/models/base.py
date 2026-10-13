@@ -15,6 +15,7 @@ from pydantic import (
 from agentqa.conventions import to_utc_iso8601
 
 API_VERSION = "agentqa.dev/v1alpha1"
+AGENT_MANIFEST_API_VERSION = "agentqa.dev/v1alpha2"
 
 NonEmptyString: TypeAlias = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 ResourceName: TypeAlias = Annotated[
