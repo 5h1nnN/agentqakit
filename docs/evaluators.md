@@ -68,6 +68,21 @@ the official `https://api.deepseek.com` endpoint, optionally ending in `/v1`.
 The API key is never placed in provider metadata, prompts, artifacts, database
 records, error messages, or the reconstructed CLI command.
 
+Before calling the provider, Judge selects a bounded, redacted evidence bundle.
+It includes relevant Manifest purpose, capabilities, policies, and tool risk or
+side-effect declarations; prior deterministic evaluator results; state diffs;
+selected tool-call summaries and error spans; and explicit completeness gaps.
+`manifestCapabilities` and `manifestPolicies` in evaluator `config` can select
+named declarations. Unknown selections remain visible as missing evidence.
+Judge is always scheduled after non-Judge evaluators, even if it appears first
+in the YAML, while persisted evaluation order remains unchanged.
+
+If a required deterministic result is missing, a required state transition is
+not observable, or the trace is incomplete, Judge cannot turn a model `PASS`
+into an unconditional pass. AgentQAKit changes it to `NEEDS_REVIEW` and records
+the blocking gaps. Deterministic failures and high-risk deterministic
+requirements remain authoritative.
+
 The provider stores only safe accounting evidence: resolved model, request ID,
 finish reason, system fingerprint, latency, use case, and token usage. Each
 result also records provider/model/configuration, Rubric Hash, System Prompt
@@ -83,8 +98,8 @@ configured through `/api/health`; a run opts in with `judgeEnabled: true`.
 
 ## Custom providers
 
-DeepSeek now implements the provider-neutral `StructuredLLMProvider` used by
-semantic judging and the planned test-generation and failure-analysis services:
+DeepSeek implements the provider-neutral `StructuredLLMProvider` used by
+semantic judging, test generation, and failure analysis:
 
 ```python
 from collections.abc import Mapping
@@ -112,8 +127,8 @@ evaluators = built_in_evaluators(MyStructuredProvider())
 The previous `JudgeProvider.judge()` contract remains accepted for backward
 compatibility, but new integrations should implement `complete()`.
 
-Every provider receives only bounded, redacted scenario/output evidence and a
-summary of trace tool names and error count. It must return JSON matching the
+Every provider receives only the bounded, redacted evidence package, never an
+implicit source tree or full raw trace. It must return JSON matching the
 strict `JudgeDecision` schema with `PASS`, `FAIL`, or `NEEDS_REVIEW`. Invalid
 JSON/schema output is retried once. Artifacts retain provider/model/parameters
 plus prompt and rubric hashes, but not the raw prompt. Credential-like provider
@@ -123,3 +138,6 @@ Tests labeled `risk: high` or `risk: critical` cannot configure only
 `llm_judge`; at least one deterministic evaluator is required. A human-labeled
 calibration dataset remains required before treating Judge scores as formal
 effect metrics.
+
+The separate, immutable `AnalysisReport` workflow for failed trials is
+documented in [`failure-analysis.md`](failure-analysis.md).

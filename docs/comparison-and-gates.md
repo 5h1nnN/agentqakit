@@ -17,10 +17,25 @@ therefore cannot silently improve the gate result; removals are also listed in
 the comparison report.
 
 The report includes pass rate, Mutation Score, high-risk failures, latency P50
-and P95, average tokens, average cost, average tool calls, replay hit rate, and
-verified failure-bundle coverage. A metric is marked unobservable unless every
-trial provides the observation. Relative growth from a zero baseline is marked
-unbounded instead of being coerced to zero.
+and P95, tokens, cost, LLM/tool calls, retries, duplicate tool calls,
+no-progress loops, replay hit rate, and verified failure-bundle coverage. Each
+quantity retains its count, mean, P50, and P95 where applicable. A metric is
+marked unobservable unless every trial provides the observation. Relative
+growth from a zero baseline is marked unbounded instead of being coerced to
+zero.
+
+Duplicate tool calls are repeated calls with the same normalized tool name and
+arguments inside one trace. A no-progress loop is a consecutive repeated LLM or
+tool event with the same normalized input, output, and state diff. These are
+diagnostic efficiency signals, not universal correctness claims.
+
+`quality_cost` presents quality preservation and cost, token, and latency
+improvement side by side. Cost is called improved only when average observed
+cost decreases; the favorable
+`QUALITY_PRESERVED_COST_IMPROVED` state additionally requires no effective
+pass-rate regression, no increase in high-risk failures, and no new regression.
+Tradeoffs and unobservable cost stay explicit. AgentQAKit deliberately does not
+collapse quality and efficiency into an opaque combined score.
 
 ## QualityGate
 

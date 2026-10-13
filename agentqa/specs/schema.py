@@ -11,6 +11,7 @@ from pydantic import BaseModel, TypeAdapter
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
+    AnalysisReport,
     ComparisonReport,
     EvaluationResult,
     FindingReview,
@@ -37,6 +38,7 @@ from agentqa.models import (
 _SCHEMA_MODELS: dict[str, type[BaseModel] | TypeAdapter[Any]] = {
     "agent-manifest": AgentManifest,
     "agent-test-spec": AgentTestSpec,
+    "analysis-report": AnalysisReport,
     "comparison-report": ComparisonReport,
     "evaluation-result": EvaluationResult,
     "finding-review": FindingReview,

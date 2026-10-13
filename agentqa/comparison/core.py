@@ -10,6 +10,7 @@ from agentqa.models import (
     ComparisonDeltas,
     ComparisonReport,
     MetricChange,
+    QualityCostView,
 )
 
 
@@ -68,6 +69,63 @@ def _classification(
     return "STABLE"
 
 
+def _improved(change: MetricChange) -> bool | None:
+    if change.status == "unobservable" or change.absolute_change is None:
+        return None
+    return change.absolute_change < 0
+
+
+def _quality_cost_view(
+    *,
+    counts: ComparisonCounts,
+    deltas: ComparisonDeltas,
+) -> QualityCostView:
+    quality_preserved = (
+        deltas.pass_rate >= 0 and deltas.high_risk_failures <= 0 and counts.new_regressions == 0
+    )
+    cost_improved = _improved(deltas.average_cost_usd)
+    token_improved = _improved(deltas.average_tokens)
+    latency_improved = _improved(deltas.p95_latency_ms)
+    reasons = [
+        f"effective pass-rate change: {deltas.pass_rate:+.6f}",
+        f"new regressions: {counts.new_regressions}",
+        f"high-risk failure change: {deltas.high_risk_failures:+d}",
+    ]
+    status: Literal[
+        "QUALITY_PRESERVED_COST_IMPROVED",
+        "QUALITY_PRESERVED_NO_COST_IMPROVEMENT",
+        "QUALITY_COST_TRADEOFF",
+        "QUALITY_REGRESSED",
+        "COST_UNOBSERVABLE",
+    ]
+    if cost_improved is None and quality_preserved:
+        status = "COST_UNOBSERVABLE"
+        reasons.append("average cost is not fully observable")
+    elif quality_preserved and cost_improved:
+        status = "QUALITY_PRESERVED_COST_IMPROVED"
+        reasons.append("average cost decreased without an observed quality regression")
+    elif quality_preserved:
+        status = "QUALITY_PRESERVED_NO_COST_IMPROVEMENT"
+        reasons.append("quality was preserved but average cost did not decrease")
+    elif cost_improved:
+        status = "QUALITY_COST_TRADEOFF"
+        reasons.append("average cost decreased while quality regressed")
+    else:
+        status = "QUALITY_REGRESSED"
+        if cost_improved is None:
+            reasons.append("quality regressed and average cost is not fully observable")
+        else:
+            reasons.append("quality regressed without an average cost improvement")
+    return QualityCostView(
+        status=status,
+        quality_preserved=quality_preserved,
+        cost_improved=cost_improved,
+        token_improved=token_improved,
+        latency_improved=latency_improved,
+        reasons=reasons,
+    )
+
+
 def compare_runs(baseline: RunArtifact, candidate: RunArtifact) -> ComparisonReport:
     """Compare two verified run artifacts by stable test case identifier."""
     baseline_metrics = metrics_for(baseline)
@@ -111,6 +169,43 @@ def compare_runs(baseline: RunArtifact, candidate: RunArtifact) -> ComparisonRep
     candidate_mutation = candidate_metrics.mutation_score
     baseline_replay = baseline_metrics.replay.replay_hit_rate
     candidate_replay = candidate_metrics.replay.replay_hit_rate
+    deltas = ComparisonDeltas(
+        pass_rate=effective_pass_rate - baseline_metrics.pass_rate,
+        mutation_score=(
+            None
+            if baseline_mutation is None or candidate_mutation is None
+            else candidate_mutation - baseline_mutation
+        ),
+        high_risk_failures=(
+            candidate_metrics.high_risk_failures - baseline_metrics.high_risk_failures
+        ),
+        p50_latency_ms=_change(baseline_metrics.latency_ms.p50, candidate_metrics.latency_ms.p50),
+        p95_latency_ms=_change(baseline_metrics.latency_ms.p95, candidate_metrics.latency_ms.p95),
+        average_tokens=_change(
+            baseline_metrics.total_tokens.mean, candidate_metrics.total_tokens.mean
+        ),
+        average_cost_usd=_change(baseline_metrics.cost_usd.mean, candidate_metrics.cost_usd.mean),
+        average_llm_calls=_change(
+            baseline_metrics.llm_calls.mean, candidate_metrics.llm_calls.mean
+        ),
+        average_tool_calls=_change(
+            baseline_metrics.tool_calls.mean, candidate_metrics.tool_calls.mean
+        ),
+        average_retries=_change(baseline_metrics.retries.mean, candidate_metrics.retries.mean),
+        average_duplicate_tool_calls=_change(
+            baseline_metrics.duplicate_tool_calls.mean,
+            candidate_metrics.duplicate_tool_calls.mean,
+        ),
+        average_no_progress_loops=_change(
+            baseline_metrics.no_progress_loops.mean,
+            candidate_metrics.no_progress_loops.mean,
+        ),
+        replay_hit_rate=(
+            None
+            if baseline_replay is None or candidate_replay is None
+            else candidate_replay - baseline_replay
+        ),
+    )
     return ComparisonReport(
         generated_at=utc_now(),
         baseline_run_id=baseline.run_id,
@@ -119,36 +214,7 @@ def compare_runs(baseline: RunArtifact, candidate: RunArtifact) -> ComparisonRep
         candidate=candidate_metrics,
         candidate_effective_pass_rate=effective_pass_rate,
         counts=counts,
-        deltas=ComparisonDeltas(
-            pass_rate=effective_pass_rate - baseline_metrics.pass_rate,
-            mutation_score=(
-                None
-                if baseline_mutation is None or candidate_mutation is None
-                else candidate_mutation - baseline_mutation
-            ),
-            high_risk_failures=(
-                candidate_metrics.high_risk_failures - baseline_metrics.high_risk_failures
-            ),
-            p50_latency_ms=_change(
-                baseline_metrics.latency_ms.p50, candidate_metrics.latency_ms.p50
-            ),
-            p95_latency_ms=_change(
-                baseline_metrics.latency_ms.p95, candidate_metrics.latency_ms.p95
-            ),
-            average_tokens=_change(
-                baseline_metrics.total_tokens.mean, candidate_metrics.total_tokens.mean
-            ),
-            average_cost_usd=_change(
-                baseline_metrics.cost_usd.mean, candidate_metrics.cost_usd.mean
-            ),
-            average_tool_calls=_change(
-                baseline_metrics.tool_calls.mean, candidate_metrics.tool_calls.mean
-            ),
-            replay_hit_rate=(
-                None
-                if baseline_replay is None or candidate_replay is None
-                else candidate_replay - baseline_replay
-            ),
-        ),
+        deltas=deltas,
+        quality_cost=_quality_cost_view(counts=counts, deltas=deltas),
         cases=cases,
     )

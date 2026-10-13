@@ -17,6 +17,10 @@ def _percent(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.1%}"
 
 
+def _number(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.6f}"
+
+
 def compare(
     baseline: Annotated[
         Path,
@@ -75,6 +79,11 @@ def compare(
             f"{report.counts.fixed} fixed, "
             f"{report.counts.persistent_failures} persistent failures, "
             f"{report.counts.new} new, {report.counts.removed} removed"
+        )
+        typer.echo(f"Quality/cost: {report.quality_cost.status}")
+        typer.echo(
+            f"Average cost: {_number(report.baseline.cost_usd.mean)} -> "
+            f"{_number(report.candidate.cost_usd.mean)}"
         )
         for case in report.cases:
             if case.classification != "STABLE":

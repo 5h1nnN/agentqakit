@@ -174,6 +174,7 @@ async def test_deepseek_structured_provider_marks_semantic_repair_attempt() -> N
     body = captured["body"]
     assert isinstance(body, dict)
     assert "previous response failed" in body["messages"][0]["content"]
+    assert "must not be empty or whitespace-only" in body["messages"][0]["content"]
 
 
 @pytest.mark.asyncio

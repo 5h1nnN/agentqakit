@@ -1,5 +1,17 @@
 """Core data models."""
 
+from agentqa.models.analysis import (
+    ANALYSIS_REPORT_SCHEMA_VERSION,
+    AnalysisDraft,
+    AnalysisReport,
+    EvidenceBundle,
+    EvidenceRecord,
+    EvidenceReference,
+    ObservedFact,
+    RegressionTestSuggestion,
+    RootCauseCandidate,
+    TrajectoryDivergence,
+)
 from agentqa.models.base import AGENT_MANIFEST_API_VERSION, API_VERSION
 from agentqa.models.comparison import (
     COMPARISON_SCHEMA_VERSION,
@@ -8,6 +20,7 @@ from agentqa.models.comparison import (
     ComparisonDeltas,
     ComparisonReport,
     MetricChange,
+    QualityCostView,
     ReplayCompleteness,
     RunMetrics,
 )
@@ -74,6 +87,7 @@ from agentqa.models.storage import FindingReview, StoredFinding, StoredRun, Stor
 
 __all__ = [
     "AGENT_MANIFEST_API_VERSION",
+    "ANALYSIS_REPORT_SCHEMA_VERSION",
     "API_VERSION",
     "COMPARISON_SCHEMA_VERSION",
     "GENERATION_PLAN_SCHEMA_VERSION",
@@ -81,6 +95,8 @@ __all__ = [
     "RUN_MANIFEST_SCHEMA_VERSION",
     "AgentManifest",
     "AgentTestSpec",
+    "AnalysisDraft",
+    "AnalysisReport",
     "CaseComparison",
     "CodeEvidence",
     "ComparisonCounts",
@@ -89,6 +105,9 @@ __all__ = [
     "CoverageRecord",
     "ErrorInfo",
     "EvaluationResult",
+    "EvidenceBundle",
+    "EvidenceRecord",
+    "EvidenceReference",
     "FindingReview",
     "GateResult",
     "GateRuleResult",
@@ -111,12 +130,16 @@ __all__ = [
     "MutationScoreBucket",
     "MutationScoreReport",
     "MutationSpec",
+    "ObservedFact",
     "PlanItem",
     "PythonTargetSpec",
+    "QualityCostView",
     "QualityGateRules",
     "QualityGateSpec",
+    "RegressionTestSuggestion",
     "ReplayCompleteness",
     "ReplayStats",
+    "RootCauseCandidate",
     "RunBudgetSummary",
     "RunContext",
     "RunManifestSnapshot",
@@ -134,6 +157,7 @@ __all__ = [
     "TestResult",
     "TraceEvent",
     "TraceRecord",
+    "TrajectoryDivergence",
     "TrialPolicy",
     "Violation",
 ]

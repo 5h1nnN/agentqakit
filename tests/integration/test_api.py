@@ -213,7 +213,9 @@ purpose:
             for evaluation in results[0]["evaluations"]
             if evaluation["evaluator_type"] == "llm_judge"
         )
-        assert judge["status"] == "PASS"
+        assert judge["status"] == "NEEDS_REVIEW"
+        assert judge["metadata"]["pass_withheld"] is True
+        assert "trace is missing" in str(judge["metadata"]["blocking_evidence_gaps"])
         assert judge["metadata"]["provider"] == "fake-deepseek"
 
         rejected = client.post(

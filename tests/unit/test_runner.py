@@ -13,6 +13,7 @@ from pydantic import JsonValue
 from agentqa.conventions import utc_now
 from agentqa.evaluators import EvaluationRequest
 from agentqa.models import (
+    AgentManifest,
     AgentTestSpec,
     EvaluationResult,
     HttpTargetSpec,
@@ -150,6 +151,23 @@ class SlowEvaluator:
     async def evaluate(self, request: EvaluationRequest) -> EvaluationResult:
         await asyncio.sleep(60)
         raise AssertionError("timed-out evaluator continued")
+
+
+class ManifestAwareJudgeEvaluator:
+    type = "llm_judge"
+    requires_trace = False
+    runs_on_target_error = False
+
+    def __init__(self) -> None:
+        self.requests: list[EvaluationRequest] = []
+
+    async def evaluate(self, request: EvaluationRequest) -> EvaluationResult:
+        self.requests.append(request)
+        assert request.manifest is not None
+        assert request.manifest.metadata.name == "runner-agent"
+        assert [item.evaluator_type for item in request.prior_evaluations] == ["schema"]
+        assert request.prior_evaluations[0].status == "PASS"
+        return EvaluationResult(evaluator_type="llm_judge", status="PASS", score=1.0)
 
 
 class BlockingAdapter(FakeAdapter):
@@ -532,6 +550,49 @@ async def test_evaluator_timeout_becomes_error_result(tmp_path: Path) -> None:
     assert result.status == "COMPLETED"
     assert evaluation.status == "ERROR"
     assert evaluation.message == "evaluator schema timed out"
+
+
+async def test_runner_supplies_manifest_and_prior_deterministic_results_to_judge(
+    tmp_path: Path,
+) -> None:
+    payload = _test_spec("manifest-judge").model_dump(mode="json", by_alias=True)
+    payload["evaluators"] = [
+        {"type": "llm_judge", "rubric": "Apply the declared policy."},
+        {"type": "schema"},
+    ]
+    spec = AgentTestSpec.model_validate(payload)
+    manifest = AgentManifest.model_validate(
+        {
+            "apiVersion": "agentqa.dev/v1alpha2",
+            "kind": "AgentManifest",
+            "metadata": {"name": "runner-agent"},
+            "runtime": {"language": "python"},
+            "policies": {
+                "invariants": [
+                    {
+                        "id": "truthful-output",
+                        "description": "Do not invent output.",
+                        "severity": "high",
+                    }
+                ]
+            },
+        }
+    )
+    judge = ManifestAwareJudgeEvaluator()
+    runner = AgentTestRunner(
+        FakeAdapter([Outcome()]),
+        {"schema": ResultEvaluator(), "llm_judge": judge},
+        options=_options(tmp_path),
+    )
+
+    result = await runner.run([spec], _target(), manifest=manifest)
+
+    assert result.status == "COMPLETED"
+    assert [item.evaluator_type for item in result.results[0].evaluations] == [
+        "llm_judge",
+        "schema",
+    ]
+    assert len(judge.requests) == 1
 
 
 async def test_trace_evaluator_is_not_observable_but_output_is_preserved(tmp_path: Path) -> None:

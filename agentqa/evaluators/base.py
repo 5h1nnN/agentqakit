@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from agentqa.models import (
+    AgentManifest,
     AgentTestSpec,
     EvaluationResult,
     RunContext,
@@ -22,6 +23,8 @@ class EvaluationRequest:
     target_result: TargetResult
     trace_record: TraceRecord
     context: RunContext
+    manifest: AgentManifest | None = None
+    prior_evaluations: tuple[EvaluationResult, ...] = ()
 
 
 class Evaluator(Protocol):

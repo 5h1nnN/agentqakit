@@ -57,7 +57,11 @@ class RunMetrics(StrictModel):
     latency_ms: MetricSummary
     total_tokens: MetricSummary
     cost_usd: MetricSummary
+    llm_calls: MetricSummary
     tool_calls: MetricSummary
+    retries: MetricSummary
+    duplicate_tool_calls: MetricSummary
+    no_progress_loops: MetricSummary
     replay: ReplayCompleteness
 
     @model_validator(mode="after")
@@ -116,8 +120,29 @@ class ComparisonDeltas(StrictModel):
     p95_latency_ms: MetricChange
     average_tokens: MetricChange
     average_cost_usd: MetricChange
+    average_llm_calls: MetricChange
     average_tool_calls: MetricChange
+    average_retries: MetricChange
+    average_duplicate_tool_calls: MetricChange
+    average_no_progress_loops: MetricChange
     replay_hit_rate: float | None = None
+
+
+class QualityCostView(StrictModel):
+    """Explain quality and efficiency together without collapsing them into one score."""
+
+    status: Literal[
+        "QUALITY_PRESERVED_COST_IMPROVED",
+        "QUALITY_PRESERVED_NO_COST_IMPROVEMENT",
+        "QUALITY_COST_TRADEOFF",
+        "QUALITY_REGRESSED",
+        "COST_UNOBSERVABLE",
+    ]
+    quality_preserved: bool
+    cost_improved: bool | None
+    token_improved: bool | None
+    latency_improved: bool | None
+    reasons: list[NonEmptyString] = Field(min_length=1, max_length=20)
 
 
 class CaseComparison(StrictModel):
@@ -179,6 +204,7 @@ class ComparisonReport(StrictModel):
     candidate_effective_pass_rate: UnitInterval
     counts: ComparisonCounts
     deltas: ComparisonDeltas
+    quality_cost: QualityCostView
     cases: list[CaseComparison] = Field(default_factory=list)
 
     @model_validator(mode="after")

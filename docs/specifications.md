@@ -59,6 +59,13 @@ reports contain validated cases, capability/policy coverage, gaps, warnings,
 and two structured LLM call records. See [`generation.md`](generation.md) for
 the workflow and review policy.
 
+`AnalysisReport` is a checksummed JSON artifact with schema version
+`agentqa.analysis-report/v1alpha1`. It preserves failed-trial identity and
+original evaluator statuses, indexes the exact bounded evidence by stable ID
+and hash, and separates observed facts from root-cause hypotheses. It is never
+written back into the source run. See
+[`failure-analysis.md`](failure-analysis.md).
+
 ## Templates
 
 Only value lookups are supported:

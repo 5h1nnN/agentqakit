@@ -14,6 +14,8 @@ from agentqa.models import (
     ReplayStats,
     TargetResult,
     TestResult,
+    TraceEvent,
+    TraceRecord,
 )
 from agentqa.runner.aggregation import aggregate_run
 from agentqa.storage import ArtifactWriter
@@ -29,6 +31,10 @@ def create_run_artifact(
     total_tokens: float | None = 100.0,
     cost_usd: float | None = 0.01,
     tool_calls: float | None = 1.0,
+    llm_calls: float | None = 1.0,
+    retries: float | None = 0.0,
+    duplicate_tool_calls: float | None = 0.0,
+    no_progress_loops: float | None = 0.0,
     mutation_status: Literal["KILLED", "SURVIVED"] | None = None,
     replay_hits: int = 0,
     replay_misses: int = 0,
@@ -59,6 +65,10 @@ def create_run_artifact(
             "total_tokens": total_tokens,
             "cost_usd": cost_usd,
             "tool_calls": tool_calls,
+            "llm_calls": llm_calls,
+            "retries": retries,
+            "duplicate_tool_calls": duplicate_tool_calls,
+            "no_progress_loops": no_progress_loops,
         }.items()
         if value is not None
     }
@@ -79,6 +89,8 @@ def create_run_artifact(
                 ended_at=started_at + timedelta(milliseconds=latency_ms),
                 metadata=metadata,
             ),
+            trace_status="complete",
+            trace_ref=f"traces/trace-{test_case_id}.json",
             replay=ReplayStats(
                 mode=("replay" if replay_hits or replay_misses or replay_live_fallbacks else "off"),
                 recorded=0,
@@ -122,6 +134,25 @@ def create_run_artifact(
     writer.initialize({"run_id": run_id, "status": "COMPLETED"})
     writer.write_resolved_tests(tests)
     for result in results:
+        root = TraceEvent(
+            trace_id=result.trace_id,
+            span_id=f"root-{result.test_case_id}",
+            kind="AGENT",
+            name="agentqa.trial",
+            started_at=result.started_at,
+            ended_at=result.ended_at,
+            status="OK",
+            attributes={"agentqa.runner.root": True},
+        )
+        writer.write_trace(
+            result.trace_id,
+            TraceRecord(
+                trace_id=result.trace_id,
+                status="complete",
+                root_span_id=root.span_id,
+                events=[root],
+            ),
+        )
         writer.append_result(result)
     writer.write_run({"run_id": run_id, "status": "COMPLETED"})
     if mutation_score is not None:

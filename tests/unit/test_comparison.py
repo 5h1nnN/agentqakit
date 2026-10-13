@@ -89,6 +89,46 @@ def test_comparison_reports_mutation_score_and_replay_completeness(
     assert report.candidate.replay.replay_trials == 1
 
 
+def test_comparison_exposes_quality_cost_and_agent_efficiency_without_one_score(
+    tmp_path: Path,
+) -> None:
+    baseline = create_run_artifact(
+        tmp_path / "baseline",
+        "baseline-run",
+        {"a": True},
+        cost_usd=2.0,
+        total_tokens=200,
+        llm_calls=3,
+        tool_calls=4,
+        retries=2,
+        duplicate_tool_calls=2,
+        no_progress_loops=1,
+    )
+    candidate = create_run_artifact(
+        tmp_path / "candidate",
+        "candidate-run",
+        {"a": True},
+        cost_usd=1.0,
+        total_tokens=100,
+        llm_calls=2,
+        tool_calls=3,
+        retries=0,
+        duplicate_tool_calls=0,
+        no_progress_loops=0,
+    )
+
+    report = compare_runs(load_run_artifact(baseline), load_run_artifact(candidate))
+
+    assert report.quality_cost.status == "QUALITY_PRESERVED_COST_IMPROVED"
+    assert report.quality_cost.quality_preserved is True
+    assert report.quality_cost.cost_improved is True
+    assert report.deltas.average_llm_calls.absolute_change == -1
+    assert report.deltas.average_retries.absolute_change == -2
+    assert report.deltas.average_duplicate_tool_calls.absolute_change == -2
+    assert report.deltas.average_no_progress_loops.absolute_change == -1
+    assert "score" not in report.quality_cost.model_dump()
+
+
 def test_loader_rejects_corrupted_checksummed_evidence(tmp_path: Path) -> None:
     run = create_run_artifact(tmp_path, "candidate-run", {"a": True})
     (run / "results.jsonl").write_text("corrupted\n", encoding="utf-8")

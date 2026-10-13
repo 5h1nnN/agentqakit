@@ -554,7 +554,9 @@ async def test_llm_judge_records_redacted_provider_accounting() -> None:
         ]
     )
 
-    result = await LLMJudgeEvaluator(provider).evaluate(_request(spec, output="answer"))
+    result = await LLMJudgeEvaluator(provider).evaluate(
+        _request(spec, output="answer", trace=_trace())
+    )
 
     assert result.status == "PASS"
     assert result.metadata["provider_attempts"] == [{"usage": {"total_tokens": 42}}]

@@ -140,7 +140,7 @@ class DeepSeekJudgeSettings:
     model: str
     base_url: str = "https://api.deepseek.com"
     timeout_seconds: float = 60.0
-    max_tokens: int = 1_024
+    max_tokens: int = 8_192
     temperature: float = 0.0
     retry_backoff_seconds: float = 0.5
 
@@ -199,7 +199,7 @@ class DeepSeekJudgeSettings:
             max_tokens=_int_environment_alias(
                 "AGENTQA_LLM_MAX_TOKENS",
                 "AGENTQA_JUDGE_MAX_TOKENS",
-                1_024,
+                8_192,
             ),
             temperature=_float_environment_alias(
                 "AGENTQA_LLM_TEMPERATURE",
@@ -282,7 +282,9 @@ class DeepSeekJudgeProvider:
         schema = canonical_json_bytes(request.response_schema).decode("utf-8")
         repair = (
             " A previous response failed the schema or application constraints. "
-            "Recreate the entire object from scratch and check every required field."
+            "Recreate the entire object from scratch and check every required field. "
+            "The response must begin immediately with {, end with }, and must not be "
+            "empty or whitespace-only."
             if request.attempt == 2
             else ""
         )

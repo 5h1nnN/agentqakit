@@ -20,6 +20,8 @@ CI-friendly exit codes and checksummed reports.
 Manifest-grounded AI generation can now produce a reviewable capability-risk
 test plan, strict candidate `AgentTest` specifications, and a checksummed
 coverage report without granting AgentQAKit ambient source-tree access.
+The same bounded evidence layer grounds semantic Judge decisions and produces
+separate, evidence-citing AI failure-analysis reports for failed trials.
 Completed runs can now be indexed in a checksummed file store or transactional
 SQLite database, queried through a local FastAPI service, and inspected in the
 React evidence console.
@@ -134,6 +136,19 @@ rejected by the run service until a reviewer changes that label to `APPROVED`.
 The two-phase workflow, artifacts, CodeEvidence boundary, and safety checks are
 documented in [`docs/generation.md`](docs/generation.md).
 
+Analyze a failed trial without changing its original verdict or trace:
+
+```bash
+agentqa analyze failure \
+  --run artifacts/runs/<run-id> \
+  --trial-id <failed-trial-id> \
+  --output artifacts/analysis/<trial-id>.json
+```
+
+The report cites stable evidence IDs for facts and root-cause candidates and
+records missing evidence explicitly. See
+[`docs/failure-analysis.md`](docs/failure-analysis.md).
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
@@ -155,6 +170,8 @@ strict replay, and verified failure bundles are documented in
 Run alignment, removed-test semantics, metric observability, gate rules, and CI
 integration are documented in
 [`docs/comparison-and-gates.md`](docs/comparison-and-gates.md).
+The evidence boundary and immutable AI failure-analysis workflow are documented
+in [`docs/failure-analysis.md`](docs/failure-analysis.md).
 Result-store guarantees, SQLite layout, HTTP endpoints, server security, and
 Web development are documented in
 [`docs/storage-api-web.md`](docs/storage-api-web.md).

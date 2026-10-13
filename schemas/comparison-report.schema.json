@@ -119,6 +119,18 @@
         "average_cost_usd": {
           "$ref": "#/$defs/MetricChange"
         },
+        "average_duplicate_tool_calls": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "average_llm_calls": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "average_no_progress_loops": {
+          "$ref": "#/$defs/MetricChange"
+        },
+        "average_retries": {
+          "$ref": "#/$defs/MetricChange"
+        },
         "average_tokens": {
           "$ref": "#/$defs/MetricChange"
         },
@@ -171,7 +183,11 @@
         "p95_latency_ms",
         "average_tokens",
         "average_cost_usd",
-        "average_tool_calls"
+        "average_llm_calls",
+        "average_tool_calls",
+        "average_retries",
+        "average_duplicate_tool_calls",
+        "average_no_progress_loops"
       ],
       "title": "ComparisonDeltas",
       "type": "object"
@@ -296,6 +312,80 @@
       "title": "MetricSummary",
       "type": "object"
     },
+    "QualityCostView": {
+      "additionalProperties": false,
+      "description": "Explain quality and efficiency together without collapsing them into one score.",
+      "properties": {
+        "cost_improved": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Cost Improved"
+        },
+        "latency_improved": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Latency Improved"
+        },
+        "quality_preserved": {
+          "title": "Quality Preserved",
+          "type": "boolean"
+        },
+        "reasons": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "QUALITY_PRESERVED_COST_IMPROVED",
+            "QUALITY_PRESERVED_NO_COST_IMPROVEMENT",
+            "QUALITY_COST_TRADEOFF",
+            "QUALITY_REGRESSED",
+            "COST_UNOBSERVABLE"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "token_improved": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Token Improved"
+        }
+      },
+      "required": [
+        "status",
+        "quality_preserved",
+        "cost_improved",
+        "token_improved",
+        "latency_improved",
+        "reasons"
+      ],
+      "title": "QualityCostView",
+      "type": "object"
+    },
     "ReplayCompleteness": {
       "additionalProperties": false,
       "description": "Replay and failure-bundle evidence available for one run.",
@@ -376,6 +466,9 @@
         "cost_usd": {
           "$ref": "#/$defs/MetricSummary"
         },
+        "duplicate_tool_calls": {
+          "$ref": "#/$defs/MetricSummary"
+        },
         "failed": {
           "minimum": 0,
           "title": "Failed",
@@ -387,6 +480,9 @@
           "type": "integer"
         },
         "latency_ms": {
+          "$ref": "#/$defs/MetricSummary"
+        },
+        "llm_calls": {
           "$ref": "#/$defs/MetricSummary"
         },
         "mutation_score": {
@@ -403,6 +499,9 @@
           "default": null,
           "title": "Mutation Score"
         },
+        "no_progress_loops": {
+          "$ref": "#/$defs/MetricSummary"
+        },
         "pass_rate": {
           "maximum": 1.0,
           "minimum": 0.0,
@@ -416,6 +515,9 @@
         },
         "replay": {
           "$ref": "#/$defs/ReplayCompleteness"
+        },
+        "retries": {
+          "$ref": "#/$defs/MetricSummary"
         },
         "tool_calls": {
           "$ref": "#/$defs/MetricSummary"
@@ -438,7 +540,11 @@
         "latency_ms",
         "total_tokens",
         "cost_usd",
+        "llm_calls",
         "tool_calls",
+        "retries",
+        "duplicate_tool_calls",
+        "no_progress_loops",
         "replay"
       ],
       "title": "RunMetrics",
@@ -488,6 +594,9 @@
       "title": "Generated At",
       "type": "string"
     },
+    "quality_cost": {
+      "$ref": "#/$defs/QualityCostView"
+    },
     "schema_version": {
       "const": "agentqa.comparison/v1alpha1",
       "default": "agentqa.comparison/v1alpha1",
@@ -503,7 +612,8 @@
     "candidate",
     "candidate_effective_pass_rate",
     "counts",
-    "deltas"
+    "deltas",
+    "quality_cost"
   ],
   "title": "ComparisonReport",
   "type": "object"

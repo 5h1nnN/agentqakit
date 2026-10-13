@@ -3,6 +3,7 @@
 import json
 import tempfile
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, cast
 
@@ -16,11 +17,14 @@ from agentqa.models import (
     RunMetrics,
     RunSummary,
     TestResult,
+    TraceRecord,
 )
 from agentqa.replay.bundle import extract_failure_bundle
 from agentqa.replay.store import CassetteFormatError
 from agentqa.runner.aggregation import aggregate_run, summarize_metric
+from agentqa.specs.hashing import canonical_json_bytes
 from agentqa.storage import ArtifactError, ArtifactWriter
+from agentqa.traceview import TraceView
 
 
 class ComparisonError(AgentQAError):
@@ -206,8 +210,90 @@ def _observed_metric(result: TestResult, key: str) -> float | None:
     return None
 
 
+def _trace_for(artifact: RunArtifact, result: TestResult) -> TraceRecord | None:
+    reference = result.trace_ref
+    if reference is None:
+        return None
+    relative = Path(reference)
+    if relative.parent != Path("traces") or relative.name != f"{result.trace_id}.json":
+        return None
+    if not artifact.reader.verify_checksum(relative):
+        return None
+    try:
+        document = json.loads((artifact.root / relative).read_text(encoding="utf-8"))
+        if not isinstance(document, dict):
+            return None
+        document.pop("schema_version", None)
+        return TraceRecord.model_validate(document)
+    except (OSError, json.JSONDecodeError, ValidationError, TypeError):
+        return None
+
+
+def _trace_behavior_metrics(trace: TraceRecord) -> dict[str, float]:
+    view = TraceView(trace)
+    signatures: list[bytes] = []
+    seen_tools: set[bytes] = set()
+    duplicate_tools = 0
+    for call in view.tool_calls:
+        signature = canonical_json_bytes({"name": call.name, "arguments": call.arguments})
+        if signature in seen_tools:
+            duplicate_tools += 1
+        seen_tools.add(signature)
+    for event in view.internal_events:
+        if event.kind not in {"LLM", "TOOL"}:
+            continue
+        signatures.append(
+            canonical_json_bytes(
+                {
+                    "kind": event.kind,
+                    "name": event.name,
+                    "input": event.input,
+                    "output": event.output,
+                    "state_diff": event.state_diff,
+                }
+            )
+        )
+    no_progress = sum(current == previous for previous, current in pairwise(signatures))
+    retries = 0.0
+    retry_observed = False
+    for event in view.internal_events:
+        for key in ("retry_count", "retries", "agentqa.retry.count"):
+            value = _number(event.attributes.get(key))
+            if value is not None:
+                retries += value
+                retry_observed = True
+                break
+    return {
+        "llm_calls": float(len(view.llm_calls)),
+        "tool_calls": float(len(view.tool_calls)),
+        "duplicate_tool_calls": float(duplicate_tools),
+        "no_progress_loops": float(no_progress),
+        **({"retries": retries} if retry_observed else {}),
+    }
+
+
+def _behavior_metric(artifact: RunArtifact, result: TestResult, key: str) -> float | None:
+    observed = _observed_metric(result, key)
+    if observed is not None:
+        return observed
+    trace = _trace_for(artifact, result)
+    if trace is None or trace.status != "complete":
+        return None
+    return _trace_behavior_metrics(trace).get(key)
+
+
 def _complete_metric(results: tuple[TestResult, ...], key: str) -> list[float]:
     values = [_observed_metric(result, key) for result in results]
+    if any(value is None for value in values):
+        return []
+    return cast(list[float], values)
+
+
+def _complete_behavior_metric(
+    artifact: RunArtifact,
+    key: str,
+) -> list[float]:
+    values = [_behavior_metric(artifact, result, key) for result in artifact.results]
     if any(value is None for value in values):
         return []
     return cast(list[float], values)
@@ -261,7 +347,15 @@ def metrics_for(artifact: RunArtifact) -> RunMetrics:
         latency_ms=summarize_metric(latencies),
         total_tokens=summarize_metric(_complete_metric(artifact.results, "total_tokens")),
         cost_usd=summarize_metric(_complete_metric(artifact.results, "cost_usd")),
-        tool_calls=summarize_metric(_complete_metric(artifact.results, "tool_calls")),
+        llm_calls=summarize_metric(_complete_behavior_metric(artifact, "llm_calls")),
+        tool_calls=summarize_metric(_complete_behavior_metric(artifact, "tool_calls")),
+        retries=summarize_metric(_complete_behavior_metric(artifact, "retries")),
+        duplicate_tool_calls=summarize_metric(
+            _complete_behavior_metric(artifact, "duplicate_tool_calls")
+        ),
+        no_progress_loops=summarize_metric(
+            _complete_behavior_metric(artifact, "no_progress_loops")
+        ),
         replay=ReplayCompleteness(
             total_trials=len(artifact.results),
             replay_trials=sum(stats.mode == "replay" for stats in replay_stats),

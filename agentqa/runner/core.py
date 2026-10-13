@@ -313,42 +313,41 @@ class TestRunner:
         target_result: TargetResult,
         trace_record: TraceRecord,
         context: RunContext,
+        manifest: AgentManifest | None,
     ) -> list[EvaluationResult]:
-        results: list[EvaluationResult] = []
-        for evaluator_spec in test_spec.evaluators:
+        indexed_results: dict[int, EvaluationResult] = {}
+        evaluation_order = sorted(
+            enumerate(test_spec.evaluators),
+            key=lambda item: (item[1].type == "llm_judge", item[0]),
+        )
+        for index, evaluator_spec in evaluation_order:
             evaluator = self._evaluators.get(evaluator_spec.type)
             if evaluator is None:
-                results.append(
-                    EvaluationResult(
-                        evaluator_type=evaluator_spec.type,
-                        status="ERROR",
-                        message=f"no evaluator registered for {evaluator_spec.type}",
-                        metadata={"error_code": RunErrorCode.EVALUATION_ERROR.value},
-                    )
+                indexed_results[index] = EvaluationResult(
+                    evaluator_type=evaluator_spec.type,
+                    status="ERROR",
+                    message=f"no evaluator registered for {evaluator_spec.type}",
+                    metadata={"error_code": RunErrorCode.EVALUATION_ERROR.value},
                 )
                 continue
             if target_result.status != "OK" and not getattr(
                 evaluator, "runs_on_target_error", False
             ):
-                results.append(
-                    EvaluationResult(
-                        evaluator_type=evaluator_spec.type,
-                        status="SKIPPED",
-                        message="target invocation did not complete",
-                    )
+                indexed_results[index] = EvaluationResult(
+                    evaluator_type=evaluator_spec.type,
+                    status="SKIPPED",
+                    message="target invocation did not complete",
                 )
                 continue
             if getattr(evaluator, "requires_trace", False) and trace_record.status != "complete":
-                results.append(
-                    EvaluationResult(
-                        evaluator_type=evaluator_spec.type,
-                        status="NOT_OBSERVABLE",
-                        message=(
-                            "trace evidence is unavailable or incomplete; "
-                            "the target output remains available to output evaluators"
-                        ),
-                        metadata={"trace_status": trace_record.status},
-                    )
+                indexed_results[index] = EvaluationResult(
+                    evaluator_type=evaluator_spec.type,
+                    status="NOT_OBSERVABLE",
+                    message=(
+                        "trace evidence is unavailable or incomplete; "
+                        "the target output remains available to output evaluators"
+                    ),
+                    metadata={"trace_status": trace_record.status},
                 )
                 continue
             try:
@@ -360,6 +359,12 @@ class TestRunner:
                             target_result=target_result,
                             trace_record=trace_record,
                             context=context,
+                            manifest=manifest,
+                            prior_evaluations=tuple(
+                                indexed_results[item]
+                                for item in sorted(indexed_results)
+                                if indexed_results[item].evaluator_type != "llm_judge"
+                            ),
                         )
                     ),
                     timeout_seconds=self._options.evaluator_timeout_seconds,
@@ -394,8 +399,8 @@ class TestRunner:
                     message="evaluator returned a mismatched evaluator_type",
                     metadata={"error_code": RunErrorCode.EVALUATION_ERROR.value},
                 )
-            results.append(result)
-        return results
+            indexed_results[index] = result
+        return [indexed_results[index] for index in range(len(test_spec.evaluators))]
 
     @staticmethod
     def _build_test_result(
@@ -457,6 +462,7 @@ class TestRunner:
         base_context: RunContext,
         trial_index: int,
         artifact_root: Path,
+        manifest: AgentManifest | None,
     ) -> tuple[TestResult, TraceRecord]:
         started_at = utc_now()
         context = base_context.model_copy(
@@ -512,6 +518,7 @@ class TestRunner:
                         target_result,
                         trace_record,
                         context,
+                        manifest,
                     )
             except TimeoutError:
                 target_result = TargetResult(
@@ -772,7 +779,12 @@ class TestRunner:
                 ) -> tuple[int, AgentTestSpec, TestResult, TraceRecord]:
                     async with semaphore:
                         result, trace_record = await self._execute_trial(
-                            spec, target, context, trial_index, writer.root
+                            spec,
+                            target,
+                            context,
+                            trial_index,
+                            writer.root,
+                            manifest,
                         )
                     return ordinal, spec, result, trace_record
 
