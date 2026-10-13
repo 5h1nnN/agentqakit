@@ -143,6 +143,40 @@ async def test_deepseek_structured_provider_preserves_use_case_and_system_prompt
 
 
 @pytest.mark.asyncio
+async def test_deepseek_structured_provider_marks_semantic_repair_attempt() -> None:
+    captured: dict[str, object] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": '{"tests":[]}'},
+                    }
+                ]
+            },
+        )
+
+    provider = DeepSeekProvider(_settings(), transport=httpx.MockTransport(handler))
+    await provider.complete(
+        StructuredRequest(
+            use_case="test_generation",
+            system_prompt="Generate schema-valid tests.",
+            prompt='{"manifest":"bounded"}',
+            response_schema={"type": "object"},
+            attempt=2,
+        )
+    )
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert "previous response failed" in body["messages"][0]["content"]
+
+
+@pytest.mark.asyncio
 async def test_deepseek_provider_retries_transient_status_once() -> None:
     calls = 0
 

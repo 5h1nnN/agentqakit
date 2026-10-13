@@ -80,6 +80,18 @@ def _load_inputs(
             "tests path does not contain an AgentTest",
             code="RUN_SERVICE_TESTS_MISSING",
         )
+    review_required = [
+        spec.metadata.name
+        for spec in tests
+        if spec.metadata.labels.get("generated") == "true"
+        and spec.metadata.labels.get("review-status") == "REVIEW_REQUIRED"
+    ]
+    if review_required:
+        raise RunServiceError(
+            "generated high-risk tests require approval before execution: "
+            + ", ".join(review_required),
+            code="RUN_SERVICE_REVIEW_REQUIRED",
+        )
     if len(targets) != 1:
         raise RunServiceError(
             "target path must contain exactly one Target",

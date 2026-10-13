@@ -1,0 +1,455 @@
+{
+  "$defs": {
+    "GenerationGoalSummary": {
+      "additionalProperties": false,
+      "description": "Persisted goal fields without raw code contents.",
+      "properties": {
+        "allowed_mutations": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Allowed Mutations",
+          "type": "array"
+        },
+        "categories": {
+          "items": {
+            "enum": [
+              "normal",
+              "boundary",
+              "fault",
+              "security",
+              "efficiency",
+              "hitl"
+            ],
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Categories",
+          "type": "array"
+        },
+        "code_evidence_hashes": {
+          "items": {
+            "pattern": "^sha256:[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Code Evidence Hashes",
+          "type": "array"
+        },
+        "instructions": {
+          "anyOf": [
+            {
+              "maxLength": 4000,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Instructions"
+        },
+        "max_cases": {
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Max Cases",
+          "type": "integer"
+        },
+        "risk_levels": {
+          "items": {
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "critical"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Risk Levels",
+          "type": "array"
+        },
+        "target_capabilities": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Target Capabilities",
+          "type": "array"
+        },
+        "target_policies": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 200,
+          "title": "Target Policies",
+          "type": "array"
+        }
+      },
+      "required": [
+        "categories",
+        "risk_levels",
+        "max_cases"
+      ],
+      "title": "GenerationGoalSummary",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LLMCallEvidence": {
+      "additionalProperties": false,
+      "description": "Non-secret, reproducible metadata for one logical structured LLM call.",
+      "properties": {
+        "attempts": {
+          "exclusiveMinimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "evidence_hash": {
+          "minLength": 1,
+          "title": "Evidence Hash",
+          "type": "string"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "prompt_hash": {
+          "minLength": 1,
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_request_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Provider Request Ids",
+          "type": "array"
+        },
+        "request_id": {
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "response_schema_hash": {
+          "minLength": 1,
+          "title": "Response Schema Hash",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "INVALID_OUTPUT",
+            "PROVIDER_ERROR",
+            "SKIPPED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "system_prompt_hash": {
+          "minLength": 1,
+          "title": "System Prompt Hash",
+          "type": "string"
+        },
+        "token_usage": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxProperties": 20,
+          "title": "Token Usage",
+          "type": "object"
+        },
+        "transport_attempts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transport Attempts"
+        },
+        "use_case": {
+          "enum": [
+            "test_generation",
+            "semantic_judge",
+            "failure_analysis"
+          ],
+          "title": "Use Case",
+          "type": "string"
+        }
+      },
+      "required": [
+        "use_case",
+        "provider",
+        "model",
+        "parameters",
+        "system_prompt_hash",
+        "prompt_hash",
+        "evidence_hash",
+        "response_schema_hash",
+        "request_id",
+        "attempts",
+        "status"
+      ],
+      "title": "LLMCallEvidence",
+      "type": "object"
+    },
+    "PlanItem": {
+      "additionalProperties": false,
+      "description": "One capability-risk-scenario cell proposed before test generation.",
+      "properties": {
+        "capabilities": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Capabilities",
+          "type": "array"
+        },
+        "category": {
+          "enum": [
+            "normal",
+            "boundary",
+            "fault",
+            "security",
+            "efficiency",
+            "hitl"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "mutation": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mutation"
+        },
+        "policies": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Policies",
+          "type": "array"
+        },
+        "provenance": {
+          "items": {
+            "enum": [
+              "declared",
+              "discovered",
+              "inferred",
+              "code"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Provenance",
+          "type": "array"
+        },
+        "rationale": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "requires_human": {
+          "default": false,
+          "title": "Requires Human",
+          "type": "boolean"
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Risk",
+          "type": "string"
+        },
+        "source_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "title": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "tools": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Tools",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "category",
+        "risk",
+        "rationale",
+        "source_refs",
+        "provenance"
+      ],
+      "title": "PlanItem",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Validated first-phase output and its reproducibility evidence.",
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "generation_id": {
+      "minLength": 1,
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "goal": {
+      "$ref": "#/$defs/GenerationGoalSummary"
+    },
+    "goal_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Goal Hash",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/PlanItem"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "llm_call": {
+      "$ref": "#/$defs/LLMCallEvidence"
+    },
+    "manifest_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "questions": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Questions",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "agentqa.generation-plan/v1alpha1",
+      "default": "agentqa.generation-plan/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 50,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "generation_id",
+    "created_at",
+    "manifest_hash",
+    "goal_hash",
+    "goal",
+    "items",
+    "llm_call"
+  ],
+  "title": "GenerationPlan",
+  "type": "object"
+}

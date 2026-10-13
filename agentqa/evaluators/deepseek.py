@@ -280,10 +280,16 @@ class DeepSeekJudgeProvider:
     @staticmethod
     def _structured_system_prompt(request: StructuredRequest) -> str:
         schema = canonical_json_bytes(request.response_schema).decode("utf-8")
+        repair = (
+            " A previous response failed the schema or application constraints. "
+            "Recreate the entire object from scratch and check every required field."
+            if request.attempt == 2
+            else ""
+        )
         return (
             f"{request.system_prompt}\n\n"
             "Return only a JSON object with no markdown. The JSON object must satisfy "
-            f"this Draft 2020-12 schema: {schema}"
+            f"this Draft 2020-12 schema: {schema}{repair}"
         )
 
     async def _request(self, request: StructuredRequest) -> tuple[httpx.Response, int]:

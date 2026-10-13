@@ -1,7 +1,8 @@
 # Specification and artifact contracts
 
 AgentQAKit specifications are strict, versioned YAML documents. `AgentTest`,
-`Target`, `Mutation`, and `QualityGate` remain at `agentqa.dev/v1alpha1`.
+`Target`, `Mutation`, `QualityGate`, and `GenerationGoal` remain at
+`agentqa.dev/v1alpha1`.
 `AgentManifest` uses `agentqa.dev/v1alpha2`; the loader explicitly migrates the
 identity-only v1alpha1 manifest without inventing purpose, capability, policy,
 or risk claims.
@@ -43,6 +44,20 @@ The run stores `resolved-manifest.json`, containing the normalized declaration
 and a bounded runtime snapshot. When the manifest declares a Git commit, the
 local checkout is compared and marked `VERIFIED`, `STALE_MANIFEST`, or
 `UNVERIFIED`. Drift is reported; declared data is never silently overwritten.
+
+## Generation contracts
+
+`GenerationGoal` bounds AI-assisted generation by categories, risk levels,
+target capabilities and policies, allowed mutations, case count, and optional
+caller-selected `CodeEvidence`. It is a user specification and can be validated
+with the ordinary `agentqa test validate` command.
+
+`GenerationPlan` and `GenerationReport` are internal, checksummed JSON artifact
+contracts with schema versions `agentqa.generation-plan/v1alpha1` and
+`agentqa.generation-report/v1alpha1`. Plans persist only CodeEvidence hashes;
+reports contain validated cases, capability/policy coverage, gaps, warnings,
+and two structured LLM call records. See [`generation.md`](generation.md) for
+the workflow and review policy.
 
 ## Templates
 

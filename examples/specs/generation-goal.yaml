@@ -1,0 +1,18 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: GenerationGoal
+metadata:
+  name: campus-agent-generation
+categories:
+  - normal
+  - boundary
+  - security
+riskLevels:
+  - low
+  - medium
+  - high
+targetCapabilities:
+  - query-course
+targetPolicies:
+  - forbidden-behavior-1
+maxCases: 4
+instructions: Prefer deterministic assertions and include one privacy refusal case.

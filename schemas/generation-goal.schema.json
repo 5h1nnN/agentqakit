@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "CodeEvidence": {
+      "additionalProperties": false,
+      "description": "A caller-selected, bounded code excerpt; never a filesystem read request.",
+      "properties": {
+        "content": {
+          "maxLength": 16384,
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "contentHash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Contenthash",
+          "type": "string"
+        },
+        "endLine": {
+          "exclusiveMinimum": 0,
+          "title": "Endline",
+          "type": "integer"
+        },
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "startLine": {
+          "exclusiveMinimum": 0,
+          "title": "Startline",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "startLine",
+        "endLine",
+        "contentHash",
+        "reason",
+        "content"
+      ],
+      "title": "CodeEvidence",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "User-owned generation scope, risk envelope, and case budget.",
+  "properties": {
+    "allowedMutations": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Allowedmutations",
+      "type": "array"
+    },
+    "apiVersion": {
+      "const": "agentqa.dev/v1alpha1",
+      "default": "agentqa.dev/v1alpha1",
+      "title": "Apiversion",
+      "type": "string"
+    },
+    "categories": {
+      "items": {
+        "enum": [
+          "normal",
+          "boundary",
+          "fault",
+          "security",
+          "efficiency",
+          "hitl"
+        ],
+        "type": "string"
+      },
+      "maxItems": 6,
+      "minItems": 1,
+      "title": "Categories",
+      "type": "array"
+    },
+    "codeEvidence": {
+      "items": {
+        "$ref": "#/$defs/CodeEvidence"
+      },
+      "maxItems": 10,
+      "title": "Codeevidence",
+      "type": "array"
+    },
+    "instructions": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Instructions"
+    },
+    "kind": {
+      "const": "GenerationGoal",
+      "default": "GenerationGoal",
+      "title": "Kind",
+      "type": "string"
+    },
+    "maxCases": {
+      "default": 10,
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Maxcases",
+      "type": "integer"
+    },
+    "metadata": {
+      "$ref": "#/$defs/Metadata"
+    },
+    "riskLevels": {
+      "items": {
+        "enum": [
+          "low",
+          "medium",
+          "high",
+          "critical"
+        ],
+        "type": "string"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "title": "Risklevels",
+      "type": "array"
+    },
+    "targetCapabilities": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Targetcapabilities",
+      "type": "array"
+    },
+    "targetPolicies": {
+      "items": {
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+        "type": "string"
+      },
+      "maxItems": 200,
+      "title": "Targetpolicies",
+      "type": "array"
+    }
+  },
+  "required": [
+    "metadata"
+  ],
+  "title": "GenerationGoal",
+  "type": "object"
+}

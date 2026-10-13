@@ -1,0 +1,1115 @@
+{
+  "$defs": {
+    "AgentTestSpec": {
+      "additionalProperties": false,
+      "description": "A single declarative agent test case.",
+      "properties": {
+        "apiVersion": {
+          "const": "agentqa.dev/v1alpha1",
+          "default": "agentqa.dev/v1alpha1",
+          "title": "Apiversion",
+          "type": "string"
+        },
+        "evaluators": {
+          "items": {
+            "$ref": "#/$defs/EvaluatorSpec"
+          },
+          "minItems": 1,
+          "title": "Evaluators",
+          "type": "array"
+        },
+        "expect": {
+          "$ref": "#/$defs/Expectations"
+        },
+        "kind": {
+          "const": "AgentTest",
+          "default": "AgentTest",
+          "title": "Kind",
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/$defs/Metadata"
+        },
+        "mutation": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mutation"
+        },
+        "scenario": {
+          "$ref": "#/$defs/Scenario"
+        },
+        "targetRef": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Targetref"
+        },
+        "trialPolicy": {
+          "$ref": "#/$defs/TrialPolicy"
+        },
+        "trials": {
+          "default": 1,
+          "exclusiveMinimum": 0,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "metadata",
+        "scenario",
+        "expect",
+        "evaluators"
+      ],
+      "title": "AgentTestSpec",
+      "type": "object"
+    },
+    "BudgetExpectation": {
+      "additionalProperties": false,
+      "description": "Positive execution budgets.",
+      "properties": {
+        "maxCostUsd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxcostusd"
+        },
+        "maxLatencyMs": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxlatencyms"
+        },
+        "maxLlmCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxllmcalls"
+        },
+        "maxRetries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxretries"
+        },
+        "maxSteps": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxsteps"
+        },
+        "maxToolCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtoolcalls"
+        },
+        "maxTotalTokens": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxtotaltokens"
+        }
+      },
+      "title": "BudgetExpectation",
+      "type": "object"
+    },
+    "CoverageRecord": {
+      "additionalProperties": false,
+      "description": "Tests covering one declared capability or policy.",
+      "properties": {
+        "case_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "title": "Case Ids",
+          "type": "array"
+        },
+        "subject": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Subject",
+          "type": "string"
+        },
+        "subject_type": {
+          "enum": [
+            "capability",
+            "policy"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_type",
+        "subject"
+      ],
+      "title": "CoverageRecord",
+      "type": "object"
+    },
+    "EvaluatorSpec": {
+      "additionalProperties": false,
+      "description": "Configuration for one known evaluator implementation.",
+      "properties": {
+        "config": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Config",
+          "type": "object"
+        },
+        "rubric": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rubric"
+        },
+        "type": {
+          "enum": [
+            "schema",
+            "text",
+            "tool_call",
+            "trajectory",
+            "state",
+            "budget",
+            "privacy",
+            "llm_judge"
+          ],
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "title": "EvaluatorSpec",
+      "type": "object"
+    },
+    "Expectations": {
+      "additionalProperties": false,
+      "description": "Expected output, trajectory, state, and resource use.",
+      "properties": {
+        "budgets": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BudgetExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "output": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OutputExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StateExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tools": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "trajectory": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrajectoryExpectation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Expectations",
+      "type": "object"
+    },
+    "GeneratedCase": {
+      "additionalProperties": false,
+      "description": "A validated draft test plus its explanation and review state.",
+      "properties": {
+        "assertion_basis": {
+          "items": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Assertion Basis",
+          "type": "array"
+        },
+        "case_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "coverage_item_ids": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Coverage Item Ids",
+          "type": "array"
+        },
+        "rationale": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "review_status": {
+          "enum": [
+            "READY",
+            "REVIEW_REQUIRED",
+            "APPROVED"
+          ],
+          "title": "Review Status",
+          "type": "string"
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ],
+          "title": "Risk",
+          "type": "string"
+        },
+        "source_refs": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "spec": {
+          "$ref": "#/$defs/AgentTestSpec"
+        }
+      },
+      "required": [
+        "case_id",
+        "spec",
+        "rationale",
+        "assertion_basis",
+        "coverage_item_ids",
+        "source_refs",
+        "risk",
+        "review_status"
+      ],
+      "title": "GeneratedCase",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "LLMCallEvidence": {
+      "additionalProperties": false,
+      "description": "Non-secret, reproducible metadata for one logical structured LLM call.",
+      "properties": {
+        "attempts": {
+          "exclusiveMinimum": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "evidence_hash": {
+          "minLength": 1,
+          "title": "Evidence Hash",
+          "type": "string"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "prompt_hash": {
+          "minLength": 1,
+          "title": "Prompt Hash",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_request_ids": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 10,
+          "title": "Provider Request Ids",
+          "type": "array"
+        },
+        "request_id": {
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "response_schema_hash": {
+          "minLength": 1,
+          "title": "Response Schema Hash",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "INVALID_OUTPUT",
+            "PROVIDER_ERROR",
+            "SKIPPED"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "system_prompt_hash": {
+          "minLength": 1,
+          "title": "System Prompt Hash",
+          "type": "string"
+        },
+        "token_usage": {
+          "additionalProperties": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxProperties": 20,
+          "title": "Token Usage",
+          "type": "object"
+        },
+        "transport_attempts": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transport Attempts"
+        },
+        "use_case": {
+          "enum": [
+            "test_generation",
+            "semantic_judge",
+            "failure_analysis"
+          ],
+          "title": "Use Case",
+          "type": "string"
+        }
+      },
+      "required": [
+        "use_case",
+        "provider",
+        "model",
+        "parameters",
+        "system_prompt_hash",
+        "prompt_hash",
+        "evidence_hash",
+        "response_schema_hash",
+        "request_id",
+        "attempts",
+        "status"
+      ],
+      "title": "LLMCallEvidence",
+      "type": "object"
+    },
+    "Message": {
+      "additionalProperties": false,
+      "description": "One conversation message supplied to an agent.",
+      "properties": {
+        "content": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        },
+        "role": {
+          "enum": [
+            "system",
+            "user",
+            "assistant",
+            "tool"
+          ],
+          "title": "Role",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "content"
+      ],
+      "title": "Message",
+      "type": "object"
+    },
+    "Metadata": {
+      "additionalProperties": false,
+      "description": "Common metadata for named specification resources.",
+      "properties": {
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Labels",
+          "type": "object"
+        },
+        "name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Metadata",
+      "type": "object"
+    },
+    "OrderConstraint": {
+      "additionalProperties": false,
+      "description": "A partial ordering requirement between two tool calls.",
+      "properties": {
+        "after": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "After",
+          "type": "string"
+        },
+        "before": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "title": "Before",
+          "type": "string"
+        }
+      },
+      "required": [
+        "before",
+        "after"
+      ],
+      "title": "OrderConstraint",
+      "type": "object"
+    },
+    "OutputExpectation": {
+      "additionalProperties": false,
+      "description": "Deterministic assertions over the final output.",
+      "properties": {
+        "allowedHttpStatuses": {
+          "items": {
+            "maximum": 599,
+            "minimum": 100,
+            "type": "integer"
+          },
+          "title": "Allowedhttpstatuses",
+          "type": "array"
+        },
+        "exactFields": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Exactfields",
+          "type": "object"
+        },
+        "forbiddenPatterns": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Forbiddenpatterns",
+          "type": "array"
+        },
+        "jsonSchema": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Jsonschema"
+        },
+        "mustRefuse": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mustrefuse"
+        },
+        "requireNonEmpty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requirenonempty"
+        },
+        "requiredPatterns": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Requiredpatterns",
+          "type": "array"
+        }
+      },
+      "title": "OutputExpectation",
+      "type": "object"
+    },
+    "Scenario": {
+      "additionalProperties": false,
+      "description": "Input and initial state for one agent test.",
+      "properties": {
+        "initialState": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Initialstate",
+          "type": "object"
+        },
+        "input": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Input",
+          "type": "object"
+        },
+        "messages": {
+          "items": {
+            "$ref": "#/$defs/Message"
+          },
+          "title": "Messages",
+          "type": "array"
+        }
+      },
+      "title": "Scenario",
+      "type": "object"
+    },
+    "SpanAttributeExpectation": {
+      "additionalProperties": false,
+      "description": "An attribute required on every span selected by optional kind and name.",
+      "properties": {
+        "attribute": {
+          "minLength": 1,
+          "title": "Attribute",
+          "type": "string"
+        },
+        "equals": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "AGENT",
+                "LLM",
+                "TOOL",
+                "RETRIEVER",
+                "NODE",
+                "EVALUATOR"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "required": [
+        "attribute"
+      ],
+      "title": "SpanAttributeExpectation",
+      "type": "object"
+    },
+    "StateExpectation": {
+      "additionalProperties": false,
+      "description": "A conjunction of non-executable state assertions.",
+      "properties": {
+        "all": {
+          "items": {
+            "$ref": "#/$defs/StateInvariant"
+          },
+          "minItems": 1,
+          "title": "All",
+          "type": "array"
+        }
+      },
+      "required": [
+        "all"
+      ],
+      "title": "StateExpectation",
+      "type": "object"
+    },
+    "StateInvariant": {
+      "additionalProperties": false,
+      "description": "One non-executable state assertion over a restricted field path.",
+      "properties": {
+        "field": {
+          "minLength": 1,
+          "title": "Field",
+          "type": "string"
+        },
+        "op": {
+          "enum": [
+            "equals",
+            "notEquals",
+            "exists",
+            "in",
+            "before"
+          ],
+          "title": "Op",
+          "type": "string"
+        },
+        "value": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "title": "StateInvariant",
+      "type": "object"
+    },
+    "ToolExpectation": {
+      "additionalProperties": false,
+      "description": "Allowed tool-call behavior for a test.",
+      "properties": {
+        "argumentSchemas": {
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 128,
+            "minLength": 1
+          },
+          "title": "Argumentschemas",
+          "type": "object"
+        },
+        "forbidden": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "title": "Forbidden",
+          "type": "array"
+        },
+        "maxCalls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxcalls"
+        },
+        "minCalls": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "additionalProperties": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mincalls"
+        },
+        "order": {
+          "items": {
+            "$ref": "#/$defs/OrderConstraint"
+          },
+          "title": "Order",
+          "type": "array"
+        },
+        "required": {
+          "items": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+            "type": "string"
+          },
+          "title": "Required",
+          "type": "array"
+        }
+      },
+      "title": "ToolExpectation",
+      "type": "object"
+    },
+    "TrajectoryExpectation": {
+      "additionalProperties": false,
+      "description": "Assertions over normalized trace shape and span metadata.",
+      "properties": {
+        "maxErrorSpans": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maxerrorspans"
+        },
+        "requiredSpanAttributes": {
+          "items": {
+            "$ref": "#/$defs/SpanAttributeExpectation"
+          },
+          "title": "Requiredspanattributes",
+          "type": "array"
+        }
+      },
+      "title": "TrajectoryExpectation",
+      "type": "object"
+    },
+    "TrialPolicy": {
+      "additionalProperties": false,
+      "description": "How multiple trials determine one test-case outcome.",
+      "properties": {
+        "minPassRate": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minpassrate"
+        },
+        "strategy": {
+          "default": "all",
+          "enum": [
+            "all",
+            "majority",
+            "minPassRate"
+          ],
+          "title": "Strategy",
+          "type": "string"
+        }
+      },
+      "title": "TrialPolicy",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Final generation coverage, gaps, warnings, and AI evidence.",
+  "properties": {
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/GeneratedCase"
+      },
+      "maxItems": 50,
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    },
+    "code_evidence_hashes": {
+      "items": {
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Code Evidence Hashes",
+      "type": "array"
+    },
+    "coverage": {
+      "items": {
+        "$ref": "#/$defs/CoverageRecord"
+      },
+      "maxItems": 400,
+      "title": "Coverage",
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 400,
+      "title": "Gaps",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "generation_id": {
+      "minLength": 1,
+      "title": "Generation Id",
+      "type": "string"
+    },
+    "goal_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Goal Hash",
+      "type": "string"
+    },
+    "llm_calls": {
+      "items": {
+        "$ref": "#/$defs/LLMCallEvidence"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Llm Calls",
+      "type": "array"
+    },
+    "manifest_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Manifest Hash",
+      "type": "string"
+    },
+    "plan_hash": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Plan Hash",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "agentqa.generation-report/v1alpha1",
+      "default": "agentqa.generation-report/v1alpha1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "maxLength": 4000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 100,
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "generation_id",
+    "generated_at",
+    "manifest_hash",
+    "goal_hash",
+    "plan_hash",
+    "cases",
+    "llm_calls"
+  ],
+  "title": "GenerationReport",
+  "type": "object"
+}

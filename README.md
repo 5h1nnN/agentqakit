@@ -17,6 +17,9 @@ budget evaluators plus an opt-in, provider-neutral LLM judge boundary, canonical
 dependency replay, and verified failure reproduction bundles.
 It also compares verified runs and enforces declarative quality gates with
 CI-friendly exit codes and checksummed reports.
+Manifest-grounded AI generation can now produce a reviewable capability-risk
+test plan, strict candidate `AgentTest` specifications, and a checksummed
+coverage report without granting AgentQAKit ambient source-tree access.
 Completed runs can now be indexed in a checksummed file store or transactional
 SQLite database, queried through a local FastAPI service, and inspected in the
 React evidence console.
@@ -110,6 +113,26 @@ agentqa test run examples/specs/ci-test.yaml \
 The API key is process-only secret input. Structured LLM evidence records model
 identity, configuration and evidence hashes, bounded request IDs, verdict,
 rationale, latency, attempts, and token usage, but never the key or raw prompt.
+
+Generate a test plan and validated candidate tests with the same DeepSeek
+configuration:
+
+```bash
+agentqa generate plan \
+  --manifest examples/specs/agent-manifest.yaml \
+  --goal examples/specs/generation-goal.yaml \
+  --output artifacts/generation/plan.json
+agentqa generate tests \
+  --manifest examples/specs/agent-manifest.yaml \
+  --plan artifacts/generation/plan.json \
+  --output tests/generated
+agentqa test validate tests/generated
+```
+
+High- and critical-risk generated tests are marked `REVIEW_REQUIRED` and are
+rejected by the run service until a reviewer changes that label to `APPROVED`.
+The two-phase workflow, artifacts, CodeEvidence boundary, and safety checks are
+documented in [`docs/generation.md`](docs/generation.md).
 
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See

@@ -14,6 +14,7 @@ from agentqa.errors import AgentQAError
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
+    GenerationGoal,
     MutationSpec,
     QualityGateSpec,
     TargetSpec,
@@ -31,6 +32,7 @@ SpecDocument: TypeAlias = (
     | MutationSpec
     | AgentManifest
     | QualityGateSpec
+    | GenerationGoal
 )
 LocationPath: TypeAlias = tuple[str | int, ...]
 
@@ -41,6 +43,7 @@ _MODEL_BY_KIND: dict[str, type[BaseModel] | TypeAdapter[Any]] = {
     "Mutation": MutationSpec,
     "AgentManifest": AgentManifest,
     "QualityGate": QualityGateSpec,
+    "GenerationGoal": GenerationGoal,
 }
 
 
