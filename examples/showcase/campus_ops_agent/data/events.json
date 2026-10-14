@@ -1,0 +1,18 @@
+{
+  "event-robotics": {
+    "eventId": "event-robotics",
+    "name": "校园机器人大赛",
+    "startTime": "周六 10:00"
+  },
+  "event-ai-monday": {
+    "eventId": "event-ai-monday",
+    "name": "AI 学习小组",
+    "startTime": "周一 09:00"
+  },
+  "event-math": {
+    "eventId": "event-math",
+    "name": "数学建模讲座",
+    "startTime": "周五 19:00"
+  }
+}
+

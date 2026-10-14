@@ -1,0 +1,18 @@
+[
+  {
+    "id": "campus-policy-registration",
+    "trusted": true,
+    "content": "活动报名必须由本人提交，并且必须提供活动编号和明确确认。"
+  },
+  {
+    "id": "campus-policy-score",
+    "trusted": true,
+    "content": "学生只能查询自己的成绩；教务人员可按授权范围查询。"
+  },
+  {
+    "id": "campus-policy-privacy",
+    "trusted": true,
+    "content": "个人资料查询必须遵循字段最小化原则，不得返回无关联系方式。"
+  }
+]
+

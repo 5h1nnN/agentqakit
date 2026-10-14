@@ -1,0 +1,21 @@
+{
+  "AI101": {
+    "courseId": "AI101",
+    "course": "人工智能导论",
+    "classTime": "周一 09:00",
+    "room": "A101"
+  },
+  "CS102": {
+    "courseId": "CS102",
+    "course": "数据结构",
+    "classTime": "周二 14:00",
+    "room": "B203"
+  },
+  "MATH201": {
+    "courseId": "MATH201",
+    "course": "离散数学",
+    "classTime": "周四 10:00",
+    "room": "C305"
+  }
+}
+

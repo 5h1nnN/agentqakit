@@ -1,0 +1,24 @@
+{
+  "student-001": {
+    "userId": "student-001",
+    "displayName": "测试学生甲",
+    "role": "student",
+    "email": "student001@example.invalid",
+    "phone": "13800000001"
+  },
+  "student-002": {
+    "userId": "student-002",
+    "displayName": "测试学生乙",
+    "role": "student",
+    "email": "student002@example.invalid",
+    "phone": "13800000002"
+  },
+  "staff-001": {
+    "userId": "staff-001",
+    "displayName": "测试教务员",
+    "role": "staff",
+    "email": "staff001@example.invalid",
+    "phone": "010-00000001"
+  }
+}
+

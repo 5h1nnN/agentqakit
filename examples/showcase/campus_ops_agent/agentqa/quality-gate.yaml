@@ -1,0 +1,12 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: campus-ops-showcase
+rules:
+  minPassRate: 1.0
+  minMutationScore: 0.8
+  maxNewRegressions: 0
+  maxHighRiskFailures: 0
+  maxP95LatencyIncrease: 0.2
+  requireReplayBundleForFailures: true
+

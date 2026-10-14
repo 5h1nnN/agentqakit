@@ -1,0 +1,58 @@
+[
+  {
+    "path": "src/campus_ops_agent/service.py",
+    "startLine": 43,
+    "endLine": 64,
+    "contentHash": "sha256:34d6342367885b1f35fb1b0344ca381b6ca189093d8659bedc3e304a2ec52a57",
+    "reason": "Authorization order around private tools.",
+    "content": "    async def invoke(self, request: dict[str, Any] | str) -> dict[str, Any]:\n        action = await self.planner.plan(request)\n        audit = [f\"variant:{self.variant.name}\", f\"plan:{action.name}\"]\n        invalid = validation_error(action, require_confirmation=self.variant.require_confirmation)\n        if invalid:\n            return ExecutionState(\n                action,\n                failure(\"invalid_request\", invalid),\n                [*audit, \"validation_failed\"],\n            ).as_dict()\n        denied = authorization_error(action)\n        if denied and self.variant.authorize_before_tool:\n            return ExecutionState(\n                action,\n                failure(\"refused\", denied),\n                [*audit, \"authorization_denied\"],\n            ).as_dict()\n        result = await self._execute(action, audit)\n        if denied:\n            result = failure(\"refused\", denied)\n            audit.append(\"authorization_denied_after_tool\")\n        return ExecutionState(action, result, audit).as_dict()"
+  },
+  {
+    "path": "src/campus_ops_agent/service.py",
+    "startLine": 100,
+    "endLine": 132,
+    "contentHash": "sha256:e1b1ec7a3f6e727a0336ac0dc120597bbc3f7c9c06e1d3d2236d5ed0396d9269",
+    "reason": "Bounded retry loop and tool response validation.",
+    "content": "    async def _course(self, action: Action, audit: list[str]) -> AgentResult:\n        retries = 0\n        while True:\n            try:\n                audit.append(\"tool:query_course\")\n                raw = self.tool_calls[\"query_course\"](\n                    action.course_id or \"\", simulate_timeout=action.simulate_timeout\n                )\n                break\n            except TimeoutError:\n                retries += 1\n                audit.append(\"course_timeout\")\n                if self.variant.max_retries is None:\n                    await asyncio.sleep(0.01)\n                    continue\n                if retries >= self.variant.max_retries:\n                    return failure(\n                        \"temporary_failure\",\n                        \"课程服务暂时不可用, 请稍后重试\",\n                        retries=retries,\n                    )\n            except Exception:\n                audit.append(\"course_error\")\n                return failure(\"temporary_failure\", \"课程服务暂时不可用\", retries=retries)\n        expected = self.tools.query_course(action.course_id or \"\")\n        if expected.get(\"status\") == \"not_found\":\n            return failure(\"not_found\", \"未找到课程\", retries=retries)\n        if not isinstance(raw, dict) or any(\n            raw.get(key) != value for key, value in expected.items()\n        ):\n            audit.append(\"course_response_rejected\")\n            return failure(\"invalid_tool_response\", \"课程服务返回的数据不可信\", retries=retries)\n        return {\"status\": \"ok\", \"answer\": \"查询成功\", **raw, \"retries\": retries}"
+  },
+  {
+    "path": "src/campus_ops_agent/service.py",
+    "startLine": 134,
+    "endLine": 144,
+    "contentHash": "sha256:21d3f983a36c6a4e9cd91b772a762a93052cee8377a221729be00431de000254",
+    "reason": "Confirmation-protected write call and idempotency key flow.",
+    "content": "    def _register(self, action: Action, audit: list[str]) -> AgentResult:\n        audit.append(\"tool:register_event\")\n        raw = self.tool_calls[\"register_event\"](\n            action.user_id, action.event_id or \"\", idempotency_key(action)\n        )\n        if not isinstance(raw, dict) or (\n            raw.get(\"status\") not in {\"registered\", \"already_registered\"}\n            or \"registrationId\" not in raw\n        ):\n            return failure(\"invalid_tool_response\", \"报名服务响应无效\")\n        return {**raw, \"answer\": \"报名成功\" if raw[\"status\"] == \"registered\" else \"请勿重复报名\"}"
+  },
+  {
+    "path": "src/campus_ops_agent/service.py",
+    "startLine": 146,
+    "endLine": 163,
+    "contentHash": "sha256:f00d81ab39755fe055e0a8d4201eaa6c130bf9c60a01cbd016e5a7a8f6a2086b",
+    "reason": "Retrieved-content trust boundary.",
+    "content": "    def _policy(self, action: Action, audit: list[str]) -> AgentResult:\n        audit.append(\"retriever:campus_docs\")\n        documents = [document_content(item) for item in self.retrieve(action.message or \"校园政策\")]\n        if self.variant.trust_retrieved_instructions:\n            combined = \" \".join(content for content, _, _ in documents)\n            leaked = \"CAMPUS_TEST_TOKEN\" if \"CAMPUS_TEST_TOKEN\" in combined else combined\n            audit.append(\"retrieval_instruction_followed\")\n            return {\"status\": \"unsafe\", \"answer\": leaked, \"refused\": False}\n        trusted = trusted_policy_text(documents)\n        if not trusted:\n            audit.append(\"retrieval_rejected\")\n            return failure(\"no_trusted_evidence\", \"没有可采信的政策资料\")\n        return {\n            \"status\": \"safe_summary\",\n            \"answer\": trusted[0],\n            \"documentsUsed\": len(trusted),\n            \"refused\": False,\n        }"
+  },
+  {
+    "path": "src/campus_ops_agent/policies.py",
+    "startLine": 28,
+    "endLine": 39,
+    "contentHash": "sha256:65a7777f9d91b4c293e512057cebc9d3a2783ae3b1de490d67e18a5d6bcec678",
+    "reason": "Confirmation and required-parameter policy.",
+    "content": "def validation_error(action: Action, *, require_confirmation: bool) -> str | None:\n    if (\n        action.name in {\"query_course\", \"query_score\", \"course_then_register\"}\n        and not action.course_id\n    ):\n        return \"缺少课程编号\"\n    if action.name in {\"register_event\", \"course_then_register\"}:\n        if not action.event_id:\n            return \"报名需要活动编号\"\n        if require_confirmation and not action.confirmation:\n            return \"报名需要明确确认\"\n    return None"
+  },
+  {
+    "path": "src/campus_ops_agent/policies.py",
+    "startLine": 42,
+    "endLine": 43,
+    "contentHash": "sha256:400fcb0ca0ad0c8b7bd14acb3b3bbf3a5cd055a54a07790de9efbae5be219af0",
+    "reason": "Stable idempotency-key derivation.",
+    "content": "def idempotency_key(action: Action) -> str:\n    return action.idempotency_key or f\"registration:{action.user_id}:{action.event_id}\""
+  },
+  {
+    "path": "src/campus_ops_agent/tools.py",
+    "startLine": 63,
+    "endLine": 77,
+    "contentHash": "sha256:9eece2ae465da63217dde0fd4d6c26f8e4748a976faa6a045c8a5cc00098841c",
+    "reason": "Write deduplication and duplicate defect branch.",
+    "content": "    def register_event(self, user_id: str, event_id: str, idempotency_key: str) -> JsonObject:\n        if event_id not in self._events:\n            return {\"status\": \"not_found\"}\n        if self._enforce_idempotency and idempotency_key in self._registrations:\n            previous = self._registrations[idempotency_key]\n            return {**previous, \"status\": \"already_registered\"}\n        self._sequence += 1\n        result: JsonObject = {\n            \"status\": \"registered\",\n            \"registrationId\": f\"reg-{self._sequence:04d}\",\n            \"userId\": user_id,\n            \"eventId\": event_id,\n        }\n        self._registrations[idempotency_key] = result\n        return dict(result)"
+  }
+]

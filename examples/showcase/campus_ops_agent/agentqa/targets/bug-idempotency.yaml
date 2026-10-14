@@ -1,0 +1,9 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata: {name: campus-ops-bug-idempotency, version: 0.1.0}
+type: langgraph
+entrypoint: campus_ops_agent.graph:build_bug_idempotency
+outputPath: result
+stateDiffAllowlist: [result, audit, plan]
+timeoutMs: 2000
+

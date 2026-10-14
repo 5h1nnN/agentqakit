@@ -28,3 +28,8 @@ command is executed.
 Run a target through the benchmark script described in `benchmark/README.md`, or use its
 target YAML directly with `agentqa test run`.
 
+For T16 and code-aware test-generation experiments, use the complete project in
+`examples/showcase/campus_ops_agent/`. The single-file graph remains unchanged as the legacy
+75-case benchmark fixture; the showcase adds an independently installable package, JSON data,
+five isolated defect variants, a composed task, manifests, CodeEvidence, and human golden tests.
+

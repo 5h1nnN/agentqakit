@@ -1,0 +1,30 @@
+apiVersion: agentqa.dev/v1alpha2
+kind: AgentManifest
+metadata:
+  name: campus-ops-minimal
+  version: 0.1.0
+runtime:
+  language: python
+  framework: langgraph
+  entrypoint: campus_ops_agent.graph:build_fixed
+purpose:
+  summary: Answer common campus service requests.
+capabilities:
+  - name: course-query
+    description: Query a course by its identifier.
+  - name: event-registration
+    description: Register the current user for a campus event.
+tools:
+  - name: query_course
+    description: Look up a course.
+    sideEffect: none
+  - name: register_event
+    description: Register a user for an event.
+    sideEffect: external-write
+    risk: high
+    idempotent: true
+provenance:
+  defaultLevel: declared
+  declaredBy: CampusOps minimal black-box fixture
+  reviewed: true
+
