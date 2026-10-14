@@ -25,6 +25,8 @@ separate, evidence-citing AI failure-analysis reports for failed trials.
 An optional local MCP server now exposes those same application services to
 Coding Agents through bounded, checksummed resources and approval-gated tools,
 without granting arbitrary filesystem or shell access.
+The complete standalone, MCP collaboration, and controlled three-arm T16
+experiment is documented in [`docs/t16-end-to-end.md`](docs/t16-end-to-end.md).
 Completed runs can now be indexed in a checksummed file store or transactional
 SQLite database, queried through a local FastAPI service, and inspected in the
 React evidence console.
@@ -171,6 +173,8 @@ and side-effect approval rules are documented in
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
+The Manifest v2 field reference and migration checklist are in
+[`docs/manifest-v2.md`](docs/manifest-v2.md).
 
 The runner provides an explicit lifecycle, bounded trial concurrency, global
 Token/cost budgets, per-trial isolation, timeouts, cancellation,

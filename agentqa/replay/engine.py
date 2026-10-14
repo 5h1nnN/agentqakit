@@ -56,7 +56,7 @@ class _Attempt:
 
 def _attempt(interception: InterceptionPoint) -> _Attempt | None:
     session = get_current_replay_session()
-    if session is None or session.mode == "off":
+    if session is None:
         return None
     context = session.run_context
     if context.trace_id is None:
@@ -88,7 +88,7 @@ def _safe_error(exc: Exception) -> CassetteError:
 def _trace_attempt(
     attempt: _Attempt,
     *,
-    source: Literal["record", "cassette", "live_fallback", "miss"],
+    source: Literal["live", "record", "cassette", "live_fallback", "miss"],
     result: Any = None,
     error: CassetteError | None = None,
 ) -> None:
@@ -193,6 +193,14 @@ class ReplayEngine:
         attempt = _prepare_attempt(interception, arguments)
         if attempt is None:
             return await next_call()
+        if attempt.session.mode == "off":
+            try:
+                result = await next_call()
+            except Exception as exc:
+                _trace_attempt(attempt, source="live", error=_safe_error(exc))
+                raise
+            _trace_attempt(attempt, source="live", result=result)
+            return result
         if attempt.session.mode == "record":
             try:
                 result = await next_call()
@@ -248,6 +256,14 @@ class ReplayEngine:
         attempt = _prepare_attempt(interception, arguments)
         if attempt is None:
             return next_call()
+        if attempt.session.mode == "off":
+            try:
+                result = next_call()
+            except Exception as exc:
+                _trace_attempt(attempt, source="live", error=_safe_error(exc))
+                raise
+            _trace_attempt(attempt, source="live", result=result)
+            return result
         if attempt.session.mode == "record":
             try:
                 result = next_call()

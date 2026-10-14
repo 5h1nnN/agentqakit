@@ -54,6 +54,7 @@ def test_api_lists_run_details_results_traces_findings_and_reviews(
 
     with TestClient(app) as client:
         health = client.get("/api/health")
+        ai_evidence = client.get("/api/ai/evidence")
         listing = client.get("/api/runs", params={"project_id": "campus"})
         detail = client.get(f"/api/runs/{run.run_id}")
         results = client.get(f"/api/runs/{run.run_id}/results")
@@ -62,6 +63,7 @@ def test_api_lists_run_details_results_traces_findings_and_reviews(
 
         assert health.status_code == 200
         assert health.json()["status"] == "ok"
+        assert ai_evidence.json() == {"generations": [], "analyses": []}
         assert listing.json()["runs"][0]["run_id"] == run.run_id
         assert detail.json()["state"] == "stored"
         assert results.json()["results"][0]["trial_id"] == run.results[0].trial_id

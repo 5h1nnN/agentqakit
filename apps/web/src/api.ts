@@ -1,4 +1,5 @@
 import type {
+  AIEvidenceResponse,
   ComparisonReport,
   GateResult,
   HealthResponse,
@@ -39,6 +40,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  aiEvidence() {
+    return request<AIEvidenceResponse>("/api/ai/evidence");
+  },
   health() {
     return request<HealthResponse>("/api/health");
   },

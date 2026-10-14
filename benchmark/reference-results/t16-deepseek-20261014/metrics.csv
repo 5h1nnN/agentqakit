@@ -1,0 +1,4 @@
+arm,valid,valid_rate,invalid_output_batches,provider_error_batches,duplicate_cases,hallucinated_tool_cases,ready,review_required,approved,rejected,executed_behavior_tests,generated_mutation_tests,mutation_score,tokens_per_valid_test,cost_per_valid_test_usd
+minimal-manifest,0,0.0,2,0,0,0,0,0,0,0,0,0,,,
+manifest-v2,0,0.0,2,0,0,0,0,0,0,0,0,0,,,
+manifest-v2-code-evidence,6,1.0,0,0,0,0,3,3,3,0,5,1,0.0,4301.333333333333,0.0012726633333333332

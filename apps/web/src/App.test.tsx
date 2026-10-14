@@ -17,7 +17,9 @@ describe("App", () => {
               workspaceRoot: "/workspace",
               judge: { configured: true, provider: "deepseek", model: "deepseek-test" },
             }
-          : { runs: [], jobs: [] },
+          : String(input).includes("/api/ai/evidence")
+            ? { generations: [], analyses: [] }
+            : { runs: [], jobs: [] },
       })),
     );
   });
@@ -37,5 +39,7 @@ describe("App", () => {
 
     expect(screen.getByRole("heading", { name: "Comparison & gate" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Evaluate gate" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "AI evidence" }));
+    expect(await screen.findByRole("heading", { name: "AI test generation" })).toBeVisible();
   });
 });

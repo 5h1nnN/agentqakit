@@ -1,0 +1,1 @@
+{"exit_code":0,"passed":true,"rules":[{"actual":1.0,"expected":0.8,"message":"observed 1, required at least 0.8","name":"minMutationScore","passed":true},{"actual":1.0,"expected":true,"message":"all failed trials have verified replay bundles","name":"requireReplayBundleForFailures","passed":true}]}

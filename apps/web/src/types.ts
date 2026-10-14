@@ -177,3 +177,54 @@ export interface GateResult {
     message: string | null;
   }>;
 }
+
+export interface AIEvidenceResponse {
+  generations: Array<{
+    generation_id: string;
+    path: string;
+    generated_at: string;
+    manifest_hash: string;
+    plan_hash: string;
+    context_hashes: string[];
+    coverage_gaps: number;
+    cases: Array<{
+      case_id: string;
+      risk: string;
+      review_status: "READY" | "REVIEW_REQUIRED" | "APPROVED";
+      source_refs: string[];
+    }>;
+    llm_calls: Array<{
+      use_case: string;
+      provider: string;
+      model: string;
+      status: string;
+      attempts: number;
+      token_usage: Record<string, number>;
+      latency_ms: number | null;
+      evidence_hash: string;
+    }>;
+  }>;
+  analyses: Array<{
+    analysis_id: string;
+    path: string;
+    generated_at: string;
+    run_id: string;
+    test_case_id: string;
+    trial_id: string;
+    evidence_hash: string;
+    missing_evidence: string[];
+    root_causes: Array<{
+      id: string;
+      hypothesis: string;
+      confidence: number;
+      reasoning: string;
+      evidence_ids: string[];
+    }>;
+    llm_call: {
+      provider: string;
+      model: string;
+      status: string;
+      token_usage: Record<string, number>;
+    };
+  }>;
+}

@@ -85,7 +85,8 @@ The `agentqa/` directory contains:
 - `manifest-minimal.yaml`: T16 black-box condition A.
 - `manifest-v2.yaml`: full semantic contract for condition B.
 - `generation-goal-code.yaml`: the same goal plus selected CodeEvidence for condition C.
-- six targets, eleven mutations, a quality gate, 19 human golden tests, and defect truth.
+- `generation-goal-comparison.yaml`: the shared unscoped goal used by all T16 arms.
+- six targets, eleven mutations, two focused quality gates, 21 human golden tests, and defect truth.
 
 Run the separate mutation suite (its test failures are expected kills):
 
@@ -110,6 +111,14 @@ For the T16 comparison, keep model, temperature, token limit, goal, case limit, 
 and random seed constant. Change only the manifest/evidence condition. Persist valid-case rate,
 hallucinated tools, semantic coverage, defect detection, Mutation Score, token/cost data, review
 actions, and analysis Top-1/Top-3 accuracy.
+
+From the AgentQAKit repository root, `python scripts/run_t16.py
+--approve-high-risk --max-generated-cases 6 --llm-max-tokens 16384
+--llm-timeout-seconds 180` runs the standalone path and comparison;
+`python scripts/run_t16_mcp.py` exercises the official MCP protocol path with
+the same bounded generation defaults. `regression-gate.yaml` and
+`mutation-gate.yaml` separate ordinary pass-rate semantics from expected
+mutation kills.
 
 ## Boundary and limitations
 

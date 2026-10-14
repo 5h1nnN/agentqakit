@@ -17,7 +17,13 @@ scenario: {input: {action: query_course, course_id: CS102}}
 expect:
   output: {exactFields: {status: ok, classTime: 周二 14:00, room: B203}}
   tools: {required: [query_course], maxCalls: 1}
-evaluators: [{type: schema}, {type: tool_call}]
+evaluators:
+  - {type: schema}
+  - {type: tool_call}
+  - type: llm_judge
+    rubric: >-
+      Decide whether the course response is useful, internally consistent, and supported by
+      the observed query_course result. Do not reward unsupported claims.
 ---
 apiVersion: agentqa.dev/v1alpha1
 kind: AgentTest
@@ -116,6 +122,26 @@ targetRef: campus-ops-fixed
 scenario: {input: {action: register_event, event_id: event-math, confirmation: true, idempotency_key: golden-register-confirmed}}
 expect:
   output: {exactFields: {status: registered, eventId: event-math}}
+  tools: {required: [register_event], maxCalls: 1}
+evaluators: [{type: schema}, {type: tool_call}]
+---
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata: {name: idempotency-first-write, labels: {risk: high, category: normal, gold: 'true'}}
+targetRef: campus-ops-fixed
+scenario: {input: {action: register_event, event_id: event-robotics, confirmation: true, idempotency_key: golden-stable-key}}
+expect:
+  output: {exactFields: {status: registered, eventId: event-robotics}}
+  tools: {required: [register_event], maxCalls: 1}
+evaluators: [{type: schema}, {type: tool_call}]
+---
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata: {name: idempotency-repeated-write, labels: {risk: high, category: security, gold: 'true'}}
+targetRef: campus-ops-fixed
+scenario: {input: {action: register_event, event_id: event-robotics, confirmation: true, idempotency_key: golden-stable-key}}
+expect:
+  output: {exactFields: {status: already_registered, eventId: event-robotics}}
   tools: {required: [register_event], maxCalls: 1}
 evaluators: [{type: schema}, {type: tool_call}]
 ---

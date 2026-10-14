@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 
 import { api } from "./api";
+import { AIEvidence } from "./components/AIEvidence";
 import { QualityLab } from "./components/QualityLab";
 import { RunDetail } from "./components/RunDetail";
 import { RunList } from "./components/RunList";
 import type { HealthResponse, RunJob, StoredRunSummary } from "./types";
 
-type View = "runs" | "quality";
+type View = "runs" | "quality" | "ai";
 
 export default function App() {
   const [view, setView] = useState<View>("runs");
@@ -64,7 +65,7 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <button className="brand" onClick={() => { setView("runs"); setSelectedRunId(null); }}><span className="brand__mark">AQ</span><span><strong>AgentQAKit</strong><small>Evidence console</small></span></button>
-        <nav aria-label="Primary"><button className={view === "runs" ? "active" : ""} onClick={() => setView("runs")}>Runs</button><button className={view === "quality" ? "active" : ""} onClick={() => setView("quality")}>Compare &amp; gate</button></nav>
+        <nav aria-label="Primary"><button className={view === "runs" ? "active" : ""} onClick={() => setView("runs")}>Runs</button><button className={view === "ai" ? "active" : ""} onClick={() => setView("ai")}>AI evidence</button><button className={view === "quality" ? "active" : ""} onClick={() => setView("quality")}>Compare &amp; gate</button></nav>
         <div className="live-indicator"><span /> Local</div>
       </header>
 
@@ -78,6 +79,7 @@ export default function App() {
         </>}
         {view === "runs" && selected && <><button className="back-button" onClick={() => setSelectedRunId(null)}>← All runs</button><RunDetail run={selected} /></>}
         {view === "quality" && <QualityLab runs={runs} />}
+        {view === "ai" && <AIEvidence />}
       </main>
       <footer><span>AgentQAKit v0.1 alpha</span><span>Artifacts remain the source of truth</span></footer>
     </div>

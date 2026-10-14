@@ -1,0 +1,7 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: campus-ops-mutation
+rules:
+  minMutationScore: 0.8
+  requireReplayBundleForFailures: true

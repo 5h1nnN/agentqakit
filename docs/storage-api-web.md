@@ -61,6 +61,7 @@ The versioned application exposes OpenAPI at `/docs` and these primary routes:
 | `POST` | `/api/runs` | Submit one bounded background run |
 | `GET` | `/api/runs/{run_id}` | Poll a job or read its stored aggregate |
 | `GET` | `/api/runs/{run_id}/results` | Read test-trial evidence |
+| `GET` | `/api/ai/evidence` | Read checksummed generation and AnalysisReport summaries |
 | `GET` | `/api/runs/{run_id}/findings` | Read stable findings |
 | `PUT` | `/api/findings/{finding_id}/review` | Save human review state |
 | `GET` | `/api/traces/{trace_id}` | Read checked artifact or live trace data |
@@ -93,6 +94,11 @@ states, findings, mutation evidence, comparisons, and quality-gate decisions.
 The launch form accepts an optional Manifest path and exposes a DeepSeek opt-in
 when the server is configured. Run details show each AI verdict, score, and
 rationale.
+The **AI evidence** view additionally discovers strict, checksummed generation
+reports and AnalysisReports from the MCP and T16 artifact layouts. It shows
+Manifest/plan/context hashes, model calls and token usage, generated-case risk
+and approval status, and ranked evidence-citing root causes. This endpoint is
+read-only and ignores missing, malformed, oversized, or checksum-invalid files.
 It polls every two seconds rather than requiring a WebSocket and remains usable
 at the 1280 by 720 acceptance viewport as well as narrow screens.
 

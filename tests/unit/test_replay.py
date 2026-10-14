@@ -53,6 +53,27 @@ def _deactivate(replay_token: Any, trace_token: Any) -> None:
     reset_current_replay_session(replay_token)
 
 
+def test_off_mode_still_records_live_interaction_trace(tmp_path: Path) -> None:
+    session = ReplaySession(
+        run_context=_context(),
+        mode="off",
+        store=JsonlCassetteStore(output_path=tmp_path / "unused.jsonl"),
+    )
+    replay_token, trace_token, traces = _activate(session)
+    wrapped = wrap_tool(lambda value: {"value": value}, InteractionEngine(), name="lookup")
+    try:
+        assert wrapped("AI101") == {"value": "AI101"}
+    finally:
+        _deactivate(replay_token, trace_token)
+
+    events = traces.get_events("trace-1")
+    assert len(events) == 1
+    assert events[0].kind == "TOOL"
+    assert events[0].attributes["agentqa.replay.source"] == "live"
+    assert session.stats().recorded == 0
+    assert not (tmp_path / "unused.jsonl").exists()
+
+
 def test_record_and_replay_are_canonical_redacted_and_call_indexed(tmp_path: Path) -> None:
     recorded_path = tmp_path / "recorded.jsonl"
     recorded_store = JsonlCassetteStore(output_path=recorded_path)

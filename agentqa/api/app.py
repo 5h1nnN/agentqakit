@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from agentqa.api.ai_evidence import list_ai_evidence
 from agentqa.api.jobs import RunJobManager
 from agentqa.api.models import (
     ComparisonRequest,
@@ -138,6 +139,10 @@ def create_app(
             "runs": await result_store.list_runs(project_id),
             "jobs": await jobs.list(project_id),
         }
+
+    @app.get("/api/ai/evidence")
+    async def ai_evidence() -> dict[str, Any]:
+        return list_ai_evidence(settings.workspace_root)
 
     @app.post("/api/runs", response_model=RunJob, status_code=status.HTTP_202_ACCEPTED)
     async def create_run(request: RunCreateRequest) -> RunJob:

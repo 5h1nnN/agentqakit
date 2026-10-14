@@ -266,6 +266,10 @@ async def test_generation_rejects_unknown_manifest_references_after_one_repair()
     assert captured.value.llm_call.status == "INVALID_OUTPUT"
     assert captured.value.llm_call.attempts == 2
     assert len(provider.requests) == 2
+    assert "REPAIR_FEEDBACK" not in provider.requests[0].prompt
+    assert "REPAIR_FEEDBACK" in provider.requests[1].prompt
+    assert "undeclared tool" in provider.requests[1].prompt
+    assert provider.requests[1].max_output_tokens == 16_384
 
 
 @pytest.mark.asyncio
