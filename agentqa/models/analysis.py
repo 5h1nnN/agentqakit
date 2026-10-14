@@ -27,6 +27,7 @@ Sha256Digest: TypeAlias = Annotated[
     StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$"),
 ]
 EvidenceKind: TypeAlias = Literal[
+    "code",
     "scenario",
     "target",
     "manifest",

@@ -10,6 +10,7 @@ from pydantic import JsonValue
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
+    CodeEvidence,
     EvaluationResult,
     EvidenceBundle,
     EvidenceRecord,
@@ -182,6 +183,7 @@ def build_evidence_bundle(
     trace_record: TraceRecord,
     manifest: AgentManifest | None = None,
     evaluations: Sequence[EvaluationResult] = (),
+    code_evidence: Sequence[CodeEvidence] = (),
     requested_capabilities: Sequence[str] = (),
     requested_policies: Sequence[str] = (),
     max_scenario_bytes: int = _MAX_ITEM_BYTES,
@@ -245,6 +247,17 @@ def build_evidence_bundle(
         gap = f"trace is {trace_record.status}; trajectory evidence is incomplete"
         missing.append(gap)
         blocking.append(gap)
+
+    for index, excerpt in enumerate(code_evidence, start=1):
+        items.append(
+            _record(
+                f"code-evidence-{index:02d}",
+                "code",
+                f"code:{excerpt.path}:{excerpt.start_line}-{excerpt.end_line}",
+                f"Caller-selected code evidence for {excerpt.reason}",
+                excerpt.model_dump(mode="json", by_alias=True),
+            )
+        )
 
     if manifest is None:
         missing.append("AgentManifest was not supplied")

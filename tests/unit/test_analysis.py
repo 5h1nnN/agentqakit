@@ -12,6 +12,7 @@ from agentqa.llm import StructuredRequest, StructuredResponse
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
+    CodeEvidence,
     ErrorInfo,
     EvaluationResult,
     RunContext,
@@ -22,6 +23,7 @@ from agentqa.models import (
 from agentqa.models import (
     TestResult as AgentTestResult,
 )
+from agentqa.specs.hashing import sha256_digest
 
 
 class FakeStructuredProvider:
@@ -247,6 +249,36 @@ async def test_failure_analysis_rejects_unknown_evidence_reference_after_retry()
     assert captured.value.code == "ANALYSIS_INVALID_OUTPUT"
     assert captured.value.llm_call is not None
     assert captured.value.llm_call.attempts == 2
+
+
+@pytest.mark.asyncio
+async def test_failure_analysis_accepts_bounded_caller_selected_code_evidence() -> None:
+    result, trace = _trial()
+    content = "def recover_permission_error():\n    return 'safe refusal'\n"
+    excerpt = CodeEvidence.model_validate(
+        {
+            "path": "src/agent/recovery.py",
+            "startLine": 10,
+            "endLine": 11,
+            "contentHash": sha256_digest(content.encode()),
+            "reason": "Defines the permission recovery branch.",
+            "content": content,
+        }
+    )
+    provider = FakeStructuredProvider([_analysis_response(evidence_id="code-evidence-01")])
+
+    report = await FailureAnalysisService(provider).analyze(
+        run_id="run-analysis",
+        test_spec=_spec(),
+        result=result,
+        trace=trace,
+        manifest=_manifest(),
+        code_evidence=[excerpt],
+    )
+
+    assert report.root_causes[0].evidence_ids[0] == "code-evidence-01"
+    assert "src/agent/recovery.py" in provider.requests[0].prompt
+    assert any(item.evidence_id == "code-evidence-01" for item in report.evidence_index)
 
 
 @pytest.mark.asyncio

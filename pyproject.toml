@@ -52,8 +52,12 @@ instrumentation = [
 langgraph = [
   "langgraph>=0.2,<2",
 ]
+mcp = [
+  "mcp>=2,<3",
+]
 dev = [
   "fastapi>=0.115,<1",
+  "mcp>=2,<3",
   "mypy>=1.14,<2",
   "pytest>=8.3,<9",
   "pytest-asyncio>=0.24,<2",

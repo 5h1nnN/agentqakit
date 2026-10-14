@@ -18,6 +18,7 @@
         },
         "kind": {
           "enum": [
+            "code",
             "scenario",
             "target",
             "manifest",

@@ -22,6 +22,9 @@ test plan, strict candidate `AgentTest` specifications, and a checksummed
 coverage report without granting AgentQAKit ambient source-tree access.
 The same bounded evidence layer grounds semantic Judge decisions and produces
 separate, evidence-citing AI failure-analysis reports for failed trials.
+An optional local MCP server now exposes those same application services to
+Coding Agents through bounded, checksummed resources and approval-gated tools,
+without granting arbitrary filesystem or shell access.
 Completed runs can now be indexed in a checksummed file store or transactional
 SQLite database, queried through a local FastAPI service, and inspected in the
 React evidence console.
@@ -40,6 +43,8 @@ python -m pip install --upgrade pip
 python -m pip install -e ".[dev]"
 # Optional OpenAI/LangGraph auto-instrumentation:
 python -m pip install -e ".[instrumentation]"
+# Optional local Coding Agent collaboration over MCP:
+python -m pip install -e ".[mcp]"
 ```
 
 Verify the installation:
@@ -149,6 +154,20 @@ The report cites stable evidence IDs for facts and root-cause candidates and
 records missing evidence explicitly. See
 [`docs/failure-analysis.md`](docs/failure-analysis.md).
 
+Expose the project to a local MCP host through the official stdio transport:
+
+```bash
+agentqa mcp serve \
+  --workspace /absolute/path/to/agent-project \
+  --manifest agent-manifest.yaml
+```
+
+The server offers manifest and schema resources, bounded run/failure evidence,
+and tools for generation, validation, execution, mutation, analysis,
+comparison, and gates. Setup, host configuration, the `CodeEvidence` contract,
+and side-effect approval rules are documented in
+[`docs/mcp.md`](docs/mcp.md).
+
 AgentQAKit accepts strict, versioned YAML. Unknown fields and unsupported
 evaluator or target types are rejected instead of being ignored. See
 [`docs/specifications.md`](docs/specifications.md) for the supported format.
@@ -172,6 +191,8 @@ integration are documented in
 [`docs/comparison-and-gates.md`](docs/comparison-and-gates.md).
 The evidence boundary and immutable AI failure-analysis workflow are documented
 in [`docs/failure-analysis.md`](docs/failure-analysis.md).
+Local MCP resources, tools, workspace confinement, and explicit side-effect
+approval are documented in [`docs/mcp.md`](docs/mcp.md).
 Result-store guarantees, SQLite layout, HTTP endpoints, server security, and
 Web development are documented in
 [`docs/storage-api-web.md`](docs/storage-api-web.md).

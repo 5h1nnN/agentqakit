@@ -2,7 +2,7 @@
 
 import json
 import math
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any, cast
 
 from pydantic import JsonValue, ValidationError
@@ -16,6 +16,7 @@ from agentqa.models import (
     AgentTestSpec,
     AnalysisDraft,
     AnalysisReport,
+    CodeEvidence,
     EvidenceBundle,
     TestResult,
     TraceRecord,
@@ -300,6 +301,7 @@ class FailureAnalysisService:
         result: TestResult,
         trace: TraceRecord,
         manifest: AgentManifest | None = None,
+        code_evidence: Sequence[CodeEvidence] = (),
     ) -> AnalysisReport:
         if result.passed:
             raise AnalysisError(
@@ -316,6 +318,17 @@ class FailureAnalysisService:
                 "test result does not match the supplied TraceRecord",
                 code="ANALYSIS_IDENTITY_MISMATCH",
             )
+        if len(code_evidence) > 10:
+            raise AnalysisError(
+                "failure analysis accepts at most 10 code evidence excerpts",
+                code="ANALYSIS_CODE_EVIDENCE_LIMIT",
+            )
+        evidence_hashes = [item.content_hash for item in code_evidence]
+        if len(evidence_hashes) != len(set(evidence_hashes)):
+            raise AnalysisError(
+                "failure analysis code evidence hashes must be unique",
+                code="ANALYSIS_CODE_EVIDENCE_DUPLICATE",
+            )
         bundle = build_evidence_bundle(
             run_id=run_id,
             trial_id=result.trial_id,
@@ -324,6 +337,7 @@ class FailureAnalysisService:
             trace_record=trace,
             manifest=manifest,
             evaluations=result.evaluations,
+            code_evidence=code_evidence,
         )
         draft, llm_call = await _complete_analysis(self._provider, bundle)
         missing = list(dict.fromkeys([*bundle.missing_evidence, *draft.additional_evidence_needed]))
