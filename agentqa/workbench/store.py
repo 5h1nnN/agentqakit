@@ -209,6 +209,15 @@ class WorkflowStore(Protocol):
 
     async def list_approvals(self, workflow_id: str) -> list[ApprovalDecision]: ...
 
+    async def record_event(
+        self,
+        workflow_id: str,
+        *,
+        event_type: str,
+        message: str,
+        data: dict[str, JsonValue] | None = None,
+    ) -> WorkflowEvent: ...
+
     async def close(self) -> None: ...
 
 
@@ -1328,6 +1337,49 @@ class SQLiteWorkflowStore:
 
     async def list_approvals(self, workflow_id: str) -> list[ApprovalDecision]:
         return await asyncio.to_thread(self._list_approvals_sync, workflow_id)
+
+    def _record_event_sync(
+        self,
+        workflow_id: str,
+        event_type: str,
+        message: str,
+        data: dict[str, JsonValue],
+    ) -> WorkflowEvent:
+        self._initialize_sync()
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            workflow = self._load_workflow(connection, workflow_id)
+            _, event = self._append_event(
+                connection,
+                workflow,
+                event_type=redact_text_secrets(event_type),
+                message=redact_text_secrets(message),
+                data=_safe_summary(data, "workflow event"),
+            )
+            connection.commit()
+            return event
+        except WorkflowStoreError:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    async def record_event(
+        self,
+        workflow_id: str,
+        *,
+        event_type: str,
+        message: str,
+        data: dict[str, JsonValue] | None = None,
+    ) -> WorkflowEvent:
+        return await asyncio.to_thread(
+            self._record_event_sync,
+            workflow_id,
+            event_type,
+            message,
+            {} if data is None else data,
+        )
 
     async def close(self) -> None:
         return None

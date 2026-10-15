@@ -435,9 +435,16 @@ class ArtifactCatalogService:
             connection.close()
 
     async def register_path(
-        self, project_id: str, path: Path, *, source: ArtifactSource
+        self,
+        project_id: str,
+        path: Path,
+        *,
+        source: ArtifactSource,
+        workflow_id: str | None = None,
     ) -> CatalogArtifact:
         artifact = await asyncio.to_thread(self._candidate, project_id, path, source)
+        if workflow_id is not None:
+            artifact = artifact.model_copy(update={"workflow_id": workflow_id})
         await asyncio.to_thread(self._upsert_sync, artifact)
         return artifact
 

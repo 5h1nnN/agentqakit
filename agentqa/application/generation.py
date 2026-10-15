@@ -236,6 +236,7 @@ async def _complete_model(
     prompt_payload: dict[str, JsonValue],
     response_model: type[_ResponseModel],
     validate: Callable[[_ResponseModel], None],
+    max_output_tokens: int,
 ) -> tuple[_ResponseModel, LLMCallEvidence]:
     prompt = _bounded_prompt(prompt_payload)
     request_prompt = prompt
@@ -256,7 +257,7 @@ async def _complete_model(
                     response_schema=response_schema,
                     attempt=attempt,
                     evidence_hash=evidence_hash,
-                    max_output_tokens=16_384,
+                    max_output_tokens=max_output_tokens,
                     request_id=request_id,
                 )
             )
@@ -633,8 +634,16 @@ def _coverage(
 class GenerationService:
     """Generate plans and candidate tests through one provider-neutral service."""
 
-    def __init__(self, provider: StructuredLLMProvider) -> None:
+    def __init__(
+        self,
+        provider: StructuredLLMProvider,
+        *,
+        max_output_tokens: int = 16_384,
+    ) -> None:
+        if isinstance(max_output_tokens, bool) or not 64 <= max_output_tokens <= 16_384:
+            raise ValueError("max_output_tokens must be between 64 and 16384")
         self._provider = provider
+        self._max_output_tokens = max_output_tokens
 
     async def generate_plan(
         self,
@@ -677,6 +686,7 @@ class GenerationService:
             prompt_payload=prompt_payload,
             response_model=GenerationPlanDraft,
             validate=lambda candidate: _validate_plan_draft(candidate, manifest, goal),
+            max_output_tokens=self._max_output_tokens,
         )
         summary = GenerationGoalSummary(
             categories=goal.categories,
@@ -768,6 +778,7 @@ class GenerationService:
             prompt_payload=prompt_payload,
             response_model=GeneratedSuiteDraft,
             validate=validate,
+            max_output_tokens=self._max_output_tokens,
         )
         coverage, gaps = _coverage(manifest, plan, validated)
         warnings = list(plan.warnings)

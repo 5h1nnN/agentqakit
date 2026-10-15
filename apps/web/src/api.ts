@@ -5,6 +5,8 @@ import type {
   CodeEvidence,
   ComparisonReport,
   EvidenceBoundaryPreview,
+  GenerationSession,
+  GenerationSessionDetail,
   GateResult,
   HealthResponse,
   PreflightReport,
@@ -162,6 +164,55 @@ export const api = {
     return request<WorkflowRun>(`/api/workflows/${encodeURIComponent(workflowId)}/cancel`, {
       method: "POST",
     });
+  },
+  async listGenerationSessions(workflowId: string) {
+    const result = await request<{ sessions: GenerationSession[] }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/generation-sessions`,
+    );
+    return result.sessions ?? [];
+  },
+  createGenerationSession(workflowId: string, input: Record<string, unknown>) {
+    return request<{ session: GenerationSession; step: unknown }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/generation-sessions`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  getGenerationSession(sessionId: string) {
+    return request<GenerationSessionDetail>(
+      `/api/generation-sessions/${encodeURIComponent(sessionId)}`,
+    );
+  },
+  generateCandidates(sessionId: string, planChecksum: string, idempotencyKey: string) {
+    return request<{ session: GenerationSession; step: unknown }>(
+      `/api/generation-sessions/${encodeURIComponent(sessionId)}/candidates`,
+      { method: "POST", body: JSON.stringify({ planChecksum, idempotencyKey }) },
+    );
+  },
+  reviewCandidate(
+    sessionId: string,
+    caseId: string,
+    input: { subjectHash: string; decision: string; reviewer: string; comment: string },
+  ) {
+    return request(
+      `/api/generation-sessions/${encodeURIComponent(sessionId)}/candidates/${encodeURIComponent(caseId)}/review`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  batchApproveCandidates(sessionId: string, caseIds: string[], reviewer: string, comment: string) {
+    return request(
+      `/api/generation-sessions/${encodeURIComponent(sessionId)}/candidates/batch-approve`,
+      { method: "POST", body: JSON.stringify({ caseIds, reviewer, comment }) },
+    );
+  },
+  reviseCandidate(
+    sessionId: string,
+    caseId: string,
+    input: { spec: Record<string, unknown>; editor: string; diffSummary: string },
+  ) {
+    return request(
+      `/api/generation-sessions/${encodeURIComponent(sessionId)}/candidates/${encodeURIComponent(caseId)}/revisions`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
   },
   listRuns(projectId = "default") {
     return request<RunsResponse>(`/api/runs?project_id=${encodeURIComponent(projectId)}`);

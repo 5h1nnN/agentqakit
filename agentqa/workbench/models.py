@@ -5,10 +5,12 @@ from typing import Literal
 
 from pydantic import Field, JsonValue, field_validator, model_validator
 
+from agentqa.llm import LLMCallEvidence
 from agentqa.models.base import NonEmptyString, ResourceName, StrictModel, UtcDateTime
-from agentqa.models.generation import CodeEvidence
+from agentqa.models.generation import CodeEvidence, GenerationGoalSummary, GenerationRisk
 from agentqa.models.manifest import RunManifestSnapshot
 from agentqa.models.results import ErrorInfo
+from agentqa.models.specs import AgentTestSpec
 
 WorkflowStatus = Literal[
     "DRAFT",
@@ -274,16 +276,128 @@ class EvidenceBoundaryPreview(StrictModel):
     evidence_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
 
 
+GenerationSessionStatus = Literal[
+    "PLANNING",
+    "PLAN_READY",
+    "GENERATING",
+    "CANDIDATES_READY",
+    "FAILED_SAFE",
+]
+
+
+class GenerationSession(StrictModel):
+    """Persisted two-phase generation state without raw prompts or model output."""
+
+    session_id: NonEmptyString
+    workflow_id: NonEmptyString
+    project_id: ResourceName
+    status: GenerationSessionStatus
+    idempotency_key: NonEmptyString = Field(max_length=200)
+    input_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    goal: GenerationGoalSummary
+    manifest_path: NonEmptyString = Field(max_length=2_000)
+    mutations_path: str | None = Field(default=None, max_length=2_000)
+    evidence_mode: Literal["MANIFEST_ONLY", "MANIFEST_AND_CODE"]
+    code_evidence_hashes: list[str] = Field(default_factory=list, max_length=10)
+    max_output_tokens: int = Field(ge=64, le=16_384)
+    max_total_tokens: int | None = Field(default=None, ge=1)
+    max_cost_usd: float | None = Field(default=None, gt=0)
+    consumed_tokens: int = Field(default=0, ge=0)
+    consumed_cost_usd: float | None = Field(default=None, ge=0)
+    plan_path: str | None = Field(default=None, max_length=2_000)
+    plan_checksum: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    report_path: str | None = Field(default=None, max_length=2_000)
+    report_checksum: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    llm_calls: list[LLMCallEvidence] = Field(default_factory=list, max_length=2)
+    error: ErrorInfo | None = None
+    created_at: UtcDateTime
+    updated_at: UtcDateTime
+
+    @model_validator(mode="after")
+    def validate_generation_state(self) -> "GenerationSession":
+        if self.evidence_mode == "MANIFEST_ONLY" and self.code_evidence_hashes:
+            raise ValueError("manifest-only generation cannot include code evidence")
+        if self.status in {"PLAN_READY", "GENERATING", "CANDIDATES_READY"} and (
+            self.plan_path is None or self.plan_checksum is None
+        ):
+            raise ValueError("generation session state requires a verified plan")
+        if self.status == "CANDIDATES_READY" and (
+            self.report_path is None or self.report_checksum is None
+        ):
+            raise ValueError("candidate-ready generation requires a verified report")
+        if self.status == "FAILED_SAFE" and self.error is None:
+            raise ValueError("failed generation session requires an error")
+        return self
+
+
+class GeneratedTestRevision(StrictModel):
+    """Immutable human edit layered over an immutable generated test."""
+
+    revision_id: NonEmptyString
+    session_id: NonEmptyString
+    case_id: ResourceName
+    revision: int = Field(ge=1)
+    parent_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    spec_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    spec: AgentTestSpec
+    editor: NonEmptyString = Field(max_length=200)
+    diff_summary: NonEmptyString = Field(max_length=4_000)
+    created_at: UtcDateTime
+
+    @model_validator(mode="after")
+    def validate_revision_identity(self) -> "GeneratedTestRevision":
+        if self.spec.metadata.name != self.case_id:
+            raise ValueError("revision case id must match AgentTest metadata.name")
+        return self
+
+
+class CandidateDiagnostic(StrictModel):
+    code: NonEmptyString = Field(max_length=100)
+    status: Literal["PASS", "WARN", "BLOCK"]
+    message: NonEmptyString = Field(max_length=1_000)
+
+
+class SimilarityHint(StrictModel):
+    source: NonEmptyString = Field(max_length=2_000)
+    score: float = Field(ge=0, le=1)
+
+
+class GeneratedCandidateView(StrictModel):
+    """Review projection for one original candidate and its latest optional revision."""
+
+    case_id: ResourceName
+    risk: GenerationRisk
+    review_status: NonEmptyString
+    rationale: NonEmptyString
+    assertion_basis: list[NonEmptyString]
+    coverage_item_ids: list[ResourceName]
+    source_refs: list[NonEmptyString]
+    original_spec_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    current_spec_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    spec: AgentTestSpec
+    latest_revision: GeneratedTestRevision | None = None
+    decision: ApprovalDecision | None = None
+    diagnostics: list[CandidateDiagnostic]
+    similarity_hints: list[SimilarityHint] = Field(default_factory=list, max_length=10)
+    campaign_eligible: bool
+
+
 __all__ = [
     "ApprovalDecision",
     "ArtifactImportIssue",
     "ArtifactImportResult",
     "ArtifactRef",
+    "CandidateDiagnostic",
     "CatalogArtifact",
     "EvidenceBoundaryPreview",
+    "GeneratedCandidateView",
+    "GeneratedTestRevision",
+    "GenerationSession",
+    "GenerationSessionStatus",
     "PreflightCheck",
     "PreflightReport",
     "PreflightStatus",
+    "SimilarityHint",
     "WorkbenchProject",
     "WorkflowEvent",
     "WorkflowRun",

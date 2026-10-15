@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -16,9 +16,14 @@ from agentqa.api.ai_evidence import list_ai_evidence
 from agentqa.api.jobs import RunJobManager
 from agentqa.api.models import (
     ArtifactImportRequest,
+    BatchCandidateReviewRequest,
+    CandidateReviewRequest,
+    CandidateRevisionRequest,
     CodeEvidenceRequest,
     ComparisonRequest,
     GateEvaluateRequest,
+    GenerateCandidatesRequest,
+    GenerationSessionCreateRequest,
     ProjectCreateRequest,
     ReviewUpdateRequest,
     RunCreateRequest,
@@ -33,6 +38,7 @@ from agentqa.evaluators import (
     load_judge_environment,
 )
 from agentqa.gates import GateError, evaluate_gate
+from agentqa.llm import StructuredLLMProvider
 from agentqa.models import QualityGateSpec
 from agentqa.models.storage import FindingReview
 from agentqa.specs import SpecLoadError, load_spec_file
@@ -45,6 +51,10 @@ from agentqa.workbench import (
     CodeEvidenceError,
     CodeEvidenceService,
     EvidenceBoundaryService,
+    GenerationWorkbenchError,
+    GenerationWorkbenchService,
+    GenerationWorkbenchStore,
+    GenerationWorkspaceError,
     ProjectPreflightService,
     SQLiteWorkflowStore,
     WorkflowOrchestrator,
@@ -126,12 +136,23 @@ def create_app(
         max_concurrent_ai_steps=settings.max_concurrent_ai_steps,
         max_concurrent_campaigns=settings.max_concurrent_campaigns,
     )
+    generation_store = GenerationWorkbenchStore(settings.database_path)
+    generation_workbench = GenerationWorkbenchService(
+        workspace_root=settings.workspace_root,
+        artifact_directory=settings.artifact_directory,
+        provider=cast(StructuredLLMProvider | None, active_judge),
+        workflow_store=active_workflow_store,
+        session_store=generation_store,
+        artifact_catalog=artifact_catalog,
+        orchestrator=workflows,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         del app
         await result_store.initialize()
         await active_workflow_store.initialize()
+        await generation_store.initialize()
         await artifact_catalog.initialize()
         try:
             yield
@@ -139,6 +160,7 @@ def create_app(
             await workflows.shutdown()
             await jobs.shutdown()
             await active_workflow_store.close()
+            await generation_store.close()
             await artifact_catalog.close()
             await result_store.close()
 
@@ -151,6 +173,8 @@ def create_app(
     app.state.workflow_store = active_workflow_store
     app.state.workflow_orchestrator = workflows
     app.state.artifact_catalog = artifact_catalog
+    app.state.generation_store = generation_store
+    app.state.generation_workbench = generation_workbench
     app.state.run_jobs = jobs
     app.state.live_traces = live_traces
     app.state.judge_provider = active_judge
@@ -197,6 +221,23 @@ def create_app(
     async def code_evidence_error_handler(request: Request, exc: CodeEvidenceError) -> Response:
         del request
         status_code = 404 if exc.code.endswith("MISSING") else 422
+        return Response(
+            content=json.dumps({"detail": exc.to_dict()}),
+            status_code=status_code,
+            media_type="application/json",
+        )
+
+    @app.exception_handler(GenerationWorkbenchError)
+    @app.exception_handler(GenerationWorkspaceError)
+    async def generation_workbench_error_handler(
+        request: Request, exc: GenerationWorkbenchError | GenerationWorkspaceError
+    ) -> Response:
+        del request
+        status_code = 422
+        if exc.code.endswith("NOT_FOUND"):
+            status_code = 404
+        elif exc.code.endswith(("CONFLICT", "MISMATCH")):
+            status_code = 409
         return Response(
             content=json.dumps({"detail": exc.to_dict()}),
             status_code=status_code,
@@ -354,6 +395,90 @@ def create_app(
             "events": events,
             "revision": after if not events else events[-1].revision,
         }
+
+    @app.get("/api/workflows/{workflow_id}/generation-sessions")
+    async def list_generation_sessions(workflow_id: str) -> dict[str, Any]:
+        if await active_workflow_store.get_workflow(workflow_id) is None:
+            raise _http_error("WORKFLOW_NOT_FOUND", "workflow does not exist", 404)
+        return {"sessions": await generation_store.list_sessions(workflow_id)}
+
+    @app.post(
+        "/api/workflows/{workflow_id}/generation-sessions",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def create_generation_session(
+        workflow_id: str, request: GenerationSessionCreateRequest
+    ) -> dict[str, Any]:
+        session, step = await generation_workbench.create_and_plan(
+            workflow_id=workflow_id,
+            idempotency_key=request.idempotency_key,
+            goal=request.goal,
+            goal_path=request.goal_path,
+            manifest_path=request.manifest_path,
+            mutations_path=request.mutations_path,
+            evidence_mode=request.evidence_mode,
+            code_evidence_hashes=request.code_evidence_hashes,
+            max_output_tokens=request.max_output_tokens,
+            max_total_tokens=request.max_total_tokens,
+            max_cost_usd=request.max_cost_usd,
+        )
+        return {"session": session, "step": step}
+
+    @app.get("/api/generation-sessions/{session_id}")
+    async def get_generation_session(session_id: str) -> dict[str, Any]:
+        return await generation_workbench.detail(session_id)
+
+    @app.post(
+        "/api/generation-sessions/{session_id}/candidates",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def generate_candidates(
+        session_id: str, request: GenerateCandidatesRequest
+    ) -> dict[str, Any]:
+        session, step = await generation_workbench.generate_tests(
+            session_id=session_id,
+            plan_checksum=request.plan_checksum,
+            idempotency_key=request.idempotency_key,
+        )
+        return {"session": session, "step": step}
+
+    @app.post("/api/generation-sessions/{session_id}/candidates/{case_id}/review")
+    async def review_generated_candidate(
+        session_id: str, case_id: str, request: CandidateReviewRequest
+    ) -> Any:
+        return await generation_workbench.review(
+            session_id=session_id,
+            case_id=case_id,
+            subject_hash=request.subject_hash,
+            decision=request.decision,
+            reviewer=request.reviewer,
+            comment=request.comment,
+        )
+
+    @app.post("/api/generation-sessions/{session_id}/candidates/batch-approve")
+    async def batch_approve_generated_candidates(
+        session_id: str, request: BatchCandidateReviewRequest
+    ) -> dict[str, Any]:
+        return {
+            "decisions": await generation_workbench.batch_approve(
+                session_id=session_id,
+                case_ids=request.case_ids,
+                reviewer=request.reviewer,
+                comment=request.comment,
+            )
+        }
+
+    @app.post("/api/generation-sessions/{session_id}/candidates/{case_id}/revisions")
+    async def revise_generated_candidate(
+        session_id: str, case_id: str, request: CandidateRevisionRequest
+    ) -> Any:
+        return await generation_workbench.revise(
+            session_id=session_id,
+            case_id=case_id,
+            spec=request.spec,
+            editor=request.editor,
+            diff_summary=request.diff_summary,
+        )
 
     @app.get("/api/runs")
     async def list_runs(project_id: str = "default") -> dict[str, Any]:

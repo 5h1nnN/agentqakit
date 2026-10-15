@@ -380,3 +380,114 @@ export interface AIEvidenceResponse {
     };
   }>;
 }
+
+export type GenerationSessionStatus =
+  | "PLANNING"
+  | "PLAN_READY"
+  | "GENERATING"
+  | "CANDIDATES_READY"
+  | "FAILED_SAFE";
+
+export interface GenerationSession {
+  session_id: string;
+  workflow_id: string;
+  project_id: string;
+  status: GenerationSessionStatus;
+  idempotency_key: string;
+  input_hash: string;
+  goal: {
+    categories: string[];
+    risk_levels: string[];
+    target_capabilities: string[];
+    target_policies: string[];
+    allowed_mutations: string[];
+    max_cases: number;
+    instructions: string | null;
+    code_evidence_hashes: string[];
+  };
+  evidence_mode: "MANIFEST_ONLY" | "MANIFEST_AND_CODE";
+  code_evidence_hashes: string[];
+  max_output_tokens: number;
+  max_total_tokens: number | null;
+  max_cost_usd: number | null;
+  consumed_tokens: number;
+  consumed_cost_usd: number | null;
+  plan_path: string | null;
+  plan_checksum: string | null;
+  report_path: string | null;
+  report_checksum: string | null;
+  llm_calls: Array<{
+    provider: string;
+    model: string;
+    status: string;
+    token_usage: Record<string, number>;
+    latency_ms: number | null;
+    evidence_hash: string;
+  }>;
+  error: { code: string; message: string } | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GenerationPlan {
+  generation_id: string;
+  manifest_hash: string;
+  goal_hash: string;
+  items: Array<{
+    id: string;
+    title: string;
+    category: string;
+    risk: string;
+    capabilities: string[];
+    policies: string[];
+    tools: string[];
+    mutation: string | null;
+    rationale: string;
+    source_refs: string[];
+    provenance: string[];
+    requires_human: boolean;
+  }>;
+  questions: string[];
+  warnings: string[];
+}
+
+export interface ApprovalDecision {
+  approval_id: string;
+  subject_hash: string;
+  decision: "APPROVED" | "REJECTED" | "REQUEST_EDIT";
+  reviewer: string;
+  comment: string;
+  created_at: string;
+}
+
+export interface GeneratedCandidate {
+  case_id: string;
+  risk: "low" | "medium" | "high" | "critical";
+  review_status: string;
+  rationale: string;
+  assertion_basis: string[];
+  coverage_item_ids: string[];
+  source_refs: string[];
+  original_spec_hash: string;
+  current_spec_hash: string;
+  spec: Record<string, unknown>;
+  latest_revision: null | {
+    revision_id: string;
+    revision: number;
+    parent_hash: string;
+    spec_hash: string;
+    editor: string;
+    diff_summary: string;
+    created_at: string;
+  };
+  decision: ApprovalDecision | null;
+  diagnostics: Array<{ code: string; status: "PASS" | "WARN" | "BLOCK"; message: string }>;
+  similarity_hints: Array<{ source: string; score: number }>;
+  campaign_eligible: boolean;
+}
+
+export interface GenerationSessionDetail {
+  session: GenerationSession;
+  plan: GenerationPlan | null;
+  candidates: GeneratedCandidate[];
+}

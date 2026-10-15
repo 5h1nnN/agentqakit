@@ -13,6 +13,7 @@ import type {
   WorkflowRun,
   WorkspaceEntry,
 } from "../types";
+import { GenerationWorkbench } from "./GenerationWorkbench";
 
 function statusClass(status: string) {
   if (["COMPLETED", "PASS", "AVAILABLE"].includes(status)) return "status--good";
@@ -337,6 +338,7 @@ export function Workbench() {
             <div className="workflow-hash"><span>Input snapshot</span><code>{selected.input_hash}</code></div>
             {selected.error && <div className="notice notice--bad"><strong>{selected.error.code}</strong> — {selected.error.message}</div>}
             {selected.steps.length > 0 && <div className="step-progress"><h3>Step attempts</h3>{selected.steps.map((step) => <article key={step.step_id}><span><strong>{step.kind.replaceAll("_", " ")}</strong><small className="mono">attempt {step.attempt} · {shortId(step.step_id)} · input {shortId(step.input_hash)}</small></span><span className={`status ${statusClass(step.status)}`}>{step.status}</span>{step.error && <p>{step.error.code}: {step.error.message}</p>}</article>)}</div>}
+            {selectedProject && <GenerationWorkbench project={selectedProject} workflow={selected} codeEvidence={selectedEvidence} />}
             <div className="timeline"><h3>Audit timeline</h3>{events.map((item) => <article key={item.event_id}><span className="timeline__revision">{item.revision}</span><div><strong>{item.event_type.replaceAll("_", " ")}</strong><p>{item.message}</p><small>{new Date(item.occurred_at).toLocaleString()}</small></div></article>)}</div>
           </div>}
         </section>

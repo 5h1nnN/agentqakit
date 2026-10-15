@@ -8,13 +8,23 @@ from agentqa.workbench.catalog import (
 )
 from agentqa.workbench.code_evidence import CodeEvidenceError, CodeEvidenceService
 from agentqa.workbench.evidence import EvidenceBoundaryService
+from agentqa.workbench.generation import GenerationWorkbenchService, GenerationWorkspaceError
+from agentqa.workbench.generation_store import (
+    GENERATION_WORKBENCH_SCHEMA_VERSION,
+    GenerationWorkbenchError,
+    GenerationWorkbenchStore,
+)
 from agentqa.workbench.models import (
     ApprovalDecision,
     ArtifactImportIssue,
     ArtifactImportResult,
     ArtifactRef,
+    CandidateDiagnostic,
     CatalogArtifact,
     EvidenceBoundaryPreview,
+    GeneratedCandidateView,
+    GeneratedTestRevision,
+    GenerationSession,
     PreflightCheck,
     PreflightReport,
     PreflightStatus,
@@ -38,6 +48,7 @@ from agentqa.workbench.store import (
 
 __all__ = [
     "CATALOG_SCHEMA_VERSION",
+    "GENERATION_WORKBENCH_SCHEMA_VERSION",
     "WORKFLOW_STORE_SCHEMA_VERSION",
     "ApprovalDecision",
     "ArtifactCatalogError",
@@ -45,12 +56,20 @@ __all__ = [
     "ArtifactImportIssue",
     "ArtifactImportResult",
     "ArtifactRef",
+    "CandidateDiagnostic",
     "CatalogArtifact",
     "CodeEvidenceError",
     "CodeEvidenceService",
     "DiscoverySource",
     "EvidenceBoundaryPreview",
     "EvidenceBoundaryService",
+    "GeneratedCandidateView",
+    "GeneratedTestRevision",
+    "GenerationSession",
+    "GenerationWorkbenchError",
+    "GenerationWorkbenchService",
+    "GenerationWorkbenchStore",
+    "GenerationWorkspaceError",
     "PreflightCheck",
     "PreflightReport",
     "PreflightStatus",

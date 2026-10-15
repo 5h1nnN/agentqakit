@@ -128,6 +128,34 @@ Manifest sections and excerpts, excluded data classes, provider/model, token
 limits, timeout, and a deterministic evidence hash before a later AI action is
 allowed to use it.
 
+T19 connects the existing two-phase generator to persistent Workflow steps and
+the browser review surface:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` / `POST` | `/api/workflows/{workflow_id}/generation-sessions` | List sessions or queue an asynchronous Plan step |
+| `GET` | `/api/generation-sessions/{session_id}` | Read session budget, Plan, candidates, diagnostics, reviews, and revisions |
+| `POST` | `/api/generation-sessions/{session_id}/candidates` | Confirm the checksummed Plan and queue candidate generation |
+| `POST` | `/api/generation-sessions/{session_id}/candidates/{case_id}/review` | Record a checksum-bound approve, reject, or request-edit decision |
+| `POST` | `/api/generation-sessions/{session_id}/candidates/batch-approve` | Approve only low/medium-risk current revisions in a batch |
+| `POST` | `/api/generation-sessions/{session_id}/candidates/{case_id}/revisions` | Create a validated immutable edit with parent and new hashes |
+
+The first two LLM phases are deliberately separate. A session persists only
+bounded goal/evidence identities, safe LLM call accounting, token/cost state,
+and references to checksummed artifacts; raw prompts and provider output are
+not workflow metadata. Manifest-only mode clears code context. Code-assisted
+mode accepts only hashes already recorded by the T18 CodeEvidence picker.
+Generation fails closed for provider errors, invalid structured output, token
+overruns, and an unobservable configured cost ceiling.
+
+`GenerationPlan`, `GenerationReport`, and generated YAML files are write-once.
+Human edits are separate revision rows and never rewrite those originals.
+Approval is also a separate record bound to the current spec hash, so any edit
+automatically invalidates an earlier decision. High/critical candidates remain
+campaign-ineligible until individually approved; the server rejects attempts
+to include them in low/medium batch approval. Similarity is advisory only and
+never silently deletes a candidate.
+
 `POST /api/runs` returns `202 Accepted` and a stable run ID immediately. The
 client polls the run listing or detail route until the state is finalized. Jobs
 are in-process and intentionally do not survive a server restart.
@@ -158,7 +186,10 @@ their current state, shows the ordered audit timeline, and exposes only valid
 resume and cancel actions. It also provides T18 project setup, Preflight,
 artifact discovery/catalog inspection, safe workspace browsing, redacted code
 preview with an explicit add action, and evidence-boundary inspection. The
-existing **Runs** view and CLI remain compatible;
+T19 Generation & Review Studio adds a Goal Editor, reviewed-evidence picker,
+Plan Matrix, explicit Plan confirmation, Token/Cost summary, candidate
+diagnostics, risk approvals, and immutable JSON revision editor. The existing
+**Runs** view and CLI remain compatible;
 workflow metadata shares the SQLite file but uses separate versioned tables.
 The **AI evidence** view additionally discovers strict, checksummed generation
 reports and AnalysisReports from the MCP and T16 artifact layouts. It shows

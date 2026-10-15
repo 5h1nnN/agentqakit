@@ -13,7 +13,9 @@ from agentqa.models.base import (
     UtcDateTime,
     to_camel,
 )
+from agentqa.models.generation import GenerationGoal
 from agentqa.models.results import ErrorInfo
+from agentqa.models.specs import AgentTestSpec
 
 ArtifactDiscoverySource = Literal["artifacts", "mcp", "benchmark_results", "reference_results"]
 
@@ -156,3 +158,42 @@ class CodeEvidenceRequest(ApiModel):
     start_line: int = Field(ge=1)
     end_line: int = Field(ge=1)
     reason: NonEmptyString = Field(max_length=4_000)
+
+
+class GenerationSessionCreateRequest(ApiModel):
+    """Create and immediately queue the plan phase of a generation session."""
+
+    idempotency_key: NonEmptyString = Field(max_length=200)
+    goal: GenerationGoal | None = None
+    goal_path: NonEmptyString | None = Field(default=None, max_length=2_000)
+    manifest_path: NonEmptyString | None = Field(default=None, max_length=2_000)
+    mutations_path: NonEmptyString | None = Field(default=None, max_length=2_000)
+    evidence_mode: Literal["MANIFEST_ONLY", "MANIFEST_AND_CODE"] = "MANIFEST_ONLY"
+    code_evidence_hashes: list[str] = Field(default_factory=list, max_length=10)
+    max_output_tokens: int = Field(default=4_096, ge=64, le=16_384)
+    max_total_tokens: int | None = Field(default=None, ge=1)
+    max_cost_usd: float | None = Field(default=None, gt=0)
+
+
+class GenerateCandidatesRequest(ApiModel):
+    idempotency_key: NonEmptyString = Field(max_length=200)
+    plan_checksum: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class CandidateReviewRequest(ApiModel):
+    subject_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    decision: Literal["APPROVED", "REJECTED", "REQUEST_EDIT"]
+    reviewer: NonEmptyString = Field(max_length=200)
+    comment: str = Field(default="", max_length=10_000)
+
+
+class BatchCandidateReviewRequest(ApiModel):
+    case_ids: list[ResourceName] = Field(min_length=1, max_length=50)
+    reviewer: NonEmptyString = Field(max_length=200)
+    comment: str = Field(default="", max_length=10_000)
+
+
+class CandidateRevisionRequest(ApiModel):
+    spec: AgentTestSpec
+    editor: NonEmptyString = Field(max_length=200)
+    diff_summary: NonEmptyString = Field(max_length=4_000)
