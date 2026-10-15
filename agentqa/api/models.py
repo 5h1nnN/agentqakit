@@ -1,8 +1,9 @@
 """Strict HTTP request and asynchronous job models."""
 
+from pathlib import PurePosixPath
 from typing import Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, field_validator
 
 from agentqa.models.base import (
     NonEmptyString,
@@ -74,3 +75,44 @@ class ReviewUpdateRequest(ApiModel):
 
     status: Literal["unreviewed", "confirmed", "false_positive", "resolved"]
     note: str = Field(default="", max_length=10_000)
+
+
+class ProjectCreateRequest(ApiModel):
+    """Create one workspace-confined workbench project."""
+
+    project_id: ResourceName
+    name: NonEmptyString = Field(max_length=200)
+    description: str = Field(default="", max_length=4_000)
+    workspace_path: str = Field(default=".", max_length=1_000)
+    default_spec_refs: dict[str, str] = Field(default_factory=dict, max_length=20)
+
+    @field_validator("workspace_path")
+    @classmethod
+    def validate_workspace_path(cls, value: str) -> str:
+        path = PurePosixPath(value)
+        if path.is_absolute() or ".." in path.parts or "\\" in value:
+            raise ValueError("workspacePath must be a safe relative POSIX path")
+        return value
+
+    @field_validator("default_spec_refs")
+    @classmethod
+    def validate_default_spec_refs(cls, value: dict[str, str]) -> dict[str, str]:
+        if any(
+            not name
+            or PurePosixPath(path).is_absolute()
+            or ".." in PurePosixPath(path).parts
+            or "\\" in path
+            for name, path in value.items()
+        ):
+            raise ValueError("defaultSpecRefs must use safe relative POSIX paths")
+        return value
+
+
+class WorkflowCreateRequest(ApiModel):
+    """Create an idempotent persistent workflow container."""
+
+    project_id: ResourceName
+    name: NonEmptyString = Field(max_length=200)
+    description: str = Field(default="", max_length=4_000)
+    idempotency_key: NonEmptyString = Field(max_length=200)
+    draft: bool = False

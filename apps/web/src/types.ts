@@ -58,12 +58,87 @@ export interface RunsResponse {
 export interface HealthResponse {
   status: string;
   storage: string;
+  workflowStorage: string;
   workspaceRoot: string;
   judge: {
     configured: boolean;
     provider: string | null;
     model: string | null;
   };
+}
+
+export type WorkflowStatus =
+  | "DRAFT"
+  | "READY"
+  | "RUNNING"
+  | "WAITING_REVIEW"
+  | "WAITING_EXTERNAL_REPAIR"
+  | "INTERRUPTED"
+  | "FAILED_SAFE"
+  | "COMPLETED"
+  | "CANCELLED";
+
+export interface WorkbenchProject {
+  project_id: string;
+  name: string;
+  description: string;
+  workspace_path: string;
+  default_spec_refs: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowStep {
+  step_id: string;
+  workflow_id: string;
+  kind: string;
+  status: string;
+  attempt: number;
+  idempotency_key: string;
+  input_hash: string;
+  input_data: Record<string, unknown>;
+  artifacts: Array<{
+    artifact_id: string;
+    artifact_type: string;
+    uri: string;
+    schema_version: string;
+    checksum: string;
+    source: string;
+    verification_status: "VERIFIED" | "UNVERIFIED" | "INVALID";
+  }>;
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: { code: string; message: string } | null;
+}
+
+export interface WorkflowRun {
+  workflow_id: string;
+  project_id: string;
+  name: string;
+  description: string;
+  status: WorkflowStatus;
+  revision: number;
+  idempotency_key: string;
+  input_hash: string;
+  input_snapshot: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: { code: string; message: string } | null;
+  steps: WorkflowStep[];
+}
+
+export interface WorkflowEvent {
+  event_id: string;
+  workflow_id: string;
+  revision: number;
+  event_type: string;
+  occurred_at: string;
+  message: string;
+  step_id: string | null;
+  data: Record<string, unknown>;
 }
 
 export interface Violation {

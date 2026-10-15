@@ -8,6 +8,9 @@ import type {
   StoredFinding,
   TestResult,
   TraceRecord,
+  WorkbenchProject,
+  WorkflowEvent,
+  WorkflowRun,
 } from "./types";
 
 export class ApiError extends Error {
@@ -45,6 +48,52 @@ export const api = {
   },
   health() {
     return request<HealthResponse>("/api/health");
+  },
+  async listProjects() {
+    const result = await request<{ projects: WorkbenchProject[] }>("/api/projects");
+    return result.projects;
+  },
+  createProject(input: { projectId: string; name: string; description?: string }) {
+    return request<WorkbenchProject>("/api/projects", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  async listWorkflows(projectId?: string) {
+    const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";
+    const result = await request<{ workflows: WorkflowRun[] }>(`/api/workflows${query}`);
+    return result.workflows;
+  },
+  createWorkflow(input: {
+    projectId: string;
+    name: string;
+    description?: string;
+    idempotencyKey: string;
+    draft?: boolean;
+  }) {
+    return request<WorkflowRun>("/api/workflows", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  getWorkflow(workflowId: string) {
+    return request<WorkflowRun>(`/api/workflows/${encodeURIComponent(workflowId)}`);
+  },
+  async listWorkflowEvents(workflowId: string, after = 0) {
+    const result = await request<{ events: WorkflowEvent[]; revision: number }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/events?after=${after}`,
+    );
+    return result;
+  },
+  resumeWorkflow(workflowId: string) {
+    return request<WorkflowRun>(`/api/workflows/${encodeURIComponent(workflowId)}/resume`, {
+      method: "POST",
+    });
+  },
+  cancelWorkflow(workflowId: string) {
+    return request<WorkflowRun>(`/api/workflows/${encodeURIComponent(workflowId)}/cancel`, {
+      method: "POST",
+    });
   },
   listRuns(projectId = "default") {
     return request<RunsResponse>(`/api/runs?project_id=${encodeURIComponent(projectId)}`);

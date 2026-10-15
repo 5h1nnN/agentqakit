@@ -69,6 +69,29 @@ The versioned application exposes OpenAPI at `/docs` and these primary routes:
 | `POST` | `/api/gates/evaluate` | Evaluate a workspace gate against stored runs |
 | `POST` | `/v1/traces` | Receive size-limited OTLP/HTTP protobuf traces |
 
+T17 adds the persistent workbench control plane alongside the existing run
+ledger:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` / `POST` | `/api/projects` | List or create local workbench projects |
+| `GET` / `POST` | `/api/workflows` | List or idempotently create workflows |
+| `GET` | `/api/workflows/{workflow_id}` | Read a workflow and its step attempts |
+| `POST` | `/api/workflows/{workflow_id}/resume` | Resume from a persisted safe checkpoint |
+| `POST` | `/api/workflows/{workflow_id}/cancel` | Cancel without deleting prior evidence |
+| `GET` | `/api/workflows/{workflow_id}/events?after=N` | Read revision-ordered audit events |
+
+Workflow requests use an idempotency key. Reusing the same key and identical
+input returns the original workflow; reusing it with changed input returns a
+conflict. State and step input are written transactionally, recognized secrets
+are redacted before persistence, and every state change increments the event
+revision. On API startup, an unfinished `RUNNING` workflow is changed to
+`INTERRUPTED` rather than guessed complete. It can then be explicitly resumed
+to `READY`. AI and campaign steps are independently bounded to one concurrent
+operation by default. T17 provides this orchestration boundary; later workbench
+tasks connect artifact import, generation, review, campaign, and analysis
+actions to it.
+
 `POST /api/runs` returns `202 Accepted` and a stable run ID immediately. The
 client polls the run listing or detail route until the state is finalized. Jobs
 are in-process and intentionally do not survive a server restart.
@@ -94,6 +117,10 @@ states, findings, mutation evidence, comparisons, and quality-gate decisions.
 The launch form accepts an optional Manifest path and exposes a DeepSeek opt-in
 when the server is configured. Run details show each AI verdict, score, and
 rationale.
+The **Workbench** view creates projects and durable workflow containers, polls
+their current state, shows the ordered audit timeline, and exposes only valid
+resume and cancel actions. The existing **Runs** view and CLI remain compatible;
+workflow metadata shares the SQLite file but uses separate versioned tables.
 The **AI evidence** view additionally discovers strict, checksummed generation
 reports and AnalysisReports from the MCP and T16 artifact layouts. It shows
 Manifest/plan/context hashes, model calls and token usage, generated-case risk

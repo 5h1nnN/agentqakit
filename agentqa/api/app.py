@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, Response, status
+from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -17,9 +17,11 @@ from agentqa.api.jobs import RunJobManager
 from agentqa.api.models import (
     ComparisonRequest,
     GateEvaluateRequest,
+    ProjectCreateRequest,
     ReviewUpdateRequest,
     RunCreateRequest,
     RunJob,
+    WorkflowCreateRequest,
 )
 from agentqa.comparison import ComparisonError, compare_runs, load_run_artifact
 from agentqa.conventions import utc_now
@@ -35,6 +37,12 @@ from agentqa.specs import SpecLoadError, load_spec_file
 from agentqa.storage import ResultStore, ResultStoreError, SQLiteResultStore
 from agentqa.tracing import InMemoryTraceStore, TraceOptions
 from agentqa.tracing.otlp import OTLPDecodeError, ingest_otlp_protobuf
+from agentqa.workbench import (
+    SQLiteWorkflowStore,
+    WorkflowOrchestrator,
+    WorkflowStore,
+    WorkflowStoreError,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +54,8 @@ class ApiSettings:
     database_path: Path
     static_directory: Path | None = None
     max_concurrent_runs: int = 2
+    max_concurrent_ai_steps: int = 1
+    max_concurrent_campaigns: int = 1
     max_receiver_bytes: int = 8 * 1024 * 1024
 
     @classmethod
@@ -67,6 +77,7 @@ def create_app(
     settings: ApiSettings | None = None,
     *,
     store: ResultStore | None = None,
+    workflow_store: WorkflowStore | None = None,
     judge_provider: JudgeProviderLike | None = None,
 ) -> FastAPI:
     """Build an injectable local API without global database connections."""
@@ -74,6 +85,7 @@ def create_app(
     load_judge_environment(settings.workspace_root / ".env.local")
     active_judge = judge_provider or configured_deepseek_provider()
     result_store = store or SQLiteResultStore(settings.database_path)
+    active_workflow_store = workflow_store or SQLiteWorkflowStore(settings.database_path)
     trace_options = TraceOptions(max_receiver_bytes=settings.max_receiver_bytes)
     live_traces = InMemoryTraceStore(max_spans_per_trace=trace_options.max_spans_per_trace)
     jobs = RunJobManager(
@@ -83,15 +95,23 @@ def create_app(
         judge_provider=active_judge,
         max_concurrent_runs=settings.max_concurrent_runs,
     )
+    workflows = WorkflowOrchestrator(
+        active_workflow_store,
+        max_concurrent_ai_steps=settings.max_concurrent_ai_steps,
+        max_concurrent_campaigns=settings.max_concurrent_campaigns,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         del app
         await result_store.initialize()
+        await active_workflow_store.initialize()
         try:
             yield
         finally:
+            await workflows.shutdown()
             await jobs.shutdown()
+            await active_workflow_store.close()
             await result_store.close()
 
     app = FastAPI(
@@ -100,6 +120,8 @@ def create_app(
         lifespan=lifespan,
     )
     app.state.result_store = result_store
+    app.state.workflow_store = active_workflow_store
+    app.state.workflow_orchestrator = workflows
     app.state.run_jobs = jobs
     app.state.live_traces = live_traces
     app.state.judge_provider = active_judge
@@ -120,17 +142,85 @@ def create_app(
             media_type="application/json",
         )
 
+    @app.exception_handler(WorkflowStoreError)
+    async def workflow_store_error_handler(request: Request, exc: WorkflowStoreError) -> Response:
+        del request
+        status_code = 404 if exc.code.endswith("NOT_FOUND") else 409
+        return Response(
+            content=json.dumps({"detail": exc.to_dict()}),
+            status_code=status_code,
+            media_type="application/json",
+        )
+
     @app.get("/api/health")
     async def health() -> dict[str, Any]:
         return {
             "status": "ok",
             "storage": type(result_store).__name__,
+            "workflowStorage": type(active_workflow_store).__name__,
             "workspaceRoot": str(settings.workspace_root.resolve()),
             "judge": {
                 "configured": active_judge is not None,
                 "provider": None if active_judge is None else active_judge.name,
                 "model": None if active_judge is None else active_judge.model,
             },
+        }
+
+    @app.get("/api/projects")
+    async def list_projects() -> dict[str, Any]:
+        return {"projects": await active_workflow_store.list_projects()}
+
+    @app.post("/api/projects", status_code=status.HTTP_201_CREATED)
+    async def create_project(request: ProjectCreateRequest) -> Any:
+        return await active_workflow_store.create_project(
+            request.project_id,
+            request.name,
+            request.description,
+            workspace_path=request.workspace_path,
+            default_spec_refs=request.default_spec_refs,
+        )
+
+    @app.get("/api/workflows")
+    async def list_workflows(project_id: str | None = None) -> dict[str, Any]:
+        return {"workflows": await active_workflow_store.list_workflows(project_id)}
+
+    @app.post("/api/workflows", status_code=status.HTTP_201_CREATED)
+    async def create_workflow(request: WorkflowCreateRequest) -> Any:
+        return await active_workflow_store.create_workflow(
+            project_id=request.project_id,
+            name=request.name,
+            description=request.description,
+            idempotency_key=request.idempotency_key,
+            draft=request.draft,
+        )
+
+    @app.get("/api/workflows/{workflow_id}")
+    async def get_workflow(workflow_id: str) -> Any:
+        workflow = await active_workflow_store.get_workflow(workflow_id)
+        if workflow is None:
+            raise _http_error("WORKFLOW_NOT_FOUND", "workflow does not exist", 404)
+        return workflow
+
+    @app.post("/api/workflows/{workflow_id}/resume")
+    async def resume_workflow(workflow_id: str) -> Any:
+        return await workflows.resume(workflow_id)
+
+    @app.post("/api/workflows/{workflow_id}/cancel")
+    async def cancel_workflow(workflow_id: str) -> Any:
+        return await workflows.cancel(workflow_id)
+
+    @app.get("/api/workflows/{workflow_id}/events")
+    async def list_workflow_events(
+        workflow_id: str,
+        after: int = Query(default=0, ge=0),
+    ) -> dict[str, Any]:
+        events = await active_workflow_store.list_events(
+            workflow_id,
+            after_revision=after,
+        )
+        return {
+            "events": events,
+            "revision": after if not events else events[-1].revision,
         }
 
     @app.get("/api/runs")

@@ -6,9 +6,10 @@ import { AIEvidence } from "./components/AIEvidence";
 import { QualityLab } from "./components/QualityLab";
 import { RunDetail } from "./components/RunDetail";
 import { RunList } from "./components/RunList";
+import { Workbench } from "./components/Workbench";
 import type { HealthResponse, RunJob, StoredRunSummary } from "./types";
 
-type View = "runs" | "quality" | "ai";
+type View = "workbench" | "runs" | "quality" | "ai";
 
 export default function App() {
   const [view, setView] = useState<View>("runs");
@@ -65,12 +66,13 @@ export default function App() {
     <div className="app-shell">
       <header className="topbar">
         <button className="brand" onClick={() => { setView("runs"); setSelectedRunId(null); }}><span className="brand__mark">AQ</span><span><strong>AgentQAKit</strong><small>Evidence console</small></span></button>
-        <nav aria-label="Primary"><button className={view === "runs" ? "active" : ""} onClick={() => setView("runs")}>Runs</button><button className={view === "ai" ? "active" : ""} onClick={() => setView("ai")}>AI evidence</button><button className={view === "quality" ? "active" : ""} onClick={() => setView("quality")}>Compare &amp; gate</button></nav>
+        <nav aria-label="Primary"><button className={view === "workbench" ? "active" : ""} onClick={() => setView("workbench")}>Workbench</button><button className={view === "runs" ? "active" : ""} onClick={() => setView("runs")}>Runs</button><button className={view === "ai" ? "active" : ""} onClick={() => setView("ai")}>AI evidence</button><button className={view === "quality" ? "active" : ""} onClick={() => setView("quality")}>Compare &amp; gate</button></nav>
         <div className="live-indicator"><span /> Local</div>
       </header>
 
       <main>
         {error && <div className="notice notice--bad global-notice">{error}</div>}
+        {view === "workbench" && <Workbench />}
         {view === "runs" && !selected && <>
           <section className="intro"><div><p className="eyebrow">Local-first agent assurance</p><h1>Turn every run into<br /><em>reviewable evidence.</em></h1><p>Execute deterministic tests, inspect traces, and carry verified findings into release decisions.</p></div>
             <form className="launch-card" onSubmit={(event) => void launch(event)}><div className="launch-card__title"><span>+</span><div><strong>Launch a run</strong><small>Workspace-relative specs only</small></div></div><label>Project<input value={projectId} onChange={(event) => setProjectId(event.target.value)} required /></label><label>Tests path<input value={testsPath} onChange={(event) => setTestsPath(event.target.value)} required /></label><label>Target path<input value={targetPath} onChange={(event) => setTargetPath(event.target.value)} /></label><label>Manifest path <small>optional</small><input value={manifestPath} onChange={(event) => setManifestPath(event.target.value)} /></label><label>Mutations path <small>optional</small><input value={mutationsPath} onChange={(event) => setMutationsPath(event.target.value)} /></label><label className="check-row"><input type="checkbox" checked={judgeEnabled} disabled={!health?.judge?.configured} onChange={(event) => setJudgeEnabled(event.target.checked)} /><span>DeepSeek AI judge<small>{health?.judge?.configured ? health.judge.model : "not configured"}</small></span></label><button className="button button--accent" disabled={launching}>{launching ? "Submitting…" : "Run test suite"}</button></form>

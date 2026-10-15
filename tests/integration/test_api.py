@@ -126,6 +126,58 @@ rules:
     assert gated.json()["exit_code"] == 1
 
 
+def test_api_persists_workbench_workflows_and_event_cursors(tmp_path: Path) -> None:
+    app = create_app(_settings(tmp_path), store=FileResultStore(tmp_path / "store"))
+
+    with TestClient(app) as client:
+        project = client.post(
+            "/api/projects",
+            json={
+                "projectId": "demo",
+                "name": "Demo agent",
+                "description": "Local workbench project",
+            },
+        )
+        assert project.status_code == 201
+        assert project.json()["project_id"] == "demo"
+
+        request = {
+            "projectId": "demo",
+            "name": "First assurance workflow",
+            "idempotencyKey": "demo-workflow-1",
+            "draft": True,
+        }
+        created = client.post("/api/workflows", json=request)
+        repeated = client.post("/api/workflows", json=request)
+        assert created.status_code == 201
+        assert repeated.json()["workflow_id"] == created.json()["workflow_id"]
+        workflow_id = created.json()["workflow_id"]
+
+        resumed = client.post(f"/api/workflows/{workflow_id}/resume")
+        assert resumed.status_code == 200
+        assert resumed.json()["status"] == "READY"
+
+        first_page = client.get(f"/api/workflows/{workflow_id}/events", params={"after": 0})
+        assert [event["revision"] for event in first_page.json()["events"]] == [1, 2]
+        assert first_page.json()["revision"] == 2
+        assert (
+            client.get(f"/api/workflows/{workflow_id}/events", params={"after": 2}).json()["events"]
+            == []
+        )
+
+        cancelled = client.post(f"/api/workflows/{workflow_id}/cancel")
+        listing = client.get("/api/workflows", params={"project_id": "demo"})
+        assert cancelled.json()["status"] == "CANCELLED"
+        assert listing.json()["workflows"][0]["workflow_id"] == workflow_id
+
+        conflict = client.post(
+            "/api/workflows",
+            json={**request, "name": "Changed workflow"},
+        )
+        assert conflict.status_code == 409
+        assert conflict.json()["detail"]["code"] == "WORKFLOW_IDEMPOTENCY_CONFLICT"
+
+
 def test_api_background_run_uses_workspace_relative_paths(tmp_path: Path) -> None:
     target = tmp_path / "target.yaml"
     target.write_text(

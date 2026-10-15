@@ -14,9 +14,14 @@ describe("App", () => {
           ? {
               status: "ok",
               storage: "SQLiteResultStore",
+              workflowStorage: "SQLiteWorkflowStore",
               workspaceRoot: "/workspace",
               judge: { configured: true, provider: "deepseek", model: "deepseek-test" },
             }
+          : String(input).includes("/api/projects")
+            ? { projects: [] }
+            : String(input).includes("/api/workflows")
+              ? { workflows: [] }
           : String(input).includes("/api/ai/evidence")
             ? { generations: [], analyses: [] }
             : { runs: [], jobs: [] },
@@ -41,5 +46,8 @@ describe("App", () => {
     expect(screen.getByRole("button", { name: "Evaluate gate" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "AI evidence" }));
     expect(await screen.findByRole("heading", { name: "AI test generation" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Workbench" }));
+    expect(await screen.findByRole("heading", { name: "Assurance workbench" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "No workflows yet" })).toBeVisible();
   });
 });
