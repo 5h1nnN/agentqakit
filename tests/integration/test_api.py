@@ -179,6 +179,173 @@ def test_api_persists_workbench_workflows_and_event_cursors(tmp_path: Path) -> N
         assert conflict.json()["detail"]["code"] == "WORKFLOW_IDEMPOTENCY_CONFLICT"
 
 
+def test_campaign_builder_confirms_exact_config_and_persists_target_run(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "demo_agent.py").write_text(
+        "def run(payload):\n    return {'answer': payload.get('input', {}).get('message', '')}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "manifest.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha2
+kind: AgentManifest
+metadata:
+  name: campaign-agent
+runtime:
+  language: python
+  framework: custom
+  entrypoint: demo_agent:run
+purpose:
+  summary: Echo a requested message.
+capabilities:
+  - name: echo
+    description: Echo one message.
+tools:
+  - name: external_writer
+    description: Demonstrate an externally visible operation.
+    sideEffect: external-write
+    risk: high
+    idempotent: true
+policies:
+  forbiddenBehaviors:
+    - Do not alter the selected campaign configuration.
+quality:
+  objectives: [task-success]
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "target.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: demo-target
+type: python
+entrypoint: demo_agent:run
+workingDirectory: .
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "test.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: echo-high-risk
+  labels:
+    risk: high
+scenario:
+  input:
+    message: hello
+expect:
+  output:
+    exactFields:
+      answer: hello
+evaluators:
+  - type: schema
+""",
+        encoding="utf-8",
+    )
+    app = create_app(_settings(tmp_path), store=FileResultStore(tmp_path / "store"))
+
+    with TestClient(app) as client:
+        assert (
+            client.post(
+                "/api/projects",
+                json={
+                    "projectId": "campaign-demo",
+                    "name": "Campaign demo",
+                    "defaultSpecRefs": {
+                        "manifest": "manifest.yaml",
+                        "target": "target.yaml",
+                        "tests": "test.yaml",
+                    },
+                },
+            ).status_code
+            == 201
+        )
+        assert client.post("/api/projects/campaign-demo/preflight").status_code == 200
+        workflow = client.post(
+            "/api/workflows",
+            json={
+                "projectId": "campaign-demo",
+                "name": "Campaign execution",
+                "idempotencyKey": "campaign-workflow",
+            },
+        ).json()
+        workflow_id = workflow["workflow_id"]
+        inputs = client.get(f"/api/workflows/{workflow_id}/campaign-inputs")
+        assert inputs.status_code == 200
+        assert inputs.json()["golden"][0]["caseId"] == "echo-high-risk"
+
+        denied = client.post(
+            f"/api/workflows/{workflow_id}/campaigns",
+            json={
+                "idempotencyKey": "denied",
+                "targets": [{"role": "target", "path": "target.yaml"}],
+            },
+        )
+        assert denied.status_code == 422
+        assert denied.json()["detail"]["code"] == "CAMPAIGN_SIDE_EFFECTS_NOT_ALLOWED"
+
+        created = client.post(
+            f"/api/workflows/{workflow_id}/campaigns",
+            json={
+                "idempotencyKey": "campaign-1",
+                "targets": [{"role": "target", "path": "target.yaml"}],
+                "allowSideEffects": True,
+                "replayMode": "off",
+            },
+        )
+        assert created.status_code == 201
+        campaign = created.json()
+        assert campaign["status"] == "AWAITING_CONFIRMATION"
+        assert campaign["risk"]["high_risk_cases"] == ["echo-high-risk"]
+
+        stale = client.post(
+            f"/api/campaigns/{campaign['campaign_id']}/start",
+            json={"configHash": "sha256:" + "0" * 64, "idempotencyKey": "start-stale"},
+        )
+        assert stale.status_code == 409
+        challenge = client.post(f"/api/campaigns/{campaign['campaign_id']}/challenge").json()
+        confirmed = client.post(
+            f"/api/campaigns/{campaign['campaign_id']}/confirm",
+            json={
+                "challengeId": challenge["challenge"]["challenge_id"],
+                "phrase": challenge["phrase"],
+                "configHash": campaign["config_hash"],
+                "reviewer": "tester",
+            },
+        )
+        assert confirmed.status_code == 200
+        reused = client.post(
+            f"/api/campaigns/{campaign['campaign_id']}/confirm",
+            json={
+                "challengeId": challenge["challenge"]["challenge_id"],
+                "phrase": challenge["phrase"],
+                "configHash": campaign["config_hash"],
+                "reviewer": "tester",
+            },
+        )
+        assert reused.status_code == 409
+        started = client.post(
+            f"/api/campaigns/{campaign['campaign_id']}/start",
+            json={"configHash": campaign["config_hash"], "idempotencyKey": "start-1"},
+        )
+        assert started.status_code == 202
+        final: dict[str, object] = {}
+        for _ in range(150):
+            final = client.get(f"/api/campaigns/{campaign['campaign_id']}").json()
+            if final["status"] in {"COMPLETED", "FAILED", "INCOMPLETE"}:
+                break
+            time.sleep(0.02)
+        assert final["status"] == "COMPLETED"
+        subruns = final["subruns"]
+        assert isinstance(subruns, list)
+        assert len(subruns) == 1
+        assert subruns[0]["completed_trials"] == 1
+        run_id = subruns[0]["run_id"]
+        assert client.get(f"/api/runs/{run_id}").json()["state"] == "stored"
+
+
 def test_api_imports_catalog_and_requires_explicit_code_evidence_selection(
     tmp_path: Path,
 ) -> None:

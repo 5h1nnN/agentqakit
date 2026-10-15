@@ -33,6 +33,10 @@ class RunExecutionConfig:
     concurrency: int = 1
     max_total_tokens: int | None = None
     max_total_cost_usd: float | None = None
+    prepare_timeout_seconds: float = 30.0
+    item_timeout_seconds: float = 120.0
+    evaluator_timeout_seconds: float = 30.0
+    cleanup_timeout_seconds: float = 30.0
     trace_receiver: bool = True
     otlp_port: int = 4318
     otlp_endpoint: str | None = None
@@ -183,6 +187,10 @@ async def execute_run(config: RunExecutionConfig) -> RunResult:
                 concurrency=config.concurrency,
                 max_total_tokens=config.max_total_tokens,
                 max_total_cost_usd=config.max_total_cost_usd,
+                prepare_timeout_seconds=config.prepare_timeout_seconds,
+                item_timeout_seconds=config.item_timeout_seconds,
+                evaluator_timeout_seconds=config.evaluator_timeout_seconds,
+                cleanup_timeout_seconds=config.cleanup_timeout_seconds,
                 trace_flush_timeout_seconds=config.trace_flush_timeout_seconds,
                 otlp_endpoint=endpoint,
                 replay_mode=config.replay_mode,

@@ -10,6 +10,7 @@ from typing import Any, cast
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from agentqa.api.ai_evidence import list_ai_evidence
@@ -17,6 +18,9 @@ from agentqa.api.jobs import RunJobManager
 from agentqa.api.models import (
     ArtifactImportRequest,
     BatchCandidateReviewRequest,
+    CampaignConfirmRequest,
+    CampaignCreateRequest,
+    CampaignStartRequest,
     CandidateReviewRequest,
     CandidateRevisionRequest,
     CodeEvidenceRequest,
@@ -42,12 +46,17 @@ from agentqa.llm import StructuredLLMProvider
 from agentqa.models import QualityGateSpec
 from agentqa.models.storage import FindingReview
 from agentqa.specs import SpecLoadError, load_spec_file
+from agentqa.specs.hashing import sha256_digest
 from agentqa.storage import ResultStore, ResultStoreError, SQLiteResultStore
 from agentqa.tracing import InMemoryTraceStore, TraceOptions
 from agentqa.tracing.otlp import OTLPDecodeError, ingest_otlp_protobuf
 from agentqa.workbench import (
     ArtifactCatalogError,
     ArtifactCatalogService,
+    CampaignError,
+    CampaignStore,
+    CampaignStoreError,
+    CampaignWorkbenchService,
     CodeEvidenceError,
     CodeEvidenceService,
     EvidenceBoundaryService,
@@ -146,6 +155,18 @@ def create_app(
         artifact_catalog=artifact_catalog,
         orchestrator=workflows,
     )
+    campaign_store = CampaignStore(settings.database_path)
+    campaign_workbench = CampaignWorkbenchService(
+        workspace_root=settings.workspace_root,
+        artifact_directory=settings.artifact_directory,
+        result_store=result_store,
+        workflow_store=active_workflow_store,
+        campaign_store=campaign_store,
+        generation=generation_workbench,
+        artifact_catalog=artifact_catalog,
+        orchestrator=workflows,
+        judge_provider=active_judge,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -153,6 +174,7 @@ def create_app(
         await result_store.initialize()
         await active_workflow_store.initialize()
         await generation_store.initialize()
+        await campaign_store.initialize()
         await artifact_catalog.initialize()
         try:
             yield
@@ -161,6 +183,7 @@ def create_app(
             await jobs.shutdown()
             await active_workflow_store.close()
             await generation_store.close()
+            await campaign_store.close()
             await artifact_catalog.close()
             await result_store.close()
 
@@ -175,6 +198,8 @@ def create_app(
     app.state.artifact_catalog = artifact_catalog
     app.state.generation_store = generation_store
     app.state.generation_workbench = generation_workbench
+    app.state.campaign_store = campaign_store
+    app.state.campaign_workbench = campaign_workbench
     app.state.run_jobs = jobs
     app.state.live_traces = live_traces
     app.state.judge_provider = active_judge
@@ -237,6 +262,23 @@ def create_app(
         if exc.code.endswith("NOT_FOUND"):
             status_code = 404
         elif exc.code.endswith(("CONFLICT", "MISMATCH")):
+            status_code = 409
+        return Response(
+            content=json.dumps({"detail": exc.to_dict()}),
+            status_code=status_code,
+            media_type="application/json",
+        )
+
+    @app.exception_handler(CampaignError)
+    @app.exception_handler(CampaignStoreError)
+    async def campaign_error_handler(
+        request: Request, exc: CampaignError | CampaignStoreError
+    ) -> Response:
+        del request
+        status_code = 422
+        if exc.code.endswith("NOT_FOUND"):
+            status_code = 404
+        elif exc.code.endswith(("CONFLICT", "MISMATCH", "IMMUTABLE", "INVALID")):
             status_code = 409
         return Response(
             content=json.dumps({"detail": exc.to_dict()}),
@@ -480,6 +522,54 @@ def create_app(
             diff_summary=request.diff_summary,
         )
 
+    @app.get("/api/workflows/{workflow_id}/campaign-inputs")
+    async def campaign_inputs(workflow_id: str) -> dict[str, Any]:
+        return await campaign_workbench.inputs(workflow_id)
+
+    @app.get("/api/workflows/{workflow_id}/campaigns")
+    async def list_campaigns(workflow_id: str) -> dict[str, Any]:
+        if await active_workflow_store.get_workflow(workflow_id) is None:
+            raise _http_error("WORKFLOW_NOT_FOUND", "workflow does not exist", 404)
+        return {"campaigns": await campaign_store.list(workflow_id)}
+
+    @app.post(
+        "/api/workflows/{workflow_id}/campaigns",
+        status_code=status.HTTP_201_CREATED,
+    )
+    async def create_campaign(workflow_id: str, request: CampaignCreateRequest) -> Any:
+        return await campaign_workbench.create(workflow_id, request)
+
+    @app.get("/api/campaigns/{campaign_id}")
+    async def get_campaign(campaign_id: str) -> Any:
+        return await campaign_workbench.require(campaign_id)
+
+    @app.post("/api/campaigns/{campaign_id}/challenge")
+    async def create_campaign_challenge(campaign_id: str) -> dict[str, Any]:
+        return await campaign_workbench.challenge(campaign_id)
+
+    @app.post("/api/campaigns/{campaign_id}/confirm")
+    async def confirm_campaign(campaign_id: str, request: CampaignConfirmRequest) -> Any:
+        return await campaign_workbench.confirm(
+            campaign_id,
+            challenge_id=request.challenge_id,
+            phrase=request.phrase,
+            config_hash=request.config_hash,
+            reviewer=request.reviewer,
+            comment=request.comment,
+        )
+
+    @app.post(
+        "/api/campaigns/{campaign_id}/start",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def start_campaign(campaign_id: str, request: CampaignStartRequest) -> dict[str, Any]:
+        campaign, step = await campaign_workbench.start(
+            campaign_id,
+            config_hash=request.config_hash,
+            idempotency_key=request.idempotency_key,
+        )
+        return {"campaign": campaign, "step": step}
+
     @app.get("/api/runs")
     async def list_runs(project_id: str = "default") -> dict[str, Any]:
         return {
@@ -531,6 +621,29 @@ def create_app(
         if stored is None:
             raise _http_error("RUN_NOT_FOUND", "run does not exist", 404)
         return {"findings": await result_store.list_findings(run_id)}
+
+    @app.get("/api/runs/{run_id}/failure-bundles/{filename}")
+    async def download_failure_bundle(run_id: str, filename: str) -> FileResponse:
+        if not filename.startswith("failure-") or not filename.endswith(".zip"):
+            raise _http_error("FAILURE_BUNDLE_PATH_ERROR", "invalid bundle name", 422)
+        stored = await result_store.get_run(run_id)
+        if stored is None or stored.artifact_path is None:
+            raise _http_error("RUN_NOT_FOUND", "run does not exist", 404)
+        root = Path(stored.artifact_path).resolve()
+        path = (root / "failures" / filename).resolve()
+        try:
+            path.relative_to(root / "failures")
+            expected = path.with_name(f"{path.name}.sha256").read_text(encoding="utf-8").strip()
+            payload = path.read_bytes()
+        except (ValueError, OSError):
+            raise _http_error(
+                "FAILURE_BUNDLE_NOT_FOUND", "verified failure bundle is unavailable", 404
+            ) from None
+        if expected != sha256_digest(payload):
+            raise _http_error(
+                "FAILURE_BUNDLE_CHECKSUM_ERROR", "failure bundle checksum is invalid", 409
+            )
+        return FileResponse(path, media_type="application/zip", filename=filename)
 
     @app.put("/api/findings/{finding_id}/review")
     async def update_review(finding_id: str, request: ReviewUpdateRequest) -> FindingReview:

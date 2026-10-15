@@ -197,3 +197,53 @@ class CandidateRevisionRequest(ApiModel):
     spec: AgentTestSpec
     editor: NonEmptyString = Field(max_length=200)
     diff_summary: NonEmptyString = Field(max_length=4_000)
+
+
+class GeneratedCampaignTestRequest(ApiModel):
+    session_id: NonEmptyString
+    case_id: ResourceName
+    spec_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
+class CampaignTargetRequest(ApiModel):
+    role: Literal["target", "baseline", "candidate", "defect", "fixed"]
+    path: NonEmptyString = Field(max_length=2_000)
+
+
+class CampaignCreateRequest(ApiModel):
+    """User choices that the server resolves into an immutable CampaignConfig."""
+
+    idempotency_key: NonEmptyString = Field(max_length=200)
+    golden_tests_path: NonEmptyString | None = Field(default=None, max_length=2_000)
+    golden_case_ids: list[ResourceName] = Field(default_factory=list, max_length=1_000)
+    generated_tests: list[GeneratedCampaignTestRequest] = Field(
+        default_factory=list, max_length=1_000
+    )
+    targets: list[CampaignTargetRequest] = Field(min_length=1, max_length=20)
+    manifest_path: NonEmptyString | None = Field(default=None, max_length=2_000)
+    mutations_path: NonEmptyString | None = Field(default=None, max_length=2_000)
+    replay_mode: Literal["off", "record", "replay", "hybrid"] = "off"
+    replay_cassette: str | None = Field(default=None, max_length=2_000)
+    judge_enabled: bool = False
+    trials: int | None = Field(default=None, ge=1, le=100)
+    random_seed: int = 0
+    concurrency: int = Field(default=1, ge=1, le=32)
+    item_timeout_seconds: float = Field(default=120.0, gt=0, le=3_600)
+    evaluator_timeout_seconds: float = Field(default=30.0, gt=0, le=600)
+    max_total_tokens: int | None = Field(default=None, ge=1)
+    max_total_cost_usd: float | None = Field(default=None, gt=0)
+    max_duration_seconds: float | None = Field(default=None, gt=0, le=86_400)
+    allow_side_effects: bool = False
+
+
+class CampaignConfirmRequest(ApiModel):
+    challenge_id: NonEmptyString
+    phrase: NonEmptyString = Field(max_length=100)
+    config_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    reviewer: NonEmptyString = Field(max_length=200)
+    comment: str = Field(default="", max_length=10_000)
+
+
+class CampaignStartRequest(ApiModel):
+    config_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    idempotency_key: NonEmptyString = Field(max_length=200)

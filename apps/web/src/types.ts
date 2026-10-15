@@ -257,6 +257,39 @@ export interface TestResult {
   }>;
   violations: Violation[];
   mutation_applications: MutationApplication[];
+  cassette_ref: string | null;
+  failure_bundle_ref: string | null;
+  replay: null | {
+    mode: "off" | "record" | "replay";
+    recorded: number;
+    hits: number;
+    misses: number;
+    live_fallbacks: number;
+    hit_rate: number | null;
+  };
+}
+
+export interface StoredRunDetail {
+  project_id: string;
+  artifact_path: string | null;
+  run: {
+    run_id: string;
+    status: string;
+    summary: RunSummary;
+    mutation_score: null | {
+      overall: { killed: number; survived: number; not_reached: number; invalid: number; score: number | null };
+      outcomes: Array<{
+        mutation_id: string;
+        operation_type: string;
+        target_kind: string;
+        status: "KILLED" | "SURVIVED" | "NOT_REACHED" | "INVALID";
+        triggered_count: number;
+        test_case_ids: string[];
+        failed_test_case_ids: string[];
+        reason: string | null;
+      }>;
+    };
+  };
 }
 
 export interface StoredFinding {
@@ -490,4 +523,105 @@ export interface GenerationSessionDetail {
   session: GenerationSession;
   plan: GenerationPlan | null;
   candidates: GeneratedCandidate[];
+}
+
+export interface CampaignInputs {
+  goldenTestsPath: string | null;
+  golden: Array<{ caseId: string; risk: string; specHash: string; sourceRef: string }>;
+  generated: Array<{
+    sessionId: string;
+    caseId: string;
+    risk: string;
+    specHash: string;
+    campaignEligible: boolean;
+    reviewStatus: string;
+  }>;
+  targets: Array<{ role: "target" | "baseline" | "candidate" | "defect" | "fixed"; path: string }>;
+  manifestPath: string | null;
+  mutationsPath: string | null;
+  judge: { available: boolean; provider: string | null; model: string | null };
+}
+
+export type CampaignStatus =
+  | "DRAFT"
+  | "AWAITING_CONFIRMATION"
+  | "QUEUED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "INCOMPLETE"
+  | "INTERRUPTED"
+  | "CANCELLED";
+
+export interface CampaignSubrun {
+  subrun_id: string;
+  target: { role: string; path: string; name: string; spec_hash: string };
+  run_id: string;
+  prior_run_ids: string[];
+  attempt: number;
+  status: CampaignStatus;
+  planned_trials: number;
+  completed_trials: number;
+  current_case_id: string | null;
+  replay_hits: number;
+  replay_misses: number;
+  live_fallbacks: number;
+  judge_evaluations: number;
+  mutation_applications: number;
+  mutation_killed: number;
+  mutation_survived: number;
+  mutation_not_reached: number;
+  mutation_invalid: number;
+  summary: RunSummary | null;
+  budget: null | {
+    consumed_total_tokens: number;
+    consumed_cost_usd: number;
+    exhausted: boolean;
+  };
+  artifact_path: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  error: { code: string; message: string } | null;
+}
+
+export interface Campaign {
+  campaign_id: string;
+  workflow_id: string;
+  project_id: string;
+  idempotency_key: string;
+  config_hash: string;
+  config: {
+    replay_mode: "off" | "record" | "replay" | "hybrid";
+    replay_cassette: string | null;
+    judge_enabled: boolean;
+    trials: number | null;
+    concurrency: number;
+    max_total_tokens: number | null;
+    max_total_cost_usd: number | null;
+    max_duration_seconds: number | null;
+    allow_side_effects: boolean;
+  };
+  risk: {
+    case_count: number;
+    target_count: number;
+    mutation_count: number;
+    max_trials: number;
+    high_risk_cases: string[];
+    side_effect_tools: string[];
+    external_side_effects: string[];
+    irreversible_side_effects: string[];
+    requires_confirmation: boolean;
+    reasons: string[];
+  };
+  status: CampaignStatus;
+  approval_id: string | null;
+  workflow_step_id: string | null;
+  completed_trials: number;
+  total_trials: number;
+  created_at: string;
+  updated_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  error: { code: string; message: string } | null;
+  subruns: CampaignSubrun[];
 }

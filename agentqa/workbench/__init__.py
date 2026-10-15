@@ -1,5 +1,11 @@
 """Persistent orchestration primitives for the local Web workbench."""
 
+from agentqa.workbench.campaign_store import (
+    CAMPAIGN_STORE_SCHEMA_VERSION,
+    CampaignStore,
+    CampaignStoreError,
+)
+from agentqa.workbench.campaigns import CampaignError, CampaignWorkbenchService
 from agentqa.workbench.catalog import (
     CATALOG_SCHEMA_VERSION,
     ArtifactCatalogError,
@@ -19,6 +25,13 @@ from agentqa.workbench.models import (
     ArtifactImportIssue,
     ArtifactImportResult,
     ArtifactRef,
+    Campaign,
+    CampaignConfig,
+    CampaignConfirmationChallenge,
+    CampaignRiskSummary,
+    CampaignSubrun,
+    CampaignTarget,
+    CampaignTestSelection,
     CandidateDiagnostic,
     CatalogArtifact,
     EvidenceBoundaryPreview,
@@ -47,6 +60,7 @@ from agentqa.workbench.store import (
 )
 
 __all__ = [
+    "CAMPAIGN_STORE_SCHEMA_VERSION",
     "CATALOG_SCHEMA_VERSION",
     "GENERATION_WORKBENCH_SCHEMA_VERSION",
     "WORKFLOW_STORE_SCHEMA_VERSION",
@@ -56,6 +70,17 @@ __all__ = [
     "ArtifactImportIssue",
     "ArtifactImportResult",
     "ArtifactRef",
+    "Campaign",
+    "CampaignConfig",
+    "CampaignConfirmationChallenge",
+    "CampaignError",
+    "CampaignRiskSummary",
+    "CampaignStore",
+    "CampaignStoreError",
+    "CampaignSubrun",
+    "CampaignTarget",
+    "CampaignTestSelection",
+    "CampaignWorkbenchService",
     "CandidateDiagnostic",
     "CatalogArtifact",
     "CodeEvidenceError",

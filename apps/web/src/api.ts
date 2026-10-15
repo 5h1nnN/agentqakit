@@ -1,6 +1,8 @@
 import type {
   AIEvidenceResponse,
   ArtifactImportResult,
+  Campaign,
+  CampaignInputs,
   CatalogArtifact,
   CodeEvidence,
   ComparisonReport,
@@ -13,6 +15,7 @@ import type {
   RunJob,
   RunsResponse,
   StoredFinding,
+  StoredRunDetail,
   TestResult,
   TraceRecord,
   WorkbenchProject,
@@ -214,6 +217,45 @@ export const api = {
       { method: "POST", body: JSON.stringify(input) },
     );
   },
+  campaignInputs(workflowId: string) {
+    return request<CampaignInputs>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/campaign-inputs`,
+    );
+  },
+  async listCampaigns(workflowId: string) {
+    const result = await request<{ campaigns: Campaign[] }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/campaigns`,
+    );
+    return result.campaigns ?? [];
+  },
+  createCampaign(workflowId: string, input: Record<string, unknown>) {
+    return request<Campaign>(`/api/workflows/${encodeURIComponent(workflowId)}/campaigns`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  createCampaignChallenge(campaignId: string) {
+    return request<{
+      challenge: { challenge_id: string; config_hash: string; expires_at: string };
+      phrase: string;
+      risk: Campaign["risk"];
+    }>(`/api/campaigns/${encodeURIComponent(campaignId)}/challenge`, { method: "POST" });
+  },
+  confirmCampaign(
+    campaignId: string,
+    input: { challengeId: string; phrase: string; configHash: string; reviewer: string; comment: string },
+  ) {
+    return request<Campaign>(`/api/campaigns/${encodeURIComponent(campaignId)}/confirm`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  startCampaign(campaignId: string, configHash: string, idempotencyKey: string) {
+    return request<{ campaign: Campaign; step: unknown }>(
+      `/api/campaigns/${encodeURIComponent(campaignId)}/start`,
+      { method: "POST", body: JSON.stringify({ configHash, idempotencyKey }) },
+    );
+  },
   listRuns(projectId = "default") {
     return request<RunsResponse>(`/api/runs?project_id=${encodeURIComponent(projectId)}`);
   },
@@ -227,8 +269,11 @@ export const api = {
   }) {
     return request<RunJob>("/api/runs", { method: "POST", body: JSON.stringify(input) });
   },
-  getRun(runId: string) {
-    return request<Record<string, unknown>>(`/api/runs/${encodeURIComponent(runId)}`);
+  async getRun(runId: string) {
+    const result = await request<{ state: string; storedRun?: StoredRunDetail }>(
+      `/api/runs/${encodeURIComponent(runId)}`,
+    );
+    return result.storedRun ?? null;
   },
   async getResults(runId: string) {
     const result = await request<{ results: TestResult[] }>(

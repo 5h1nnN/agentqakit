@@ -126,6 +126,9 @@ details summary { cursor: pointer; color: #43535e; }
 .judge-card:last-child { border-bottom: 0; }
 .judge-card p { margin: 5px 0 0; color: var(--muted); line-height: 1.55; }
 .judge-score { color: var(--cyan); font-weight: 600; }
+.mutation-denominator { display: flex; flex-wrap: wrap; gap: 12px 22px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); color: var(--muted); font-size: 0.76rem; }
+.mutation-denominator strong { color: var(--ink); margin-left: 4px; }
+.finding a.button { display: inline-flex; margin-top: 10px; text-decoration: none; }
 
 .quality-controls { padding-bottom: 24px; }
 .workbench-layout { display: grid; gap: 24px; }
@@ -222,6 +225,40 @@ details summary { cursor: pointer; color: #43535e; }
 .timeline article small { color: #87929b; }
 .generation-workbench { margin: 24px 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
 .generation-workbench > .panel__header { background: #f7fbf9; }
+.campaign-workbench { margin: 24px 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.campaign-workbench > .panel__header { align-items: flex-start; background: #f7fbf9; }
+.campaign-workbench > .notice { margin: 16px 20px; }
+.campaign-builder-grid { display: grid; grid-template-columns: 1.15fr 0.85fr 1fr; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.campaign-builder-grid > section { min-width: 0; padding: 20px; }
+.campaign-builder-grid > section + section { border-left: 1px solid var(--line); }
+.campaign-builder-grid h3 { margin: 0 0 5px; font-size: 0.95rem; }
+.campaign-builder-grid p { margin: 0 0 13px; font-size: 0.76rem; line-height: 1.5; }
+.campaign-options { display: grid; gap: 7px; max-height: 300px; overflow: auto; margin-bottom: 15px; }
+.campaign-options label { grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 9px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfc; }
+.campaign-options label.is-disabled { opacity: 0.55; }
+.campaign-options input { width: auto; margin-top: 3px; }
+.campaign-options span, .campaign-options small { display: block; min-width: 0; overflow-wrap: anywhere; }
+.campaign-options small { margin-top: 3px; color: var(--muted); }
+.campaign-numbers { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.campaign-create { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 20px; background: #fbfcfc; color: var(--muted); font-size: 0.78rem; }
+.campaign-create strong { color: var(--ink); }
+.campaign-review { border-top: 1px solid var(--line); }
+.campaign-review .review-heading code { font-size: 0.68rem; overflow-wrap: anywhere; }
+.campaign-risk-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border-bottom: 1px solid var(--line); }
+.campaign-risk-grid span { display: grid; align-content: space-between; min-height: 72px; padding: 12px; background: var(--surface-2); color: var(--muted); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.campaign-risk-grid strong { color: var(--ink); font-size: 0.78rem; text-transform: none; }
+.campaign-actions, .confirmation-box { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.confirmation-box { display: grid; gap: 10px; background: #fffaf0; }
+.confirmation-box p { margin: 0; font-size: 0.8rem; line-height: 1.55; }
+.campaign-progress { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 18px; padding: 15px 20px; border-bottom: 1px solid var(--line); }
+.campaign-progress > div { display: grid; gap: 3px; }
+.campaign-progress span { color: var(--muted); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; }
+.campaign-progress progress { width: 100%; accent-color: var(--accent); }
+.campaign-matrix { min-width: 1180px; }
+.campaign-matrix td { vertical-align: top; }
+.campaign-matrix td:first-child, .campaign-matrix td:nth-child(3) { display: grid; gap: 5px; }
+.campaign-matrix small { color: var(--muted); }
+.campaign-footnote { margin: 0; padding: 13px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.76rem; }
 .session-tabs { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .session-tabs button { display: grid; gap: 2px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--muted); cursor: pointer; text-align: left; }
 .session-tabs button.is-selected { border-color: #7eb49b; background: #eef8f2; color: var(--accent); }
@@ -320,8 +357,9 @@ footer { border-top: 1px solid var(--line); min-height: 58px; display: flex; ali
   .workbench-grid { grid-template-columns: 1fr; }
   .workbench-sidebar { grid-template-columns: 1fr 1fr; }
   .evidence-grid, .boundary-grid { grid-template-columns: 1fr; }
-  .generation-goal, .candidate-columns { grid-template-columns: 1fr; }
-  .generation-goal > section + section, .candidate-columns section + section { border-left: 0; border-top: 1px solid var(--line); }
+  .generation-goal, .candidate-columns, .campaign-builder-grid { grid-template-columns: 1fr; }
+  .generation-goal > section + section, .candidate-columns section + section, .campaign-builder-grid > section + section { border-left: 0; border-top: 1px solid var(--line); }
+  .campaign-risk-grid { grid-template-columns: repeat(3, 1fr); }
   .evidence-grid > * + *, .boundary-grid section + section { border-left: 0; border-top: 1px solid var(--line); }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .finding { grid-template-columns: 1fr; }
@@ -340,6 +378,8 @@ footer { border-top: 1px solid var(--line); min-height: 58px; display: flex; ali
   .workbench-summary { width: 100%; }
   .workbench-sidebar { grid-template-columns: 1fr; }
   .workflow-meta { grid-template-columns: repeat(2, 1fr); }
+  .campaign-risk-grid { grid-template-columns: repeat(2, 1fr); }
+  .campaign-create { align-items: stretch; flex-direction: column; }
   .project-control .panel__header { display: grid; gap: 14px; }
   .project-control .button-row { justify-content: flex-start; }
   .run-hero { align-items: flex-start; }
