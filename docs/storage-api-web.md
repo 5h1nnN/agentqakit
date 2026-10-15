@@ -92,6 +92,42 @@ operation by default. T17 provides this orchestration boundary; later workbench
 tasks connect artifact import, generation, review, campaign, and analysis
 actions to it.
 
+T18 adds project readiness, a verified artifact index, and explicit code
+evidence selection. These routes never accept absolute paths and never move or
+rewrite imported artifact files:
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/projects/{project_id}` | Read project configuration and the last observed source snapshot |
+| `POST` | `/api/projects/{project_id}/preflight` | Validate specs, paths, entrypoints, dependencies, provider state, tool risk, side effects, and local source identity |
+| `POST` | `/api/projects/{project_id}/artifacts/import` | Explicitly discover checksummed artifacts in allowlisted workspace roots |
+| `GET` | `/api/projects/{project_id}/artifacts` | List catalog entries independently of their original directory layout |
+| `GET` | `/api/projects/{project_id}/workspace?path=.` | Browse only safe text files under the configured project directory |
+| `POST` | `/api/projects/{project_id}/code-evidence/preview` | Preview a bounded, redacted file and line selection without granting AI access |
+| `POST` | `/api/projects/{project_id}/code-evidence` | Explicitly add the previewed selection to the project's immutable evidence set |
+| `GET` | `/api/projects/{project_id}/code-evidence` | List selected code evidence and content hashes |
+| `GET` | `/api/projects/{project_id}/evidence-preview` | Show the exact current AI evidence boundary and budgets |
+
+The discovery roots are `.agentqa/artifacts`, the configured artifact root,
+`.agentqa/mcp`, `benchmark/results`, and `benchmark/reference-results`.
+Discovery requires an adjacent `.sha256` file, enforces a 16 MiB per-file
+limit, checks the recognized artifact schema, and records only an index row.
+Missing files become `MISSING`; changed files or sidecars become `INVALID`.
+Complete imported run directories are also reconstructed into `ResultStore`,
+which makes older CLI and T16 runs visible on the Runs page. AI Evidence reads
+catalog entries rather than depending on a fixed directory depth. Catalog reads
+are bounded to 200 rows by default (maximum 500) and return `total`, `limit`,
+and `offset` alongside the current page.
+
+Code evidence uses a separate two-step boundary. Preview rejects `.env*`, Git
+metadata, credentials, keys, binary or oversized files, generated/dependency
+directories, traversal, and symlinks. It returns only a redacted excerpt and
+its content hash. A maximum of 10 explicitly selected excerpts and 160 KiB of
+redacted content is retained per project. The evidence preview lists included
+Manifest sections and excerpts, excluded data classes, provider/model, token
+limits, timeout, and a deterministic evidence hash before a later AI action is
+allowed to use it.
+
 `POST /api/runs` returns `202 Accepted` and a stable run ID immediately. The
 client polls the run listing or detail route until the state is finalized. Jobs
 are in-process and intentionally do not survive a server restart.
@@ -119,7 +155,10 @@ when the server is configured. Run details show each AI verdict, score, and
 rationale.
 The **Workbench** view creates projects and durable workflow containers, polls
 their current state, shows the ordered audit timeline, and exposes only valid
-resume and cancel actions. The existing **Runs** view and CLI remain compatible;
+resume and cancel actions. It also provides T18 project setup, Preflight,
+artifact discovery/catalog inspection, safe workspace browsing, redacted code
+preview with an explicit add action, and evidence-boundary inspection. The
+existing **Runs** view and CLI remain compatible;
 workflow metadata shares the SQLite file but uses separate versioned tables.
 The **AI evidence** view additionally discovers strict, checksummed generation
 reports and AnalysisReports from the MCP and T16 artifact layouts. It shows

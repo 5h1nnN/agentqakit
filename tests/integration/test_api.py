@@ -1,5 +1,6 @@
 import asyncio
 import json
+import shutil
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -176,6 +177,95 @@ def test_api_persists_workbench_workflows_and_event_cursors(tmp_path: Path) -> N
         )
         assert conflict.status_code == 409
         assert conflict.json()["detail"]["code"] == "WORKFLOW_IDEMPOTENCY_CONFLICT"
+
+
+def test_api_imports_catalog_and_requires_explicit_code_evidence_selection(
+    tmp_path: Path,
+) -> None:
+    reference_source = (
+        Path(__file__).resolve().parents[2]
+        / "benchmark"
+        / "reference-results"
+        / "t16-deepseek-20261014"
+    )
+    reference_target = tmp_path / "benchmark" / "reference-results" / "t16"
+    reference_target.mkdir(parents=True)
+    for name in (
+        "generation-report.json",
+        "generation-report.json.sha256",
+        "mcp-transcript.json",
+        "mcp-transcript.json.sha256",
+        "regression-gate.json",
+        "regression-gate.json.sha256",
+        "plan.json",
+        "plan.json.sha256",
+    ):
+        shutil.copy2(reference_source / name, reference_target / name)
+    source_directory = tmp_path / "src"
+    source_directory.mkdir()
+    (source_directory / "agent.py").write_text(
+        "def answer():\n    return 'safe'\n", encoding="utf-8"
+    )
+    (tmp_path / ".env.local").write_text("DEEPSEEK_API_KEY=secret\n", encoding="utf-8")
+
+    store = FileResultStore(tmp_path / "store")
+    app = create_app(_settings(tmp_path), store=store)
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/projects",
+            json={"projectId": "catalog", "name": "Catalog project"},
+        )
+        assert created.status_code == 201
+
+        imported = client.post(
+            "/api/projects/catalog/artifacts/import",
+            json={"sources": ["reference_results"]},
+        )
+        assert imported.status_code == 200
+        assert imported.json()["imported"] == 4
+        catalog_response = client.get("/api/projects/catalog/artifacts").json()
+        catalog = catalog_response["artifacts"]
+        assert catalog_response["total"] == 4
+        assert (
+            len(
+                client.get("/api/projects/catalog/artifacts", params={"limit": 2}).json()[
+                    "artifacts"
+                ]
+            )
+            == 2
+        )
+        assert {item["artifact_type"] for item in catalog} == {
+            "GateResult",
+            "GenerationPlan",
+            "GenerationReport",
+            "MCPTranscript",
+        }
+        evidence = client.get("/api/ai/evidence").json()
+        assert len(evidence["generations"]) == 1
+
+        browse = client.get("/api/projects/catalog/workspace", params={"path": "src"}).json()
+        assert browse["entries"][0]["path"] == "src/agent.py"
+        selection = {
+            "path": "src/agent.py",
+            "startLine": 1,
+            "endLine": 2,
+            "reason": "Inspect the response implementation.",
+        }
+        preview = client.post("/api/projects/catalog/code-evidence/preview", json=selection)
+        assert preview.status_code == 200
+        assert preview.json()["contentHash"].startswith("sha256:")
+        added = client.post("/api/projects/catalog/code-evidence", json=selection)
+        assert added.status_code == 200
+        boundary = client.get("/api/projects/catalog/evidence-preview").json()
+        assert boundary["evidence_hash"].startswith("sha256:")
+        assert boundary["code_evidence"][0]["contentHash"] == preview.json()["contentHash"]
+
+        blocked = client.post(
+            "/api/projects/catalog/code-evidence/preview",
+            json={**selection, "path": ".env.local", "endLine": 1},
+        )
+        assert blocked.status_code == 422
+        assert blocked.json()["detail"]["code"] == "CODE_EVIDENCE_PATH_BLOCKED"
 
 
 def test_api_background_run_uses_workspace_relative_paths(tmp_path: Path) -> None:

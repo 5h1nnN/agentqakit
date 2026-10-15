@@ -1,14 +1,20 @@
 import type {
   AIEvidenceResponse,
+  ArtifactImportResult,
+  CatalogArtifact,
+  CodeEvidence,
   ComparisonReport,
+  EvidenceBoundaryPreview,
   GateResult,
   HealthResponse,
+  PreflightReport,
   RunJob,
   RunsResponse,
   StoredFinding,
   TestResult,
   TraceRecord,
   WorkbenchProject,
+  WorkspaceEntry,
   WorkflowEvent,
   WorkflowRun,
 } from "./types";
@@ -53,11 +59,73 @@ export const api = {
     const result = await request<{ projects: WorkbenchProject[] }>("/api/projects");
     return result.projects;
   },
-  createProject(input: { projectId: string; name: string; description?: string }) {
+  createProject(input: {
+    projectId: string;
+    name: string;
+    description?: string;
+    workspacePath?: string;
+    defaultSpecRefs?: Record<string, string>;
+    tags?: string[];
+  }) {
     return request<WorkbenchProject>("/api/projects", {
       method: "POST",
       body: JSON.stringify(input),
     });
+  },
+  getProject(projectId: string) {
+    return request<WorkbenchProject>(`/api/projects/${encodeURIComponent(projectId)}`);
+  },
+  preflightProject(projectId: string) {
+    return request<PreflightReport>(`/api/projects/${encodeURIComponent(projectId)}/preflight`, {
+      method: "POST",
+    });
+  },
+  importArtifacts(projectId: string, sources: string[]) {
+    return request<ArtifactImportResult>(
+      `/api/projects/${encodeURIComponent(projectId)}/artifacts/import`,
+      { method: "POST", body: JSON.stringify({ sources }) },
+    );
+  },
+  async listArtifacts(projectId: string) {
+    const result = await request<{ artifacts: CatalogArtifact[]; total?: number }>(
+      `/api/projects/${encodeURIComponent(projectId)}/artifacts`,
+    );
+    return { artifacts: result.artifacts, total: result.total ?? result.artifacts.length };
+  },
+  async browseWorkspace(projectId: string, path = ".") {
+    const result = await request<{ entries: WorkspaceEntry[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/workspace?path=${encodeURIComponent(path)}`,
+    );
+    return result.entries;
+  },
+  previewCodeEvidence(
+    projectId: string,
+    input: { path: string; startLine: number; endLine: number; reason: string },
+  ) {
+    return request<CodeEvidence>(
+      `/api/projects/${encodeURIComponent(projectId)}/code-evidence/preview`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  addCodeEvidence(
+    projectId: string,
+    input: { path: string; startLine: number; endLine: number; reason: string },
+  ) {
+    return request<CodeEvidence>(`/api/projects/${encodeURIComponent(projectId)}/code-evidence`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+  },
+  async listCodeEvidence(projectId: string) {
+    const result = await request<{ codeEvidence: CodeEvidence[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/code-evidence`,
+    );
+    return result.codeEvidence;
+  },
+  evidencePreview(projectId: string) {
+    return request<EvidenceBoundaryPreview>(
+      `/api/projects/${encodeURIComponent(projectId)}/evidence-preview`,
+    );
   },
   async listWorkflows(projectId?: string) {
     const query = projectId ? `?project_id=${encodeURIComponent(projectId)}` : "";

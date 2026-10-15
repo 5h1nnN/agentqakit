@@ -84,8 +84,85 @@ export interface WorkbenchProject {
   description: string;
   workspace_path: string;
   default_spec_refs: Record<string, string>;
+  tags: string[];
+  recent_workflow_id: string | null;
+  last_manifest_snapshot: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface PreflightCheck {
+  check_id: string;
+  category: string;
+  status: "PASS" | "REVIEW" | "BLOCK";
+  message: string;
+  path: string | null;
+}
+
+export interface PreflightReport {
+  project_id: string;
+  checked_at: string;
+  executable: boolean;
+  requires_approval: boolean;
+  checks: PreflightCheck[];
+  manifest_snapshot: Record<string, unknown> | null;
+}
+
+export interface CatalogArtifact {
+  artifact_id: string;
+  project_id: string;
+  artifact_type: string;
+  source: string;
+  path: string;
+  schema_version: string;
+  checksum: string;
+  size_bytes: number;
+  created_at: string;
+  workflow_id: string | null;
+  run_id: string | null;
+  availability: "AVAILABLE" | "MISSING" | "INVALID";
+  metadata: Record<string, unknown>;
+}
+
+export interface ArtifactImportResult {
+  project_id: string;
+  scanned: number;
+  imported: number;
+  unchanged: number;
+  rejected: number;
+  runs_registered: number;
+  issues: Array<{ path: string; code: string; message: string }>;
+}
+
+export interface WorkspaceEntry {
+  path: string;
+  name: string;
+  kind: "file" | "directory";
+  size_bytes: number | null;
+}
+
+export interface CodeEvidence {
+  path: string;
+  startLine: number;
+  endLine: number;
+  contentHash: string;
+  reason: string;
+  content: string;
+}
+
+export interface EvidenceBoundaryPreview {
+  project_id: string;
+  manifest_sections: string[];
+  code_evidence: CodeEvidence[];
+  evidence_types: string[];
+  excluded: string[];
+  provider: string | null;
+  model: string | null;
+  max_input_tokens: number;
+  max_output_tokens: number;
+  timeout_seconds: number;
+  max_cost_usd: number | null;
+  evidence_hash: string;
 }
 
 export interface WorkflowStep {

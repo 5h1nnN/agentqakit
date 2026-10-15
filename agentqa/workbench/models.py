@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import Field, JsonValue, field_validator, model_validator
 
 from agentqa.models.base import NonEmptyString, ResourceName, StrictModel, UtcDateTime
+from agentqa.models.generation import CodeEvidence
+from agentqa.models.manifest import RunManifestSnapshot
 from agentqa.models.results import ErrorInfo
 
 WorkflowStatus = Literal[
@@ -52,6 +54,9 @@ class WorkbenchProject(StrictModel):
     description: str = Field(default="", max_length=4_000)
     workspace_path: str = Field(default=".", max_length=1_000)
     default_spec_refs: dict[str, str] = Field(default_factory=dict, max_length=20)
+    tags: list[ResourceName] = Field(default_factory=list, max_length=20)
+    recent_workflow_id: NonEmptyString | None = None
+    last_manifest_snapshot: RunManifestSnapshot | None = None
     created_at: UtcDateTime
     updated_at: UtcDateTime
 
@@ -70,6 +75,13 @@ class WorkbenchProject(StrictModel):
             path = PurePosixPath(raw_path)
             if not name or path.is_absolute() or ".." in path.parts or "\\" in raw_path:
                 raise ValueError("default spec references must use safe relative POSIX paths")
+        return value
+
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("project tags must be unique")
         return value
 
 
@@ -173,9 +185,105 @@ class ApprovalDecision(StrictModel):
     created_at: UtcDateTime
 
 
+PreflightStatus = Literal["PASS", "REVIEW", "BLOCK"]
+
+
+class PreflightCheck(StrictModel):
+    """One bounded project readiness observation."""
+
+    check_id: ResourceName
+    category: Literal[
+        "schema",
+        "path",
+        "dependency",
+        "entrypoint",
+        "provider",
+        "tool_risk",
+        "side_effect",
+        "source",
+    ]
+    status: PreflightStatus
+    message: NonEmptyString = Field(max_length=1_000)
+    path: str | None = Field(default=None, max_length=1_000)
+
+
+class PreflightReport(StrictModel):
+    """Read-only readiness result with locally observed source identity."""
+
+    project_id: ResourceName
+    checked_at: UtcDateTime
+    executable: bool
+    requires_approval: bool
+    checks: list[PreflightCheck] = Field(max_length=200)
+    manifest_snapshot: RunManifestSnapshot | None = None
+
+
+class CatalogArtifact(StrictModel):
+    """Verified, immutable index entry pointing at an existing artifact file."""
+
+    artifact_id: NonEmptyString = Field(max_length=200)
+    project_id: ResourceName
+    artifact_type: NonEmptyString = Field(max_length=100)
+    source: Literal["CLI", "API", "MCP", "WORKFLOW", "BENCHMARK", "REFERENCE", "IMPORTED"]
+    path: NonEmptyString = Field(max_length=2_000)
+    schema_version: NonEmptyString = Field(max_length=200)
+    checksum: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    size_bytes: int = Field(ge=0)
+    created_at: UtcDateTime
+    workflow_id: NonEmptyString | None = None
+    run_id: NonEmptyString | None = None
+    availability: Literal["AVAILABLE", "MISSING", "INVALID"] = "AVAILABLE"
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class ArtifactImportIssue(StrictModel):
+    path: str = Field(max_length=2_000)
+    code: NonEmptyString = Field(max_length=100)
+    message: NonEmptyString = Field(max_length=1_000)
+
+
+class ArtifactImportResult(StrictModel):
+    project_id: ResourceName
+    scanned: int = Field(ge=0)
+    imported: int = Field(ge=0)
+    unchanged: int = Field(ge=0)
+    rejected: int = Field(ge=0)
+    runs_registered: int = Field(ge=0)
+    issues: list[ArtifactImportIssue] = Field(default_factory=list, max_length=100)
+
+
+class WorkspaceEntry(StrictModel):
+    path: NonEmptyString = Field(max_length=2_000)
+    name: NonEmptyString = Field(max_length=500)
+    kind: Literal["file", "directory"]
+    size_bytes: int | None = Field(default=None, ge=0)
+
+
+class EvidenceBoundaryPreview(StrictModel):
+    project_id: ResourceName
+    manifest_sections: list[NonEmptyString] = Field(default_factory=list, max_length=50)
+    code_evidence: list[CodeEvidence] = Field(default_factory=list, max_length=10)
+    evidence_types: list[NonEmptyString] = Field(default_factory=list, max_length=50)
+    excluded: list[NonEmptyString] = Field(default_factory=list, max_length=50)
+    provider: NonEmptyString | None = None
+    model: NonEmptyString | None = None
+    max_input_tokens: int = Field(ge=1)
+    max_output_tokens: int = Field(ge=1)
+    timeout_seconds: float = Field(gt=0)
+    max_cost_usd: float | None = Field(default=None, gt=0)
+    evidence_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+
+
 __all__ = [
     "ApprovalDecision",
+    "ArtifactImportIssue",
+    "ArtifactImportResult",
     "ArtifactRef",
+    "CatalogArtifact",
+    "EvidenceBoundaryPreview",
+    "PreflightCheck",
+    "PreflightReport",
+    "PreflightStatus",
     "WorkbenchProject",
     "WorkflowEvent",
     "WorkflowRun",
@@ -183,4 +291,5 @@ __all__ = [
     "WorkflowStep",
     "WorkflowStepKind",
     "WorkflowStepStatus",
+    "WorkspaceEntry",
 ]

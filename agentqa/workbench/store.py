@@ -15,6 +15,7 @@ from pydantic import JsonValue, ValidationError
 from agentqa.conventions import new_id, to_utc_iso8601, utc_now
 from agentqa.errors import AgentQAError
 from agentqa.models import ErrorInfo
+from agentqa.models.manifest import RunManifestSnapshot
 from agentqa.specs.hashing import canonical_json_bytes, sha256_digest
 from agentqa.storage.redaction import redact_secrets, redact_text_secrets
 from agentqa.workbench.models import (
@@ -148,11 +149,16 @@ class WorkflowStore(Protocol):
         *,
         workspace_path: str = ".",
         default_spec_refs: dict[str, str] | None = None,
+        tags: list[str] | None = None,
     ) -> WorkbenchProject: ...
 
     async def get_project(self, project_id: str) -> WorkbenchProject | None: ...
 
     async def list_projects(self) -> list[WorkbenchProject]: ...
+
+    async def update_project_observation(
+        self, project_id: str, manifest_snapshot: RunManifestSnapshot
+    ) -> WorkbenchProject: ...
 
     async def create_workflow(
         self,
@@ -526,6 +532,7 @@ class SQLiteWorkflowStore:
         description: str,
         workspace_path: str,
         default_spec_refs: dict[str, str],
+        tags: list[str],
     ) -> WorkbenchProject:
         self._initialize_sync()
         now = utc_now()
@@ -535,6 +542,7 @@ class SQLiteWorkflowStore:
             description=redact_text_secrets(description),
             workspace_path=workspace_path,
             default_spec_refs=default_spec_refs,
+            tags=tags,
             created_at=now,
             updated_at=now,
         )
@@ -551,6 +559,7 @@ class SQLiteWorkflowStore:
                     or existing.description != project.description
                     or existing.workspace_path != project.workspace_path
                     or existing.default_spec_refs != project.default_spec_refs
+                    or existing.tags != project.tags
                 ):
                     raise WorkflowStoreError(
                         "project_id already exists with different configuration",
@@ -591,6 +600,7 @@ class SQLiteWorkflowStore:
         *,
         workspace_path: str = ".",
         default_spec_refs: dict[str, str] | None = None,
+        tags: list[str] | None = None,
     ) -> WorkbenchProject:
         return await asyncio.to_thread(
             self._create_project_sync,
@@ -599,6 +609,7 @@ class SQLiteWorkflowStore:
             description,
             workspace_path,
             {} if default_spec_refs is None else default_spec_refs,
+            [] if tags is None else tags,
         )
 
     def _get_project_sync(self, project_id: str) -> WorkbenchProject | None:
@@ -628,6 +639,48 @@ class SQLiteWorkflowStore:
 
     async def list_projects(self) -> list[WorkbenchProject]:
         return await asyncio.to_thread(self._list_projects_sync)
+
+    def _update_project_observation_sync(
+        self, project_id: str, manifest_snapshot: RunManifestSnapshot
+    ) -> WorkbenchProject:
+        self._initialize_sync()
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT project_json FROM workbench_projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if row is None:
+                raise WorkflowStoreError(
+                    "workbench project does not exist", code="WORKBENCH_PROJECT_NOT_FOUND"
+                )
+            project = self._parse_project(cast(str, row["project_json"]))
+            updated = project.model_copy(
+                update={"last_manifest_snapshot": manifest_snapshot, "updated_at": utc_now()}
+            )
+            connection.execute(
+                "UPDATE workbench_projects SET project_json = ?, updated_at = ? "
+                "WHERE project_id = ?",
+                (
+                    _json(updated.model_dump(mode="json")),
+                    to_utc_iso8601(updated.updated_at),
+                    project_id,
+                ),
+            )
+            connection.commit()
+            return updated
+        except WorkflowStoreError:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    async def update_project_observation(
+        self, project_id: str, manifest_snapshot: RunManifestSnapshot
+    ) -> WorkbenchProject:
+        return await asyncio.to_thread(
+            self._update_project_observation_sync, project_id, manifest_snapshot
+        )
 
     def _create_workflow_sync(
         self,
@@ -722,6 +775,26 @@ class SQLiteWorkflowStore:
                     event.revision,
                     _json(event.model_dump(mode="json")),
                     to_utc_iso8601(now),
+                ),
+            )
+            project_row = connection.execute(
+                "SELECT project_json FROM workbench_projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if project_row is None:
+                raise WorkflowStoreError(
+                    "workbench project does not exist", code="WORKBENCH_PROJECT_NOT_FOUND"
+                )
+            project = self._parse_project(cast(str, project_row["project_json"]))
+            updated_project = project.model_copy(
+                update={"recent_workflow_id": workflow.workflow_id, "updated_at": now}
+            )
+            connection.execute(
+                "UPDATE workbench_projects SET project_json = ?, updated_at = ? "
+                "WHERE project_id = ?",
+                (
+                    _json(updated_project.model_dump(mode="json")),
+                    to_utc_iso8601(now),
+                    project_id,
                 ),
             )
             connection.commit()

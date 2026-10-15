@@ -15,6 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from agentqa.api.ai_evidence import list_ai_evidence
 from agentqa.api.jobs import RunJobManager
 from agentqa.api.models import (
+    ArtifactImportRequest,
+    CodeEvidenceRequest,
     ComparisonRequest,
     GateEvaluateRequest,
     ProjectCreateRequest,
@@ -38,6 +40,12 @@ from agentqa.storage import ResultStore, ResultStoreError, SQLiteResultStore
 from agentqa.tracing import InMemoryTraceStore, TraceOptions
 from agentqa.tracing.otlp import OTLPDecodeError, ingest_otlp_protobuf
 from agentqa.workbench import (
+    ArtifactCatalogError,
+    ArtifactCatalogService,
+    CodeEvidenceError,
+    CodeEvidenceService,
+    EvidenceBoundaryService,
+    ProjectPreflightService,
     SQLiteWorkflowStore,
     WorkflowOrchestrator,
     WorkflowStore,
@@ -86,12 +94,30 @@ def create_app(
     active_judge = judge_provider or configured_deepseek_provider()
     result_store = store or SQLiteResultStore(settings.database_path)
     active_workflow_store = workflow_store or SQLiteWorkflowStore(settings.database_path)
+    artifact_catalog = ArtifactCatalogService(
+        settings.database_path,
+        workspace_root=settings.workspace_root,
+        result_store=result_store,
+        artifact_directory=settings.artifact_directory,
+    )
+    code_evidence = CodeEvidenceService(settings.workspace_root)
+    preflight = ProjectPreflightService(
+        settings.workspace_root,
+        active_workflow_store,
+        active_judge,
+    )
+    evidence_boundary = EvidenceBoundaryService(
+        settings.workspace_root,
+        artifact_catalog,
+        active_judge,
+    )
     trace_options = TraceOptions(max_receiver_bytes=settings.max_receiver_bytes)
     live_traces = InMemoryTraceStore(max_spans_per_trace=trace_options.max_spans_per_trace)
     jobs = RunJobManager(
         result_store,
         workspace_root=settings.workspace_root,
         artifact_directory=settings.artifact_directory,
+        artifact_catalog=artifact_catalog,
         judge_provider=active_judge,
         max_concurrent_runs=settings.max_concurrent_runs,
     )
@@ -106,12 +132,14 @@ def create_app(
         del app
         await result_store.initialize()
         await active_workflow_store.initialize()
+        await artifact_catalog.initialize()
         try:
             yield
         finally:
             await workflows.shutdown()
             await jobs.shutdown()
             await active_workflow_store.close()
+            await artifact_catalog.close()
             await result_store.close()
 
     app = FastAPI(
@@ -122,6 +150,7 @@ def create_app(
     app.state.result_store = result_store
     app.state.workflow_store = active_workflow_store
     app.state.workflow_orchestrator = workflows
+    app.state.artifact_catalog = artifact_catalog
     app.state.run_jobs = jobs
     app.state.live_traces = live_traces
     app.state.judge_provider = active_judge
@@ -146,6 +175,28 @@ def create_app(
     async def workflow_store_error_handler(request: Request, exc: WorkflowStoreError) -> Response:
         del request
         status_code = 404 if exc.code.endswith("NOT_FOUND") else 409
+        return Response(
+            content=json.dumps({"detail": exc.to_dict()}),
+            status_code=status_code,
+            media_type="application/json",
+        )
+
+    @app.exception_handler(ArtifactCatalogError)
+    async def artifact_catalog_error_handler(
+        request: Request, exc: ArtifactCatalogError
+    ) -> Response:
+        del request
+        status_code = 404 if exc.code.endswith(("NOT_FOUND", "MISSING")) else 409
+        return Response(
+            content=json.dumps({"detail": exc.to_dict()}),
+            status_code=status_code,
+            media_type="application/json",
+        )
+
+    @app.exception_handler(CodeEvidenceError)
+    async def code_evidence_error_handler(request: Request, exc: CodeEvidenceError) -> Response:
+        del request
+        status_code = 404 if exc.code.endswith("MISSING") else 422
         return Response(
             content=json.dumps({"detail": exc.to_dict()}),
             status_code=status_code,
@@ -178,7 +229,88 @@ def create_app(
             request.description,
             workspace_path=request.workspace_path,
             default_spec_refs=request.default_spec_refs,
+            tags=request.tags,
         )
+
+    async def require_project(project_id: str) -> Any:
+        project = await active_workflow_store.get_project(project_id)
+        if project is None:
+            raise _http_error("WORKBENCH_PROJECT_NOT_FOUND", "project does not exist", 404)
+        return project
+
+    @app.get("/api/projects/{project_id}")
+    async def get_project(project_id: str) -> Any:
+        return await require_project(project_id)
+
+    @app.post("/api/projects/{project_id}/preflight")
+    async def run_project_preflight(project_id: str) -> Any:
+        return await preflight.run(await require_project(project_id))
+
+    @app.post("/api/projects/{project_id}/artifacts/import")
+    async def import_project_artifacts(project_id: str, request: ArtifactImportRequest) -> Any:
+        await require_project(project_id)
+        return await artifact_catalog.discover(project_id, request.sources)
+
+    @app.get("/api/projects/{project_id}/artifacts")
+    async def list_project_artifacts(
+        project_id: str,
+        artifact_type: str | None = None,
+        limit: int = Query(default=200, ge=1, le=500),
+        offset: int = Query(default=0, ge=0),
+    ) -> dict[str, Any]:
+        await require_project(project_id)
+        artifacts = await artifact_catalog.list_artifacts(
+            project_id,
+            artifact_type,
+            limit=limit,
+            offset=offset,
+        )
+        return {
+            "artifacts": artifacts,
+            "total": await artifact_catalog.count_artifacts(project_id, artifact_type),
+            "limit": limit,
+            "offset": offset,
+        }
+
+    @app.get("/api/projects/{project_id}/workspace")
+    async def browse_project_workspace(
+        project_id: str,
+        path: str = Query(default=".", max_length=2_000),
+    ) -> dict[str, Any]:
+        project = await require_project(project_id)
+        return {"entries": code_evidence.browse(project, path)}
+
+    @app.post("/api/projects/{project_id}/code-evidence/preview")
+    async def preview_code_evidence(project_id: str, request: CodeEvidenceRequest) -> Any:
+        project = await require_project(project_id)
+        return code_evidence.preview(
+            project,
+            path=request.path,
+            start_line=request.start_line,
+            end_line=request.end_line,
+            reason=request.reason,
+        )
+
+    @app.post("/api/projects/{project_id}/code-evidence")
+    async def add_code_evidence(project_id: str, request: CodeEvidenceRequest) -> Any:
+        project = await require_project(project_id)
+        evidence = code_evidence.preview(
+            project,
+            path=request.path,
+            start_line=request.start_line,
+            end_line=request.end_line,
+            reason=request.reason,
+        )
+        return await artifact_catalog.add_code_evidence(project_id, evidence)
+
+    @app.get("/api/projects/{project_id}/code-evidence")
+    async def list_code_evidence(project_id: str) -> dict[str, Any]:
+        await require_project(project_id)
+        return {"codeEvidence": await artifact_catalog.list_code_evidence(project_id)}
+
+    @app.get("/api/projects/{project_id}/evidence-preview")
+    async def preview_evidence_boundary(project_id: str) -> Any:
+        return await evidence_boundary.preview(await require_project(project_id))
 
     @app.get("/api/workflows")
     async def list_workflows(project_id: str | None = None) -> dict[str, Any]:
@@ -232,7 +364,17 @@ def create_app(
 
     @app.get("/api/ai/evidence")
     async def ai_evidence() -> dict[str, Any]:
-        return list_ai_evidence(settings.workspace_root)
+        paths: list[str] = []
+        for project in await active_workflow_store.list_projects():
+            for artifact_type in ("GenerationReport", "AnalysisReport"):
+                paths.extend(
+                    artifact.path
+                    for artifact in await artifact_catalog.list_artifacts(
+                        project.project_id, artifact_type
+                    )
+                    if artifact.availability == "AVAILABLE"
+                )
+        return list_ai_evidence(settings.workspace_root, artifact_paths=paths)
 
     @app.post("/api/runs", response_model=RunJob, status_code=status.HTTP_202_ACCEPTED)
     async def create_run(request: RunCreateRequest) -> RunJob:

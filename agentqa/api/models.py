@@ -15,6 +15,12 @@ from agentqa.models.base import (
 )
 from agentqa.models.results import ErrorInfo
 
+ArtifactDiscoverySource = Literal["artifacts", "mcp", "benchmark_results", "reference_results"]
+
+
+def _default_artifact_sources() -> list[ArtifactDiscoverySource]:
+    return ["artifacts", "mcp", "benchmark_results", "reference_results"]
+
 
 class ApiModel(StrictModel):
     """HTTP model accepting and returning lower-camel aliases."""
@@ -85,6 +91,7 @@ class ProjectCreateRequest(ApiModel):
     description: str = Field(default="", max_length=4_000)
     workspace_path: str = Field(default=".", max_length=1_000)
     default_spec_refs: dict[str, str] = Field(default_factory=dict, max_length=20)
+    tags: list[ResourceName] = Field(default_factory=list, max_length=20)
 
     @field_validator("workspace_path")
     @classmethod
@@ -107,6 +114,13 @@ class ProjectCreateRequest(ApiModel):
             raise ValueError("defaultSpecRefs must use safe relative POSIX paths")
         return value
 
+    @field_validator("tags")
+    @classmethod
+    def validate_tags(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("tags must not contain duplicates")
+        return value
+
 
 class WorkflowCreateRequest(ApiModel):
     """Create an idempotent persistent workflow container."""
@@ -116,3 +130,29 @@ class WorkflowCreateRequest(ApiModel):
     description: str = Field(default="", max_length=4_000)
     idempotency_key: NonEmptyString = Field(max_length=200)
     draft: bool = False
+
+
+class ArtifactImportRequest(ApiModel):
+    """Explicit allowlisted artifact discovery request."""
+
+    sources: list[ArtifactDiscoverySource] = Field(
+        default_factory=_default_artifact_sources,
+        min_length=1,
+        max_length=4,
+    )
+
+    @field_validator("sources")
+    @classmethod
+    def validate_sources(cls, value: list[str]) -> list[str]:
+        if len(value) != len(set(value)):
+            raise ValueError("artifact sources must not contain duplicates")
+        return value
+
+
+class CodeEvidenceRequest(ApiModel):
+    """Explicit bounded file and line selection."""
+
+    path: NonEmptyString = Field(max_length=2_000)
+    start_line: int = Field(ge=1)
+    end_line: int = Field(ge=1)
+    reason: NonEmptyString = Field(max_length=4_000)

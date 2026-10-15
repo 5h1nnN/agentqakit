@@ -11,6 +11,7 @@ from agentqa.evaluators import JudgeProviderLike
 from agentqa.models import ErrorInfo
 from agentqa.specs import SpecLoadError
 from agentqa.storage import ResultStore
+from agentqa.workbench.catalog import ArtifactCatalogService
 
 
 class RunJobManager:
@@ -22,12 +23,14 @@ class RunJobManager:
         *,
         workspace_root: Path,
         artifact_directory: Path,
+        artifact_catalog: ArtifactCatalogService | None = None,
         judge_provider: JudgeProviderLike | None = None,
         max_concurrent_runs: int = 2,
     ) -> None:
         self._store = store
         self._workspace_root = workspace_root.resolve()
         self._artifact_directory = artifact_directory.resolve()
+        self._artifact_catalog = artifact_catalog
         self._judge_provider = judge_provider
         self._semaphore = asyncio.Semaphore(max_concurrent_runs)
         self._jobs: dict[str, RunJob] = {}
@@ -142,6 +145,12 @@ class RunJobManager:
                     project_id=job.project_id,
                     artifact_path=artifact_path,
                 )
+                if self._artifact_catalog is not None:
+                    await self._artifact_catalog.register_directory(
+                        job.project_id,
+                        artifact_path,
+                        source="API",
+                    )
                 await self._set_job(
                     job.model_copy(
                         update={

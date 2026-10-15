@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from agentqa.models import AnalysisReport, GenerationReport
@@ -47,12 +47,32 @@ def _llm_call(value: Any) -> dict[str, Any]:
     }
 
 
-def list_ai_evidence(workspace_root: Path) -> dict[str, Any]:
-    """Return bounded summaries from known local artifact layouts."""
+def list_ai_evidence(
+    workspace_root: Path,
+    *,
+    artifact_paths: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """Return bounded summaries from verified catalog paths or legacy layouts."""
     workspace = workspace_root.resolve()
+    catalog_paths = None if artifact_paths is None else list(artifact_paths)
+
+    def selected(name: str, legacy_patterns: tuple[str, ...]) -> list[Path]:
+        if catalog_paths is None:
+            return _candidates(workspace, legacy_patterns)
+        candidates = {
+            (workspace / path).resolve()
+            for path in catalog_paths
+            if PurePosixPath(path).name == name
+        }
+        return sorted(
+            (path for path in candidates if path.is_file()),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )[:_MAX_REPORTS]
+
     generations: list[dict[str, Any]] = []
-    generation_paths = _candidates(
-        workspace,
+    generation_paths = selected(
+        "generation-report.json",
         (
             ".agentqa/mcp/drafts/*/tests/generation-report.json",
             "benchmark/results/*/arms/*/generated/generation-report.json",
@@ -64,7 +84,9 @@ def list_ai_evidence(workspace_root: Path) -> dict[str, Any]:
         if value is None:
             continue
         try:
-            generation_report = GenerationReport.model_validate(value)
+            generation_report = GenerationReport.model_validate_json(
+                json.dumps(value, ensure_ascii=False)
+            )
         except ValueError:
             continue
         generations.append(
@@ -90,20 +112,35 @@ def list_ai_evidence(workspace_root: Path) -> dict[str, Any]:
         )
 
     analyses: list[dict[str, Any]] = []
-    analysis_paths = _candidates(
-        workspace,
-        (
-            ".agentqa/mcp/analyses/*.json",
-            "benchmark/results/*/standalone/analysis/*.json",
-            "benchmark/reference-results/*/standalone/analysis/*.json",
-        ),
+    analysis_paths = (
+        _candidates(
+            workspace,
+            (
+                ".agentqa/mcp/analyses/*.json",
+                "benchmark/results/*/standalone/analysis/*.json",
+                "benchmark/reference-results/*/standalone/analysis/*.json",
+            ),
+        )
+        if catalog_paths is None
+        else sorted(
+            {
+                (workspace / path).resolve()
+                for path in catalog_paths
+                if PurePosixPath(path).name != "generation-report.json"
+                and (workspace / path).resolve().is_file()
+            },
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )[:_MAX_REPORTS]
     )
     for path in analysis_paths:
         value = _verified(path, workspace)
         if value is None:
             continue
         try:
-            analysis_report = AnalysisReport.model_validate(value)
+            analysis_report = AnalysisReport.model_validate_json(
+                json.dumps(value, ensure_ascii=False)
+            )
         except ValueError:
             continue
         analyses.append(
