@@ -9,12 +9,11 @@ import secrets
 import tempfile
 from datetime import timedelta
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import yaml
 from pydantic import JsonValue
 
-from agentqa.api.models import CampaignCreateRequest
 from agentqa.application import RunExecutionConfig, execute_run
 from agentqa.conventions import new_id, utc_now
 from agentqa.errors import AgentQAError
@@ -44,6 +43,9 @@ from agentqa.workbench.models import (
 )
 from agentqa.workbench.orchestrator import WorkflowOrchestrator
 from agentqa.workbench.store import WorkflowStore
+
+if TYPE_CHECKING:
+    from agentqa.api.models import CampaignCreateRequest
 
 CAMPAIGN_ARTIFACT_SCHEMA_VERSION = "agentqa.campaign/v1alpha1"
 

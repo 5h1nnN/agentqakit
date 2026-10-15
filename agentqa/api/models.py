@@ -247,3 +247,34 @@ class CampaignConfirmRequest(ApiModel):
 class CampaignStartRequest(ApiModel):
     config_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     idempotency_key: NonEmptyString = Field(max_length=200)
+
+
+class FailureAnalysisRequest(ApiModel):
+    """Explicit authorization for one bounded failure-analysis call."""
+
+    idempotency_key: NonEmptyString = Field(max_length=200)
+    code_evidence_hashes: list[str] = Field(default_factory=list, max_length=10)
+    reuse_existing: bool = True
+
+
+class HandoffCreateRequest(ApiModel):
+    analysis_id: NonEmptyString
+    developer_task: NonEmptyString = Field(max_length=10_000)
+
+
+class WorkflowComparisonRequest(ApiModel):
+    baseline_run_id: NonEmptyString
+    candidate_run_id: NonEmptyString
+    idempotency_key: NonEmptyString = Field(max_length=200)
+
+
+class WorkflowGateRequest(ApiModel):
+    kind: Literal["regression", "mutation"]
+    gate_path: NonEmptyString
+    candidate_run_id: NonEmptyString
+    baseline_run_id: NonEmptyString | None = None
+    idempotency_key: NonEmptyString = Field(max_length=200)
+
+
+class WorkflowReportRequest(ApiModel):
+    idempotency_key: NonEmptyString = Field(max_length=200)

@@ -35,6 +35,8 @@ from agentqa.workbench.models import (
     ArtifactImportIssue,
     ArtifactImportResult,
     CatalogArtifact,
+    HandoffBundle,
+    WorkflowReport,
 )
 
 CATALOG_SCHEMA_VERSION = "agentqa.artifact-catalog/v1alpha1"
@@ -124,6 +126,10 @@ def _artifact_type(path: Path) -> str:
         return "AnalysisReport"
     if name == "comparison.json":
         return "ComparisonReport"
+    if name == "handoff-bundle.json":
+        return "HandoffBundle"
+    if name == "workflow-report.json":
+        return "WorkflowReport"
     if "gate" in name and name.endswith(".json"):
         return "GateResult"
     if name == "mcp-transcript.json":
@@ -219,6 +225,10 @@ def _validate_payload(path: Path, payload: bytes, artifact_type: str) -> tuple[s
             AnalysisReport.model_validate_json(payload)
         elif artifact_type == "ComparisonReport":
             ComparisonReport.model_validate_json(payload)
+        elif artifact_type == "HandoffBundle":
+            HandoffBundle.model_validate_json(payload)
+        elif artifact_type == "WorkflowReport":
+            WorkflowReport.model_validate_json(payload)
         elif artifact_type == "GateResult":
             GateResult.model_validate_json(payload)
         elif artifact_type == "Trace":

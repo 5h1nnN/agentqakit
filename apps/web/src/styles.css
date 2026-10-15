@@ -259,6 +259,36 @@ details summary { cursor: pointer; color: #43535e; }
 .campaign-matrix td:first-child, .campaign-matrix td:nth-child(3) { display: grid; gap: 5px; }
 .campaign-matrix small { color: var(--muted); }
 .campaign-footnote { margin: 0; padding: 13px 20px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.76rem; }
+.assurance-workbench { margin: 24px 20px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+.assurance-workbench > .panel__header { background: #f8fafc; }
+.assurance-workbench > .notice { margin: 16px 20px; }
+.assurance-section { padding: 20px; border-top: 1px solid var(--line); }
+.assurance-section > .panel__header { padding: 0 0 15px; }
+.assurance-section h4 { margin: 18px 0 8px; }
+.failure-filters { display: grid; grid-template-columns: repeat(7, minmax(100px, 1fr)); gap: 8px; margin-bottom: 16px; }
+.failure-layout { display: grid; grid-template-columns: minmax(240px, .38fr) minmax(0, 1fr); gap: 16px; }
+.failure-list { display: grid; align-content: start; gap: 7px; max-height: 520px; overflow: auto; }
+.failure-list button { display: grid; grid-template-columns: auto 1fr; gap: 4px 9px; text-align: left; padding: 11px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: var(--ink); }
+.failure-list button.is-selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 12%, transparent); }
+.failure-list button strong, .failure-list button small, .failure-list button span:last-child { grid-column: 2; overflow-wrap: anywhere; }
+.failure-list button small, .failure-list button span:last-child { color: var(--muted); font-size: .7rem; }
+.failure-detail { min-width: 0; padding: 15px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfd; }
+.failure-detail > code { display: block; margin: 12px 0; overflow-wrap: anywhere; }
+.evidence-items { display: grid; gap: 7px; max-height: 440px; overflow: auto; margin: 15px 0; }
+.evidence-items details, .assurance-section > details { padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcfd; }
+.evidence-items pre, .assurance-section > details pre { max-height: 340px; overflow: auto; font-size: .69rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.analysis-report > article { padding: 12px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.analysis-report > article > div { display: flex; justify-content: space-between; gap: 12px; }
+.analysis-report .low-confidence { border-style: dashed; background: #fffaf0; }
+.analysis-report article code, .analysis-report article small { display: block; margin-top: 7px; color: var(--muted); }
+.analysis-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.hash-grid, .change-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+.hash-grid span, .change-grid span { display: grid; gap: 5px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); }
+.hash-grid code { overflow-wrap: anywhere; color: var(--ink); }
+.change-grid strong { color: var(--ink); }
+.quality-cost { margin: 14px 0; padding: 14px; border: 1px solid var(--line); border-radius: 9px; background: #fbfcfd; }
+.quality-cost > div:first-child { display: flex; align-items: center; gap: 10px; }
+.quality-cost ul { margin-bottom: 0; color: var(--muted); }
 .session-tabs { display: flex; flex-wrap: wrap; gap: 7px; justify-content: flex-end; }
 .session-tabs button { display: grid; gap: 2px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: white; color: var(--muted); cursor: pointer; text-align: left; }
 .session-tabs button.is-selected { border-color: #7eb49b; background: #eef8f2; color: var(--accent); }
@@ -357,9 +387,10 @@ footer { border-top: 1px solid var(--line); min-height: 58px; display: flex; ali
   .workbench-grid { grid-template-columns: 1fr; }
   .workbench-sidebar { grid-template-columns: 1fr 1fr; }
   .evidence-grid, .boundary-grid { grid-template-columns: 1fr; }
-  .generation-goal, .candidate-columns, .campaign-builder-grid { grid-template-columns: 1fr; }
+  .generation-goal, .candidate-columns, .campaign-builder-grid, .failure-layout, .analysis-columns { grid-template-columns: 1fr; }
   .generation-goal > section + section, .candidate-columns section + section, .campaign-builder-grid > section + section { border-left: 0; border-top: 1px solid var(--line); }
   .campaign-risk-grid { grid-template-columns: repeat(3, 1fr); }
+  .failure-filters { grid-template-columns: repeat(3, 1fr); }
   .evidence-grid > * + *, .boundary-grid section + section { border-left: 0; border-top: 1px solid var(--line); }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
   .finding { grid-template-columns: 1fr; }
@@ -379,6 +410,7 @@ footer { border-top: 1px solid var(--line); min-height: 58px; display: flex; ali
   .workbench-sidebar { grid-template-columns: 1fr; }
   .workflow-meta { grid-template-columns: repeat(2, 1fr); }
   .campaign-risk-grid { grid-template-columns: repeat(2, 1fr); }
+  .failure-filters, .hash-grid, .change-grid { grid-template-columns: 1fr 1fr; }
   .campaign-create { align-items: stretch; flex-direction: column; }
   .project-control .panel__header { display: grid; gap: 14px; }
   .project-control .button-row { justify-content: flex-start; }

@@ -6,10 +6,12 @@ from typing import Literal
 from pydantic import ConfigDict, Field, JsonValue, field_validator, model_validator
 
 from agentqa.llm import LLMCallEvidence
+from agentqa.models.analysis import AnalysisReport, EvidenceBundle
 from agentqa.models.base import NonEmptyString, ResourceName, StrictModel, UtcDateTime
+from agentqa.models.comparison import ComparisonReport
 from agentqa.models.generation import CodeEvidence, GenerationGoalSummary, GenerationRisk
 from agentqa.models.manifest import RunManifestSnapshot
-from agentqa.models.results import ErrorInfo, RunBudgetSummary, RunSummary
+from agentqa.models.results import ErrorInfo, GateResult, RunBudgetSummary, RunSummary
 from agentqa.models.specs import AgentTestSpec
 
 WorkflowStatus = Literal[
@@ -574,6 +576,107 @@ class CampaignConfirmationChallenge(StrictModel):
     consumed_at: UtcDateTime | None = None
 
 
+AnalysisStatus = Literal["NOT_ANALYZED", "ANALYZING", "ANALYZED", "FAILED_SAFE"]
+
+
+class FailureInboxItem(StrictModel):
+    """Filterable projection of one immutable failed Campaign trial."""
+
+    failure_id: NonEmptyString
+    workflow_id: NonEmptyString
+    campaign_id: NonEmptyString
+    run_id: NonEmptyString
+    target_role: NonEmptyString
+    target_name: ResourceName
+    test_case_id: ResourceName
+    trial_id: NonEmptyString
+    trace_id: NonEmptyString
+    risk: Literal["low", "medium", "high", "critical"]
+    evaluator_statuses: dict[str, NonEmptyString] = Field(max_length=20)
+    failed_evaluators: list[NonEmptyString] = Field(default_factory=list, max_length=20)
+    tools: list[NonEmptyString] = Field(default_factory=list, max_length=100)
+    mutation_ids: list[NonEmptyString] = Field(default_factory=list, max_length=100)
+    test_revision_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    failure_bundle_ref: str | None = Field(default=None, max_length=2_000)
+    trace_status: Literal["complete", "partial", "missing"]
+    analysis_status: AnalysisStatus
+    analysis_count: int = Field(default=0, ge=0)
+    latest_analysis_id: str | None = None
+    latest_analysis_ref: str | None = Field(default=None, max_length=2_000)
+
+
+class FailureEvidencePreview(StrictModel):
+    """Exact redacted, bounded evidence proposed for an explicit AI call."""
+
+    failure: FailureInboxItem
+    evidence_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    bundle: EvidenceBundle
+    reusable_analyses: list[AnalysisReport] = Field(default_factory=list, max_length=20)
+
+
+class HandoffBundle(StrictModel):
+    """Bounded external-repair checkpoint; contains references, never source or prompts."""
+
+    schema_version: Literal["agentqa.handoff-bundle/v1alpha1"] = "agentqa.handoff-bundle/v1alpha1"
+    handoff_id: NonEmptyString
+    created_at: UtcDateTime
+    workflow_id: NonEmptyString
+    project_id: ResourceName
+    failure_resource_uri: NonEmptyString
+    analysis_resource_uri: NonEmptyString
+    baseline_target_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    baseline_manifest_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    baseline_source_snapshot_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    baseline_runtime_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    suggested_regression_tests: list[str] = Field(default_factory=list, max_length=20)
+    missing_evidence: list[str] = Field(default_factory=list, max_length=100)
+    developer_task: NonEmptyString = Field(max_length=10_000)
+
+
+class WorkflowComparison(StrictModel):
+    schema_version: Literal["agentqa.workflow-comparison/v1alpha1"] = (
+        "agentqa.workflow-comparison/v1alpha1"
+    )
+    comparison_id: NonEmptyString
+    workflow_id: NonEmptyString
+    created_at: UtcDateTime
+    report: ComparisonReport
+
+
+class WorkflowGateResult(StrictModel):
+    schema_version: Literal["agentqa.workflow-gate/v1alpha1"] = "agentqa.workflow-gate/v1alpha1"
+    gate_id: NonEmptyString
+    workflow_id: NonEmptyString
+    created_at: UtcDateTime
+    kind: Literal["regression", "mutation"]
+    gate_path: NonEmptyString
+    gate_spec_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
+    baseline_run_id: str | None = None
+    candidate_run_id: NonEmptyString
+    result: GateResult
+
+
+class WorkflowReport(StrictModel):
+    """Checksummed bounded workflow export assembled from authoritative artifacts."""
+
+    schema_version: Literal["agentqa.workflow-report/v1alpha1"] = "agentqa.workflow-report/v1alpha1"
+    report_id: NonEmptyString
+    generated_at: UtcDateTime
+    workflow_id: NonEmptyString
+    project: dict[str, JsonValue]
+    identity: dict[str, JsonValue]
+    provider: dict[str, JsonValue]
+    generation: dict[str, JsonValue]
+    test_results: dict[str, JsonValue]
+    analyses: dict[str, JsonValue]
+    comparisons: list[dict[str, JsonValue]] = Field(default_factory=list, max_length=100)
+    gates: list[dict[str, JsonValue]] = Field(default_factory=list, max_length=100)
+    resources: dict[str, JsonValue]
+    approvals: dict[str, JsonValue]
+    missing_evidence: list[str] = Field(default_factory=list, max_length=500)
+    authoritative_artifacts: list[ArtifactRef] = Field(default_factory=list, max_length=2_000)
+
+
 __all__ = [
     "ApprovalDecision",
     "ArtifactImportIssue",
@@ -591,16 +694,22 @@ __all__ = [
     "CandidateDiagnostic",
     "CatalogArtifact",
     "EvidenceBoundaryPreview",
+    "FailureEvidencePreview",
+    "FailureInboxItem",
     "GeneratedCandidateView",
     "GeneratedTestRevision",
     "GenerationSession",
     "GenerationSessionStatus",
+    "HandoffBundle",
     "PreflightCheck",
     "PreflightReport",
     "PreflightStatus",
     "SimilarityHint",
     "WorkbenchProject",
+    "WorkflowComparison",
     "WorkflowEvent",
+    "WorkflowGateResult",
+    "WorkflowReport",
     "WorkflowRun",
     "WorkflowStatus",
     "WorkflowStep",

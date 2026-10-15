@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import shutil
 import time
@@ -14,6 +15,7 @@ from pydantic import JsonValue
 
 from agentqa.api import ApiSettings, create_app
 from agentqa.evaluators import JudgeRequest
+from agentqa.llm import StructuredRequest, StructuredResponse
 from agentqa.storage import FileResultStore
 from tests.fixtures.stored_runs import create_storable_run
 
@@ -33,6 +35,49 @@ class _PassJudgeProvider:
             "rationale": "The response satisfies the rubric.",
             "violations": [],
         }
+
+
+class _AnalysisProvider(_PassJudgeProvider):
+    async def complete(self, request: StructuredRequest) -> StructuredResponse:
+        assert request.use_case == "failure_analysis"
+        return StructuredResponse(
+            content={
+                "observed_facts": [
+                    {
+                        "statement": "The normalized target output did not satisfy the test.",
+                        "evidence_ids": ["target-result", "evaluation-01"],
+                    }
+                ],
+                "earliest_divergence": {
+                    "description": "The returned answer first diverged at target output.",
+                    "evidence_ids": ["scenario", "target-result"],
+                    "span_id": None,
+                },
+                "root_causes": [
+                    {
+                        "id": "wrong-answer",
+                        "hypothesis": "The target echoed input instead of the required answer.",
+                        "confidence": 0.7,
+                        "evidence_ids": ["scenario", "target-result"],
+                        "counter_evidence_ids": [],
+                        "reasoning": (
+                            "Scenario and output disagree with the deterministic evaluator."
+                        ),
+                    }
+                ],
+                "additional_evidence_needed": ["A complete internal trajectory is unavailable."],
+                "regression_tests": [
+                    {
+                        "title": "Keep the required answer",
+                        "rationale": "Protect the observed behavior boundary.",
+                        "expected_behavior": "Return the declared exact answer.",
+                        "evidence_ids": ["scenario", "target-result"],
+                    }
+                ],
+                "repair_directions": ["Inspect the answer mapping before changing the target."],
+            },
+            metadata={"request_id": "analysis-1", "usage": {"total_tokens": 50}},
+        )
 
 
 def _settings(tmp_path: Path, workspace: Path | None = None) -> ApiSettings:
@@ -344,6 +389,244 @@ evaluators:
         assert subruns[0]["completed_trials"] == 1
         run_id = subruns[0]["run_id"]
         assert client.get(f"/api/runs/{run_id}").json()["state"] == "stored"
+
+
+def test_t21_failure_analysis_handoff_compare_gate_and_report(tmp_path: Path) -> None:
+    (tmp_path / "demo_agent.py").write_text(
+        "def run(payload):\n    return {'answer': payload.get('input', {}).get('message', '')}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "manifest.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha2
+kind: AgentManifest
+metadata:
+  name: assurance-agent
+runtime:
+  language: python
+  framework: custom
+  entrypoint: demo_agent:run
+purpose:
+  summary: Return a declared answer.
+capabilities:
+  - name: answer
+    description: Return one answer.
+quality:
+  objectives: [task-success]
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "target.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: Target
+metadata:
+  name: assurance-target
+type: python
+entrypoint: demo_agent:run
+workingDirectory: .
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "test.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: wrong-answer
+  labels:
+    risk: medium
+scenario:
+  input:
+    message: hello
+expect:
+  output:
+    exactFields:
+      answer: goodbye
+evaluators:
+  - type: schema
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "regression-gate.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: regression
+rules:
+  maxNewRegressions: 0
+""",
+        encoding="utf-8",
+    )
+    (tmp_path / "mutation-gate.yaml").write_text(
+        """apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: mutation
+rules:
+  minMutationScore: 0.5
+""",
+        encoding="utf-8",
+    )
+    app = create_app(
+        _settings(tmp_path),
+        store=FileResultStore(tmp_path / "store"),
+        judge_provider=_AnalysisProvider(),
+    )
+
+    with TestClient(app) as client:
+        client.post(
+            "/api/projects",
+            json={
+                "projectId": "assurance",
+                "name": "Assurance project",
+                "defaultSpecRefs": {
+                    "manifest": "manifest.yaml",
+                    "target": "target.yaml",
+                    "tests": "test.yaml",
+                    "gate": "regression-gate.yaml",
+                },
+            },
+        )
+        assert client.post("/api/projects/assurance/preflight").status_code == 200
+        workflow_id = client.post(
+            "/api/workflows",
+            json={
+                "projectId": "assurance",
+                "name": "Failure closure",
+                "idempotencyKey": "assurance-workflow",
+            },
+        ).json()["workflow_id"]
+        campaign = client.post(
+            f"/api/workflows/{workflow_id}/campaigns",
+            json={
+                "idempotencyKey": "failing-campaign",
+                "targets": [{"role": "baseline", "path": "target.yaml"}],
+            },
+        ).json()
+        started = client.post(
+            f"/api/campaigns/{campaign['campaign_id']}/start",
+            json={
+                "configHash": campaign["config_hash"],
+                "idempotencyKey": "start-failing-campaign",
+            },
+        )
+        assert started.status_code == 202
+        final: dict[str, object] = {}
+        for _ in range(150):
+            final = client.get(f"/api/campaigns/{campaign['campaign_id']}").json()
+            if final["status"] in {"COMPLETED", "FAILED", "INCOMPLETE"}:
+                break
+            time.sleep(0.02)
+        assert final["status"] == "COMPLETED"
+        run_id = final["subruns"][0]["run_id"]  # type: ignore[index]
+
+        inbox = client.get(f"/api/workflows/{workflow_id}/failures")
+        assert inbox.status_code == 200
+        failure = inbox.json()["failures"][0]
+        assert failure["analysis_status"] == "NOT_ANALYZED"
+        assert failure["failed_evaluators"] == ["schema"]
+        filtered = client.get(
+            f"/api/workflows/{workflow_id}/failures",
+            params={"risk": "medium", "evaluator": "schema", "target": "baseline"},
+        )
+        assert len(filtered.json()["failures"]) == 1
+
+        preview = client.get(
+            f"/api/workflows/{workflow_id}/failures/{failure['failure_id']}/evidence-preview"
+        )
+        assert preview.status_code == 200
+        evidence_hash = preview.json()["evidence_hash"]
+        assert preview.json()["reusable_analyses"] == []
+        assert any(
+            item["evidence_id"] == "target-result" for item in preview.json()["bundle"]["items"]
+        )
+
+        queued = client.post(
+            f"/api/workflows/{workflow_id}/failures/{failure['failure_id']}/analyses",
+            json={"idempotencyKey": "analysis-1", "reuseExisting": False},
+        )
+        assert queued.status_code == 202
+        step_id = queued.json()["step"]["step_id"]
+        for _ in range(100):
+            workflow = client.get(f"/api/workflows/{workflow_id}").json()
+            step = next(item for item in workflow["steps"] if item["step_id"] == step_id)
+            if step["status"] in {"COMPLETED", "FAILED_SAFE"}:
+                break
+            time.sleep(0.02)
+        assert step["status"] == "COMPLETED"
+        analysis = client.get(f"/api/workflows/{workflow_id}/analyses").json()["analyses"][0]
+        assert analysis["evidence_hash"] == evidence_hash
+        assert analysis["original_passed"] is False
+
+        reused = client.post(
+            f"/api/workflows/{workflow_id}/failures/{failure['failure_id']}/analyses",
+            json={"idempotencyKey": "analysis-reuse", "reuseExisting": True},
+        )
+        assert reused.json()["reused"] is True
+        assert reused.json()["report"]["analysis_id"] == analysis["analysis_id"]
+
+        handoff = client.post(
+            f"/api/workflows/{workflow_id}/handoffs",
+            json={
+                "analysisId": analysis["analysis_id"],
+                "developerTask": "Fix the cited answer mapping and preserve other behavior.",
+            },
+        )
+        assert handoff.status_code == 201
+        assert handoff.json()["artifact"]["checksum"].startswith("sha256:")
+        assert (
+            client.get(f"/api/workflows/{workflow_id}").json()["status"]
+            == "WAITING_EXTERNAL_REPAIR"
+        )
+        assert client.post(f"/api/workflows/{workflow_id}/repair-preflight").status_code == 200
+        assert client.post(f"/api/workflows/{workflow_id}/resume").json()["status"] == "READY"
+
+        compared = client.post(
+            f"/api/workflows/{workflow_id}/comparisons",
+            json={
+                "baselineRunId": run_id,
+                "candidateRunId": run_id,
+                "idempotencyKey": "compare-same-run",
+            },
+        )
+        assert compared.status_code == 200
+        assert compared.json()["report"]["counts"]["persistent_failures"] == 1
+
+        regression_gate = client.post(
+            f"/api/workflows/{workflow_id}/gates",
+            json={
+                "kind": "regression",
+                "gatePath": "regression-gate.yaml",
+                "baselineRunId": run_id,
+                "candidateRunId": run_id,
+                "idempotencyKey": "regression-gate",
+            },
+        )
+        assert regression_gate.status_code == 200
+        assert regression_gate.json()["gate"]["result"]["exit_code"] == 0
+        mutation_gate = client.post(
+            f"/api/workflows/{workflow_id}/gates",
+            json={
+                "kind": "mutation",
+                "gatePath": "mutation-gate.yaml",
+                "candidateRunId": run_id,
+                "idempotencyKey": "mutation-gate",
+            },
+        )
+        assert mutation_gate.status_code == 200
+        assert mutation_gate.json()["gate"]["result"]["exit_code"] == 1
+
+        exported = client.post(
+            f"/api/workflows/{workflow_id}/reports",
+            json={"idempotencyKey": "report-1"},
+        )
+        assert exported.status_code == 200, exported.text
+        body = exported.json()
+        assert body["report"]["schema_version"] == "agentqa.workflow-report/v1alpha1"
+        assert body["report"]["analyses"]["total"] == 1
+        report_path = tmp_path / body["artifact"]["uri"]
+        assert (
+            body["artifact"]["checksum"]
+            == "sha256:" + hashlib.sha256(report_path.read_bytes()).hexdigest()
+        )
 
 
 def test_api_imports_catalog_and_requires_explicit_code_evidence_selection(

@@ -6,7 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import Annotated, Any, cast
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,14 +25,19 @@ from agentqa.api.models import (
     CandidateRevisionRequest,
     CodeEvidenceRequest,
     ComparisonRequest,
+    FailureAnalysisRequest,
     GateEvaluateRequest,
     GenerateCandidatesRequest,
     GenerationSessionCreateRequest,
+    HandoffCreateRequest,
     ProjectCreateRequest,
     ReviewUpdateRequest,
     RunCreateRequest,
     RunJob,
+    WorkflowComparisonRequest,
     WorkflowCreateRequest,
+    WorkflowGateRequest,
+    WorkflowReportRequest,
 )
 from agentqa.comparison import ComparisonError, compare_runs, load_run_artifact
 from agentqa.conventions import utc_now
@@ -53,6 +58,8 @@ from agentqa.tracing.otlp import OTLPDecodeError, ingest_otlp_protobuf
 from agentqa.workbench import (
     ArtifactCatalogError,
     ArtifactCatalogService,
+    AssuranceWorkbenchError,
+    AssuranceWorkbenchService,
     CampaignError,
     CampaignStore,
     CampaignStoreError,
@@ -167,6 +174,18 @@ def create_app(
         orchestrator=workflows,
         judge_provider=active_judge,
     )
+    assurance_workbench = AssuranceWorkbenchService(
+        workspace_root=settings.workspace_root,
+        artifact_directory=settings.artifact_directory,
+        result_store=result_store,
+        workflow_store=active_workflow_store,
+        campaign_store=campaign_store,
+        generation_store=generation_store,
+        artifact_catalog=artifact_catalog,
+        orchestrator=workflows,
+        preflight=preflight,
+        provider=cast(StructuredLLMProvider | None, active_judge),
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -200,6 +219,7 @@ def create_app(
     app.state.generation_workbench = generation_workbench
     app.state.campaign_store = campaign_store
     app.state.campaign_workbench = campaign_workbench
+    app.state.assurance_workbench = assurance_workbench
     app.state.run_jobs = jobs
     app.state.live_traces = live_traces
     app.state.judge_provider = active_judge
@@ -279,6 +299,22 @@ def create_app(
         if exc.code.endswith("NOT_FOUND"):
             status_code = 404
         elif exc.code.endswith(("CONFLICT", "MISMATCH", "IMMUTABLE", "INVALID")):
+            status_code = 409
+        return Response(
+            content=json.dumps({"detail": exc.to_dict()}),
+            status_code=status_code,
+            media_type="application/json",
+        )
+
+    @app.exception_handler(AssuranceWorkbenchError)
+    async def assurance_workbench_error_handler(
+        request: Request, exc: AssuranceWorkbenchError
+    ) -> Response:
+        del request
+        status_code = 422
+        if exc.code.endswith("NOT_FOUND"):
+            status_code = 404
+        elif exc.code.endswith(("CONFLICT", "MISMATCH", "FAILED", "UNAVAILABLE")):
             status_code = 409
         return Response(
             content=json.dumps({"detail": exc.to_dict()}),
@@ -569,6 +605,103 @@ def create_app(
             idempotency_key=request.idempotency_key,
         )
         return {"campaign": campaign, "step": step}
+
+    @app.get("/api/workflows/{workflow_id}/failures")
+    async def list_workflow_failures(
+        workflow_id: str,
+        risk: str | None = None,
+        evaluator: str | None = None,
+        tool: str | None = None,
+        mutation: str | None = None,
+        target: str | None = None,
+        test_revision: str | None = Query(default=None, alias="testRevision"),
+        analysis_status: str | None = Query(default=None, alias="analysisStatus"),
+    ) -> dict[str, Any]:
+        return {
+            "failures": await assurance_workbench.failures(
+                workflow_id,
+                risk=risk,
+                evaluator=evaluator,
+                tool=tool,
+                mutation=mutation,
+                target=target,
+                test_revision=test_revision,
+                analysis_status=analysis_status,
+            )
+        }
+
+    @app.get("/api/workflows/{workflow_id}/failures/{failure_id}/evidence-preview")
+    async def preview_failure_evidence(
+        workflow_id: str,
+        failure_id: str,
+        code_evidence_hash: Annotated[list[str] | None, Query(alias="codeEvidenceHash")] = None,
+    ) -> Any:
+        return await assurance_workbench.preview(workflow_id, failure_id, code_evidence_hash or [])
+
+    @app.post(
+        "/api/workflows/{workflow_id}/failures/{failure_id}/analyses",
+        status_code=status.HTTP_202_ACCEPTED,
+    )
+    async def analyze_workflow_failure(
+        workflow_id: str, failure_id: str, request: FailureAnalysisRequest
+    ) -> dict[str, Any]:
+        return await assurance_workbench.analyze(
+            workflow_id,
+            failure_id,
+            idempotency_key=request.idempotency_key,
+            code_evidence_hashes=request.code_evidence_hashes,
+            reuse_existing=request.reuse_existing,
+        )
+
+    @app.get("/api/workflows/{workflow_id}/analyses")
+    async def list_workflow_analyses(workflow_id: str) -> dict[str, Any]:
+        return {"analyses": await assurance_workbench.analyses(workflow_id)}
+
+    @app.post("/api/workflows/{workflow_id}/handoffs", status_code=status.HTTP_201_CREATED)
+    async def create_workflow_handoff(
+        workflow_id: str, request: HandoffCreateRequest
+    ) -> dict[str, Any]:
+        handoff, artifact = await assurance_workbench.create_handoff(
+            workflow_id, request.analysis_id, request.developer_task
+        )
+        return {"handoff": handoff, "artifact": artifact}
+
+    @app.post("/api/workflows/{workflow_id}/repair-preflight")
+    async def rerun_repair_preflight(workflow_id: str) -> dict[str, Any]:
+        return await assurance_workbench.rerun_preflight(workflow_id)
+
+    @app.post("/api/workflows/{workflow_id}/comparisons")
+    async def compare_workflow_runs(
+        workflow_id: str, request: WorkflowComparisonRequest
+    ) -> dict[str, Any]:
+        report, step = await assurance_workbench.compare(
+            workflow_id,
+            request.baseline_run_id,
+            request.candidate_run_id,
+            request.idempotency_key,
+        )
+        return {"report": report, "step": step}
+
+    @app.post("/api/workflows/{workflow_id}/gates")
+    async def evaluate_workflow_gate(
+        workflow_id: str, request: WorkflowGateRequest
+    ) -> dict[str, Any]:
+        result, step = await assurance_workbench.gate(
+            workflow_id,
+            kind=request.kind,
+            gate_path=request.gate_path,
+            candidate_run_id=request.candidate_run_id,
+            baseline_run_id=request.baseline_run_id,
+            idempotency_key=request.idempotency_key,
+        )
+        return {"gate": result, "step": step}
+
+    @app.post("/api/workflows/{workflow_id}/reports")
+    async def export_workflow_report(
+        workflow_id: str, request: WorkflowReportRequest
+    ) -> dict[str, Any]:
+        report, step = await assurance_workbench.export_report(workflow_id, request.idempotency_key)
+        return {"report": report, "step": step, "artifact": step.artifacts[0]}
 
     @app.get("/api/runs")
     async def list_runs(project_id: str = "default") -> dict[str, Any]:

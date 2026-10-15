@@ -108,7 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_workflow_approvals
 
 _ALLOWED_TRANSITIONS: dict[WorkflowStatus, frozenset[WorkflowStatus]] = {
     "DRAFT": frozenset({"READY", "CANCELLED"}),
-    "READY": frozenset({"RUNNING", "CANCELLED"}),
+    "READY": frozenset({"RUNNING", "WAITING_EXTERNAL_REPAIR", "CANCELLED"}),
     "RUNNING": frozenset(
         {
             "READY",
@@ -204,6 +204,10 @@ class WorkflowStore(Protocol):
     async def cancel_workflow(self, workflow_id: str) -> WorkflowRun: ...
 
     async def resume_workflow(self, workflow_id: str) -> WorkflowRun: ...
+
+    async def wait_for_external_repair(
+        self, workflow_id: str, *, handoff_id: str, checksum: str
+    ) -> WorkflowRun: ...
 
     async def save_approval(self, decision: ApprovalDecision) -> ApprovalDecision: ...
 
@@ -1251,6 +1255,39 @@ class SQLiteWorkflowStore:
 
     async def resume_workflow(self, workflow_id: str) -> WorkflowRun:
         return await asyncio.to_thread(self._resume_workflow_sync, workflow_id)
+
+    def _wait_for_external_repair_sync(
+        self, workflow_id: str, handoff_id: str, checksum: str
+    ) -> WorkflowRun:
+        self._initialize_sync()
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            workflow = self._load_workflow(connection, workflow_id)
+            updated = self._transition(
+                connection,
+                workflow,
+                "WAITING_EXTERNAL_REPAIR",
+                event_type="EXTERNAL_REPAIR_REQUESTED",
+                message=(
+                    "A bounded handoff bundle is ready for external repair: "
+                    f"{handoff_id} ({checksum})."
+                ),
+            )
+            connection.commit()
+            return updated
+        except WorkflowStoreError:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    async def wait_for_external_repair(
+        self, workflow_id: str, *, handoff_id: str, checksum: str
+    ) -> WorkflowRun:
+        return await asyncio.to_thread(
+            self._wait_for_external_repair_sync, workflow_id, handoff_id, checksum
+        )
 
     def _save_approval_sync(self, decision: ApprovalDecision) -> ApprovalDecision:
         self._initialize_sync()

@@ -7,9 +7,13 @@ import type {
   CodeEvidence,
   ComparisonReport,
   EvidenceBoundaryPreview,
+  FailureEvidencePreview,
+  FailureInboxItem,
   GenerationSession,
   GenerationSessionDetail,
   GateResult,
+  AnalysisReport,
+  HandoffBundle,
   HealthResponse,
   PreflightReport,
   RunJob,
@@ -21,7 +25,10 @@ import type {
   WorkbenchProject,
   WorkspaceEntry,
   WorkflowEvent,
+  WorkflowGateResult,
+  WorkflowReport,
   WorkflowRun,
+  WorkflowStep,
 } from "./types";
 
 export class ApiError extends Error {
@@ -254,6 +261,69 @@ export const api = {
     return request<{ campaign: Campaign; step: unknown }>(
       `/api/campaigns/${encodeURIComponent(campaignId)}/start`,
       { method: "POST", body: JSON.stringify({ configHash, idempotencyKey }) },
+    );
+  },
+  async listFailures(workflowId: string, filters: Record<string, string> = {}) {
+    const query = new URLSearchParams(filters).toString();
+    const result = await request<{ failures: FailureInboxItem[] }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/failures${query ? `?${query}` : ""}`,
+    );
+    return result.failures ?? [];
+  },
+  previewFailureEvidence(workflowId: string, failureId: string, hashes: string[]) {
+    const query = new URLSearchParams();
+    hashes.forEach((hash) => query.append("codeEvidenceHash", hash));
+    return request<FailureEvidencePreview>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/failures/${encodeURIComponent(failureId)}/evidence-preview${query.size ? `?${query}` : ""}`,
+    );
+  },
+  analyzeFailure(
+    workflowId: string,
+    failureId: string,
+    input: { idempotencyKey: string; codeEvidenceHashes: string[]; reuseExisting: boolean },
+  ) {
+    return request<{ reused: boolean; report: AnalysisReport | null; step: WorkflowStep | null }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/failures/${encodeURIComponent(failureId)}/analyses`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+  },
+  async listAnalyses(workflowId: string) {
+    const result = await request<{ analyses: AnalysisReport[] }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/analyses`,
+    );
+    return result.analyses ?? [];
+  },
+  createHandoff(workflowId: string, analysisId: string, developerTask: string) {
+    return request<{ handoff: HandoffBundle; artifact: WorkflowStep["artifacts"][number] }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/handoffs`,
+      { method: "POST", body: JSON.stringify({ analysisId, developerTask }) },
+    );
+  },
+  repairPreflight(workflowId: string) {
+    return request<{
+      report: PreflightReport;
+      changes: { manifest: boolean | null; source: boolean | null; runtime: boolean | null };
+    }>(`/api/workflows/${encodeURIComponent(workflowId)}/repair-preflight`, { method: "POST" });
+  },
+  workflowCompare(workflowId: string, baselineRunId: string, candidateRunId: string) {
+    return request<{ report: ComparisonReport; step: WorkflowStep }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/comparisons`,
+      { method: "POST", body: JSON.stringify({ baselineRunId, candidateRunId, idempotencyKey: `compare-${Date.now()}` }) },
+    );
+  },
+  workflowGate(
+    workflowId: string,
+    input: { kind: "regression" | "mutation"; gatePath: string; candidateRunId: string; baselineRunId?: string },
+  ) {
+    return request<{ gate: WorkflowGateResult; step: WorkflowStep }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/gates`,
+      { method: "POST", body: JSON.stringify({ ...input, idempotencyKey: `gate-${input.kind}-${Date.now()}` }) },
+    );
+  },
+  exportWorkflowReport(workflowId: string) {
+    return request<{ report: WorkflowReport; step: WorkflowStep; artifact: WorkflowStep["artifacts"][number] }>(
+      `/api/workflows/${encodeURIComponent(workflowId)}/reports`,
+      { method: "POST", body: JSON.stringify({ idempotencyKey: `report-${Date.now()}` }) },
     );
   },
   listRuns(projectId = "default") {

@@ -348,7 +348,31 @@ export interface ComparisonReport {
   };
   baseline: { pass_rate: number; mutation_score: number | null };
   candidate: { pass_rate: number; mutation_score: number | null };
+  deltas: {
+    pass_rate: number;
+    mutation_score: number | null;
+    high_risk_failures: number;
+    p95_latency_ms: MetricChange;
+    average_tokens: MetricChange;
+    average_cost_usd: MetricChange;
+  };
+  quality_cost: {
+    status: string;
+    quality_preserved: boolean;
+    cost_improved: boolean | null;
+    token_improved: boolean | null;
+    latency_improved: boolean | null;
+    reasons: string[];
+  };
   cases: CaseComparison[];
+}
+
+export interface MetricChange {
+  baseline: number | null;
+  candidate: number | null;
+  absolute_change: number | null;
+  relative_increase: number | null;
+  status: "available" | "unbounded" | "unobservable";
 }
 
 export interface GateResult {
@@ -624,4 +648,128 @@ export interface Campaign {
   finished_at: string | null;
   error: { code: string; message: string } | null;
   subruns: CampaignSubrun[];
+}
+
+export type AnalysisStatus = "NOT_ANALYZED" | "ANALYZING" | "ANALYZED" | "FAILED_SAFE";
+
+export interface FailureInboxItem {
+  failure_id: string;
+  workflow_id: string;
+  campaign_id: string;
+  run_id: string;
+  target_role: string;
+  target_name: string;
+  test_case_id: string;
+  trial_id: string;
+  trace_id: string;
+  risk: "low" | "medium" | "high" | "critical";
+  evaluator_statuses: Record<string, string>;
+  failed_evaluators: string[];
+  tools: string[];
+  mutation_ids: string[];
+  test_revision_hash: string;
+  failure_bundle_ref: string | null;
+  trace_status: "complete" | "partial" | "missing";
+  analysis_status: AnalysisStatus;
+  analysis_count: number;
+  latest_analysis_id: string | null;
+  latest_analysis_ref: string | null;
+}
+
+export interface EvidenceRecord {
+  evidence_id: string;
+  kind: string;
+  source_ref: string;
+  content_hash: string;
+  summary: string;
+  truncated: boolean;
+  data: unknown;
+}
+
+export interface AnalysisReport {
+  analysis_id: string;
+  generated_at: string;
+  run_id: string;
+  test_case_id: string;
+  trial_id: string;
+  trace_id: string;
+  original_passed: false;
+  evidence_hash: string;
+  evidence_index: Omit<EvidenceRecord, "data">[];
+  observed_facts: Array<{ statement: string; evidence_ids: string[] }>;
+  earliest_divergence: null | { description: string; evidence_ids: string[]; span_id: string | null };
+  root_causes: Array<{
+    id: string;
+    hypothesis: string;
+    confidence: number;
+    evidence_ids: string[];
+    counter_evidence_ids: string[];
+    reasoning: string;
+  }>;
+  missing_evidence: string[];
+  regression_tests: Array<{
+    title: string;
+    rationale: string;
+    expected_behavior: string;
+    evidence_ids: string[];
+  }>;
+  repair_directions: string[];
+  llm_call: { provider: string; model: string; status: string; token_usage: Record<string, number> };
+}
+
+export interface FailureEvidencePreview {
+  failure: FailureInboxItem;
+  evidence_hash: string;
+  bundle: {
+    trace_status: string;
+    items: EvidenceRecord[];
+    missing_evidence: string[];
+    blocking_gaps: string[];
+  };
+  reusable_analyses: AnalysisReport[];
+}
+
+export interface HandoffBundle {
+  handoff_id: string;
+  created_at: string;
+  workflow_id: string;
+  project_id: string;
+  failure_resource_uri: string;
+  analysis_resource_uri: string;
+  baseline_target_hash: string;
+  baseline_manifest_hash: string;
+  baseline_source_snapshot_hash: string;
+  baseline_runtime_hash: string;
+  suggested_regression_tests: string[];
+  missing_evidence: string[];
+  developer_task: string;
+}
+
+export interface WorkflowGateResult {
+  gate_id: string;
+  kind: "regression" | "mutation";
+  gate_path: string;
+  gate_spec_hash: string;
+  baseline_run_id: string | null;
+  candidate_run_id: string;
+  result: GateResult;
+}
+
+export interface WorkflowReport {
+  schema_version: string;
+  report_id: string;
+  generated_at: string;
+  workflow_id: string;
+  project: Record<string, unknown>;
+  identity: Record<string, unknown>;
+  provider: Record<string, unknown>;
+  generation: Record<string, unknown>;
+  test_results: Record<string, unknown>;
+  analyses: Record<string, unknown>;
+  comparisons: Array<Record<string, unknown>>;
+  gates: Array<Record<string, unknown>>;
+  resources: Record<string, unknown>;
+  approvals: Record<string, unknown>;
+  missing_evidence: string[];
+  authoritative_artifacts: WorkflowStep["artifacts"];
 }
