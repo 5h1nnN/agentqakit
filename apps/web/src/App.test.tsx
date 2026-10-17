@@ -34,20 +34,14 @@ describe("App", () => {
     vi.unstubAllGlobals();
   });
 
-  it("renders the empty ledger and opens the quality workspace", async () => {
+  it("opens the unified workspace and AI activity", async () => {
     render(<App />);
 
-    expect(await screen.findByRole("heading", { name: "No runs yet" })).toBeVisible();
-    expect(screen.getByRole("textbox", { name: /Manifest path/ })).toBeVisible();
-    expect(screen.getByRole("checkbox", { name: /DeepSeek AI judge/ })).toBeEnabled();
-    fireEvent.click(screen.getByRole("button", { name: "Compare & gate" }));
-
-    expect(screen.getByRole("heading", { name: "Comparison & gate" })).toBeVisible();
-    expect(screen.getByRole("button", { name: "Evaluate gate" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "AI evidence" }));
+    expect(await screen.findByRole("heading", { name: "Test an agent from idea to release." })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Runs" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "AI activity" }));
     expect(await screen.findByRole("heading", { name: "AI test generation" })).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Workbench" }));
-    expect(await screen.findByRole("heading", { name: "Assurance workbench" })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "No workflows yet" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Workspace" }));
+    expect(await screen.findByRole("heading", { name: "Test an agent from idea to release." })).toBeVisible();
   });
 });

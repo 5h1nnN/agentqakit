@@ -109,15 +109,20 @@ evidence that the generated draft was changed.
 
 ## CodeEvidence
 
-`CodeEvidence` lets a coding agent or developer attach only a relevant excerpt.
+`CodeEvidence` is the bounded transport used for source context. In the Web
+workspace, **Build AI context** discovers relevant source files automatically,
+excludes secret/generated/test/data paths, bounds and redacts their content,
+and presents the selected file list for review. SDK and MCP callers may still
+attach a precise excerpt directly.
 It contains a safe workspace-relative POSIX path, inclusive line range, reason,
 bounded content, and `sha256:` content hash. AgentQAKit verifies the hash before
 calling the model. Raw excerpt content is used as untrusted prompt evidence but
 is not copied into `GenerationPlan` or `GenerationReport`; those artifacts keep
 only the content hash.
 
-This boundary avoids giving AgentQAKit ambient filesystem access while still
-letting an external coding agent contribute code-aware context.
+The Web discovery step runs only after an explicit project action and inside the
+configured repository root. A later AI call receives only the persisted,
+reviewable selections, not ambient filesystem access.
 
 ## Safety and validation rules
 

@@ -735,6 +735,56 @@ class ArtifactCatalogService:
     async def add_code_evidence(self, project_id: str, evidence: CodeEvidence) -> CodeEvidence:
         return await asyncio.to_thread(self._add_code_evidence_sync, project_id, evidence)
 
+    def _replace_code_evidence_sync(
+        self, project_id: str, evidence: list[CodeEvidence]
+    ) -> list[CodeEvidence]:
+        if len(evidence) > 10 or len({item.content_hash for item in evidence}) != len(evidence):
+            raise ArtifactCatalogError(
+                "repository context must contain at most 10 unique excerpts",
+                code="CODE_EVIDENCE_LIMIT",
+            )
+        if sum(len(item.content.encode("utf-8")) for item in evidence) > 160 * 1024:
+            raise ArtifactCatalogError(
+                "selected code evidence exceeds 163840 bytes",
+                code="CODE_EVIDENCE_LIMIT",
+            )
+        self._initialize_sync()
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute(
+                "DELETE FROM selected_code_evidence WHERE project_id = ?", (project_id,)
+            )
+            created_at = utc_now().isoformat()
+            for item in evidence:
+                connection.execute(
+                    """INSERT INTO selected_code_evidence(
+                           project_id, content_hash, path, evidence_json, created_at
+                       ) VALUES(?, ?, ?, ?, ?)""",
+                    (
+                        project_id,
+                        item.content_hash,
+                        item.path,
+                        _json(item.model_dump(mode="json", by_alias=True)),
+                        created_at,
+                    ),
+                )
+            connection.commit()
+            return evidence
+        except sqlite3.Error as exc:
+            connection.rollback()
+            raise ArtifactCatalogError(
+                f"SQLite code context transaction failed: {type(exc).__name__}",
+                code="ARTIFACT_CATALOG_DATABASE_ERROR",
+            ) from None
+        finally:
+            connection.close()
+
+    async def replace_code_evidence(
+        self, project_id: str, evidence: list[CodeEvidence]
+    ) -> list[CodeEvidence]:
+        return await asyncio.to_thread(self._replace_code_evidence_sync, project_id, evidence)
+
     def _list_code_evidence_sync(self, project_id: str) -> list[CodeEvidence]:
         self._initialize_sync()
         connection = self._connect()

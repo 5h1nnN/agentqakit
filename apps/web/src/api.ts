@@ -78,6 +78,7 @@ export const api = {
     workspacePath?: string;
     defaultSpecRefs?: Record<string, string>;
     tags?: string[];
+    autoDiscover?: boolean;
   }) {
     return request<WorkbenchProject>("/api/projects", {
       method: "POST",
@@ -86,6 +87,12 @@ export const api = {
   },
   getProject(projectId: string) {
     return request<WorkbenchProject>(`/api/projects/${encodeURIComponent(projectId)}`);
+  },
+  discoverProject(projectId: string) {
+    return request<{ project: WorkbenchProject; refs: Record<string, string>; ready: boolean; missing: string[] }>(
+      `/api/projects/${encodeURIComponent(projectId)}/discover`,
+      { method: "POST" },
+    );
   },
   preflightProject(projectId: string) {
     return request<PreflightReport>(`/api/projects/${encodeURIComponent(projectId)}/preflight`, {
@@ -133,6 +140,12 @@ export const api = {
       `/api/projects/${encodeURIComponent(projectId)}/code-evidence`,
     );
     return result.codeEvidence;
+  },
+  discoverCodeEvidence(projectId: string) {
+    return request<{ codeEvidence: CodeEvidence[]; count: number }>(
+      `/api/projects/${encodeURIComponent(projectId)}/code-evidence/discover`,
+      { method: "POST" },
+    );
   },
   evidencePreview(projectId: string) {
     return request<EvidenceBoundaryPreview>(

@@ -151,7 +151,7 @@ export function CampaignWorkbench({ workflow }: { workflow: WorkflowRun }) {
   };
 
   return <section className="campaign-workbench">
-    <div className="panel__header"><div><p className="eyebrow">T20 execution workspace</p><h2>Campaign builder</h2><small>Freeze reviewed tests, targets, budgets, mutation and replay policy before execution.</small></div><div className="session-tabs">{campaigns.map((item) => <button key={item.campaign_id} className={selectedCampaignId === item.campaign_id ? "is-selected" : ""} onClick={() => { setSelectedCampaignId(item.campaign_id); setChallenge(null); }}><span>{item.status}</span><code>{short(item.campaign_id)}</code></button>)}</div></div>
+    <div className="panel__header"><div><p className="eyebrow">Test execution</p><h2>Campaign builder</h2><small>Choose tests, agent versions and runtime behavior before execution.</small></div><div className="session-tabs">{campaigns.map((item) => <button key={item.campaign_id} className={selectedCampaignId === item.campaign_id ? "is-selected" : ""} onClick={() => { setSelectedCampaignId(item.campaign_id); setChallenge(null); }}><span>{item.status}</span><code>{short(item.campaign_id)}</code></button>)}</div></div>
     {error && <div className="notice notice--bad">{error}</div>}
     {!inputs ? <p className="padded muted">Loading selectable test revisions and targets…</p> : <>
       <div className="campaign-builder-grid">
@@ -163,7 +163,7 @@ export function CampaignWorkbench({ workflow }: { workflow: WorkflowRun }) {
     </>}
 
     {selected && <div className="campaign-review">
-      <div className="review-heading"><div><p className="eyebrow">Immutable launch summary</p><h3>{selected.risk.case_count} cases × {selected.risk.target_count} targets</h3><p><code>{selected.config_hash}</code></p></div><span className={`status ${statusClass(selected.status)}`}>{selected.status}</span></div>
+      <div className="review-heading"><div><p className="eyebrow">Launch summary</p><h3>{selected.risk.case_count} cases × {selected.risk.target_count} targets</h3></div><span className={`status ${statusClass(selected.status)}`}>{selected.status}</span></div>
       <div className="campaign-risk-grid"><span>Maximum trials<strong>{selected.risk.max_trials}</strong></span><span>Mutations<strong>{selected.risk.mutation_count}</strong></span><span>High risk<strong>{selected.risk.high_risk_cases.length}</strong></span><span>Side-effect tools<strong>{selected.risk.side_effect_tools.length}</strong></span><span>Replay<strong>{selected.config.replay_mode}</strong></span><span>Judge<strong>{selected.config.judge_enabled ? "enabled" : "off"}</strong></span></div>
       {(selected.risk.reasons.length > 0 || selected.risk.side_effect_tools.length > 0) && <div className="notice notice--warn"><strong>Confirmation scope:</strong> {[...selected.risk.reasons, ...selected.risk.side_effect_tools.map((tool) => `tool ${tool}`)].join(" · ")}</div>}
       {selected.status === "AWAITING_CONFIRMATION" && !challenge && <div className="campaign-actions"><button className="button" disabled={busy} onClick={() => void requestChallenge()}>Generate one-time confirmation</button></div>}
@@ -172,7 +172,7 @@ export function CampaignWorkbench({ workflow }: { workflow: WorkflowRun }) {
       <div className="campaign-progress"><div><span>Progress</span><strong>{selected.completed_trials} / {selected.total_trials} trials</strong></div><progress max={selected.total_trials} value={selected.completed_trials} /></div>
       <div className="table-scroll"><table className="campaign-matrix"><thead><tr><th>Target</th><th>Status</th><th>Run / attempt</th><th>Trials</th><th>Case</th><th>Elapsed</th><th>Verdict</th><th>Judge</th><th>Replay H/M/live</th><th>Mutation apps · K/S/NR/I</th><th>Budget</th></tr></thead><tbody>{selected.subruns.map((subrun) => <tr key={subrun.subrun_id}><td><strong>{subrun.target.role}</strong><small>{subrun.target.name}</small></td><td><span className={`status ${statusClass(subrun.status)}`}>{subrun.status}</span></td><td><code title={subrun.run_id}>{short(subrun.run_id)}</code><small>attempt {subrun.attempt}</small></td><td>{subrun.completed_trials}/{subrun.planned_trials}</td><td>{subrun.current_case_id ?? "—"}</td><td>{elapsed(subrun.started_at, subrun.finished_at)}</td><td>{subrun.summary ? `${subrun.summary.passed} pass / ${subrun.summary.failed} fail / ${subrun.summary.incomplete} incomplete` : "not final"}</td><td>{subrun.judge_evaluations}</td><td>{subrun.replay_hits}/{subrun.replay_misses}/{subrun.live_fallbacks}</td><td>{subrun.mutation_applications} · {subrun.mutation_killed}/{subrun.mutation_survived}/{subrun.mutation_not_reached}/{subrun.mutation_invalid}</td><td>{subrun.budget ? `${subrun.budget.consumed_total_tokens} tok · $${subrun.budget.consumed_cost_usd.toFixed(4)}` : "unobserved"}</td></tr>)}</tbody></table></div>
       {selected.error && <div className="notice notice--bad"><strong>{selected.error.code}</strong> — {selected.error.message}</div>}
-      <p className="campaign-footnote">Open the Runs tab with a run ID to inspect evaluator decisions, trace trees, state/tool evidence, replay details, and verified failure bundles.</p>
+      <p className="campaign-footnote">Select a result below to inspect evaluator decisions, traces, tool evidence and replay details.</p>
     </div>}
   </section>;
 }

@@ -14,6 +14,7 @@ from agentqa.workbench.catalog import (
     DiscoverySource,
 )
 from agentqa.workbench.code_evidence import CodeEvidenceError, CodeEvidenceService
+from agentqa.workbench.discovery import discover_spec_refs, discovery_summary
 from agentqa.workbench.evidence import EvidenceBoundaryService
 from agentqa.workbench.generation import GenerationWorkbenchService, GenerationWorkspaceError
 from agentqa.workbench.generation_store import (
@@ -125,4 +126,6 @@ __all__ = [
     "WorkflowStore",
     "WorkflowStoreError",
     "WorkspaceEntry",
+    "discover_spec_refs",
+    "discovery_summary",
 ]

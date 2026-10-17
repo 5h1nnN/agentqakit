@@ -15,62 +15,31 @@ test.skip(!enabled, "Real DeepSeek acceptance is explicit opt-in and never runs 
 test("real DeepSeek Web Golden Path writes a leak-scannable reference report", async ({ page }) => {
   test.setTimeout(15 * 60_000);
   await page.goto("/");
-  await page.getByRole("button", { name: "Workbench" }).click();
-
-  const projectForm = page.locator("form.workbench-form").first();
+  await page.getByRole("button", { name: "New project" }).last().click();
+  const projectForm = page.locator("form.quick-project");
+  await projectForm.getByLabel("Project name").fill("Campus Ops T22 DeepSeek");
+  await projectForm.getByLabel("Repository directory").fill("examples/showcase/campus_ops_agent");
+  await projectForm.getByText("Optional details").click();
   await projectForm.getByLabel("Project ID").fill(projectId);
-  await projectForm.getByLabel("Display name").fill("Campus Ops T22 DeepSeek");
-  await projectForm.getByLabel("Project directory").fill("examples/showcase/campus_ops_agent");
-  await projectForm.getByText("Default specifications").click();
-  await projectForm.getByLabel("Manifest").fill("agentqa/manifest-v2.yaml");
-  await projectForm.getByLabel("Target", { exact: true }).fill("agentqa/targets/fixed.yaml");
-  await projectForm.getByLabel("Defect target").fill("agentqa/targets/bug-authorization.yaml");
-  await projectForm.getByLabel("Fixed target").fill("agentqa/targets/fixed.yaml");
-  await projectForm.getByLabel("Tests").fill("agentqa/golden-tests/campus-ops.yaml");
-  await projectForm.getByLabel("Mutations").fill("agentqa/mutations.yaml");
-  await projectForm.getByLabel("Gate").fill("agentqa/regression-gate.yaml");
-  await projectForm.getByLabel("Generation goal").fill("agentqa/generation-goal.yaml");
-  await projectForm.getByRole("button", { name: "Create project" }).click();
+  await projectForm.getByRole("button", { name: "Create and scan" }).click();
   await expect(page.getByRole("heading", { name: "Campus Ops T22 DeepSeek" })).toBeVisible();
-  await page.getByRole("button", { name: "Run preflight" }).click();
-  await expect(page.getByText("EXECUTABLE", { exact: true })).toBeVisible();
-
-  const evidence = [
-    ["src/campus_ops_agent/service.py", "43", "64", "Authorization order around private tools."],
-    ["src/campus_ops_agent/service.py", "100", "132", "Bounded retry loop and tool response validation."],
-    ["src/campus_ops_agent/service.py", "134", "144", "Confirmation-protected write call and idempotency key flow."],
-    ["src/campus_ops_agent/service.py", "146", "163", "Retrieved-content trust boundary."],
-    ["src/campus_ops_agent/policies.py", "28", "39", "Confirmation and required-parameter policy."],
-    ["src/campus_ops_agent/policies.py", "42", "43", "Stable idempotency-key derivation."],
-    ["src/campus_ops_agent/tools.py", "63", "77", "Write deduplication and duplicate defect branch."],
-  ];
-  const picker = page.locator("form.code-selection");
-  for (const [file, start, end, reason] of evidence) {
-    await picker.getByLabel("File").fill(file);
-    await picker.getByLabel("Start line").fill(start);
-    await picker.getByLabel("End line").fill(end);
-    await picker.getByLabel("Selection reason").fill(reason);
-    await picker.getByRole("button", { name: "Preview redacted excerpt" }).click();
-    await page.getByRole("button", { name: "Add to CodeEvidence" }).click();
-  }
-  await expect(page.getByText("7/10 selected")).toBeVisible();
-
-  const workflowForm = page.locator("form.workbench-form").nth(1);
-  await workflowForm.getByLabel("Workflow name").fill("T22 DeepSeek Web Golden Path");
-  await workflowForm.getByRole("button", { name: "Create workflow" }).click();
-  await expect(page.getByRole("heading", { name: "Generation & review studio" })).toBeVisible();
+  await page.getByRole("button", { name: "Scan project" }).click();
+  await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Test design/ }).click();
+  await page.getByRole("button", { name: "Build AI context" }).click();
+  await expect(page.locator(".context-files article").first()).toBeVisible();
 
   await page.getByRole("button", { name: "New goal" }).click();
   await page.getByLabel("Goal name").fill("t22-live-acceptance");
   await page.getByLabel("Allowed mutations").fill("score-wrong-value,registration-false-duplicate,policy-indirect-injection");
   await page.getByLabel("Maximum candidates").fill("6");
   await page.getByLabel("Instructions").fill("Prioritize deterministic authorization, confirmation, retrieved-content trust, and mutation-recovery assertions.");
-  await page.getByRole("button", { name: "Manifest + code" }).click();
+  await page.getByRole("button", { name: "Repository context" }).click();
   const evidenceChecks = page.locator(".evidence-options input[type=checkbox]");
-  await expect(evidenceChecks).toHaveCount(7);
-  for (let index = 0; index < 7; index += 1) await evidenceChecks.nth(index).check();
-  await page.getByLabel("Max output tokens / call").fill("8192");
-  await page.getByRole("button", { name: "Generate plan" }).click();
+  expect(await evidenceChecks.count()).toBeGreaterThan(0);
+  await page.getByText("Usage limits").click();
+  await page.getByLabel("Maximum response tokens").fill("8192");
+  await page.getByRole("button", { name: "Generate test plan" }).click();
   const generate = page.getByRole("button", { name: "Confirm plan & generate candidates" });
   await expect(generate).toBeVisible({ timeout: 180_000 });
   await generate.click();
@@ -82,6 +51,7 @@ test("real DeepSeek Web Golden Path writes a leak-scannable reference report", a
     await cards.nth(index).getByRole("button", { name: "Approve", exact: true }).click();
   }
 
+  await page.getByRole("button", { name: /Execute/ }).click();
   const testSection = page.locator(".campaign-builder-grid > section").nth(0);
   const goldenLabels = testSection.locator(".campaign-options label");
   for (let index = 0; index < await goldenLabels.count(); index += 1) {

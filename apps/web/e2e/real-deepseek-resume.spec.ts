@@ -16,13 +16,11 @@ test.skip(!projectId || !workflowId, "A persisted real acceptance workflow is re
 test("resume a completed real campaign through replay, assurance gates, and report", async ({ page }) => {
   test.setTimeout(10 * 60_000);
   await page.goto("/");
-  await page.getByRole("button", { name: "Workbench" }).click();
-  const workflowForm = page.locator("form.workbench-form").nth(1);
-  await workflowForm.getByLabel("Project").selectOption(projectId ?? "");
+  await page.locator(".project-list button").filter({ hasText: "Campus Ops T22 DeepSeek" }).click();
   await expect(page.getByRole("heading", { name: "Campus Ops T22 DeepSeek" })).toBeVisible();
-  await page.getByRole("button", { name: "Refresh catalog" }).click();
-  const workflow = page.locator(".workflow-item").filter({ hasText: (workflowId ?? "").slice(0, 9) });
+  const workflow = page.locator(".workflow-item").filter({ hasText: "Main evaluation" });
   await workflow.click();
+  await page.getByRole("button", { name: /Execute/ }).click();
   await expect(page.locator(".campaign-review .review-heading .status")).toHaveText("COMPLETED");
   const configuredRuns = {
     defectRunId: process.env.AGENTQA_REAL_DEFECT_RUN_ID ?? "",

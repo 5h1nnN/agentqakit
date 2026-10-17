@@ -76,6 +76,8 @@ from agentqa.workbench import (
     WorkflowOrchestrator,
     WorkflowStore,
     WorkflowStoreError,
+    discover_spec_refs,
+    discovery_summary,
 )
 
 
@@ -342,12 +344,18 @@ def create_app(
 
     @app.post("/api/projects", status_code=status.HTTP_201_CREATED)
     async def create_project(request: ProjectCreateRequest) -> Any:
+        discovered = (
+            discover_spec_refs(settings.workspace_root, request.workspace_path)
+            if request.auto_discover
+            else {}
+        )
+        refs = {**discovered, **request.default_spec_refs}
         return await active_workflow_store.create_project(
             request.project_id,
             request.name,
             request.description,
             workspace_path=request.workspace_path,
-            default_spec_refs=request.default_spec_refs,
+            default_spec_refs=refs,
             tags=request.tags,
         )
 
@@ -360,6 +368,14 @@ def create_app(
     @app.get("/api/projects/{project_id}")
     async def get_project(project_id: str) -> Any:
         return await require_project(project_id)
+
+    @app.post("/api/projects/{project_id}/discover")
+    async def discover_project(project_id: str) -> dict[str, Any]:
+        project = await require_project(project_id)
+        discovered = discover_spec_refs(settings.workspace_root, project.workspace_path)
+        refs = {**discovered, **project.default_spec_refs}
+        updated = await active_workflow_store.update_project_spec_refs(project_id, refs)
+        return {"project": updated, **discovery_summary(discovered)}
 
     @app.post("/api/projects/{project_id}/preflight")
     async def run_project_preflight(project_id: str) -> Any:
@@ -426,6 +442,13 @@ def create_app(
     async def list_code_evidence(project_id: str) -> dict[str, Any]:
         await require_project(project_id)
         return {"codeEvidence": await artifact_catalog.list_code_evidence(project_id)}
+
+    @app.post("/api/projects/{project_id}/code-evidence/discover")
+    async def discover_code_evidence(project_id: str) -> dict[str, Any]:
+        project = await require_project(project_id)
+        discovered = code_evidence.discover(project)
+        selected = await artifact_catalog.replace_code_evidence(project_id, discovered)
+        return {"codeEvidence": selected, "count": len(selected)}
 
     @app.get("/api/projects/{project_id}/evidence-preview")
     async def preview_evidence_boundary(project_id: str) -> Any:

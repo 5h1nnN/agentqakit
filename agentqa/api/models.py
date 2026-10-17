@@ -94,6 +94,7 @@ class ProjectCreateRequest(ApiModel):
     workspace_path: str = Field(default=".", max_length=1_000)
     default_spec_refs: dict[str, str] = Field(default_factory=dict, max_length=20)
     tags: list[ResourceName] = Field(default_factory=list, max_length=20)
+    auto_discover: bool = True
 
     @field_validator("workspace_path")
     @classmethod

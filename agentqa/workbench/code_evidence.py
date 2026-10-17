@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path, PurePosixPath
 
 from agentqa.errors import AgentQAError
@@ -227,6 +228,90 @@ class CodeEvidenceService:
                 "content": content,
             }
         )
+
+    def discover(self, project: WorkbenchProject, *, limit: int = 8) -> list[CodeEvidence]:
+        """Build a bounded, redacted source context using repository structure signals."""
+
+        root = self.project_root(project)
+        terms = {
+            "agent",
+            "graph",
+            "main",
+            "planner",
+            "policy",
+            "service",
+            "tool",
+            "workflow",
+        }
+        candidates: list[tuple[int, Path, int]] = []
+        inspected = 0
+        for source in root.rglob("*"):
+            if inspected >= 2_000:
+                break
+            try:
+                relative = source.relative_to(root)
+            except ValueError:
+                continue
+            if any(part.lower() in _EXCLUDED_DIRECTORIES for part in relative.parts):
+                continue
+            if (
+                not source.is_file()
+                or source.is_symlink()
+                or source.suffix.lower() not in _TEXT_SUFFIXES
+                or _excluded_name(source)
+                or source.stat().st_size > _MAX_FILE_BYTES
+            ):
+                continue
+            inspected += 1
+            path_text = relative.as_posix().lower()
+            if path_text.startswith(("tests/", "test/", "data/", "docs/", "agentqa/")):
+                base_score = -10
+            else:
+                base_score = 10
+            base_score += sum(18 for term in terms if term in source.stem.lower())
+            base_score += 8 if "src" in relative.parts else 0
+            code_suffixes = {".py", ".ts", ".tsx", ".js", ".go", ".rs", ".java"}
+            base_score += 6 if source.suffix.lower() in code_suffixes else 0
+            try:
+                raw = source.read_bytes()
+                if b"\x00" in raw:
+                    continue
+                lines = raw.decode("utf-8").splitlines()
+            except (OSError, UnicodeError):
+                continue
+            if not lines:
+                continue
+            structural = sum(
+                1
+                for line in lines[:400]
+                if re.match(r"^\s*(async\s+def|def|class|export\s+|function\s+|func\s+)", line)
+            )
+            candidates.append((base_score + min(structural, 12), source, len(lines)))
+
+        evidence: list[CodeEvidence] = []
+        for _, source, line_count in sorted(
+            candidates,
+            key=lambda item: (-item[0], item[1].relative_to(root).as_posix()),
+        ):
+            if len(evidence) >= max(1, min(limit, 10)):
+                break
+            relative_path = source.relative_to(root).as_posix()
+            end_line = min(line_count, 220)
+            try:
+                evidence.append(
+                    self.preview(
+                        project,
+                        path=relative_path,
+                        start_line=1,
+                        end_line=end_line,
+                        reason=(
+                            "Automatically selected from the repository as relevant agent context."
+                        ),
+                    )
+                )
+            except CodeEvidenceError:
+                continue
+        return evidence
 
 
 __all__ = ["CodeEvidenceError", "CodeEvidenceService"]

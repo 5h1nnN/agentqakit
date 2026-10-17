@@ -144,6 +144,49 @@ def test_code_evidence_is_explicit_bounded_redacted_and_workspace_confined(
         )
 
 
+def test_automatic_context_replaces_an_older_manual_selection(tmp_path: Path) -> None:
+    project_root = tmp_path / "agent"
+    source_root = project_root / "src"
+    source_root.mkdir(parents=True)
+    (project_root / "manual.py").write_text("def old():\n    return False\n", encoding="utf-8")
+    (source_root / "agent_service.py").write_text(
+        "class AgentService:\n    def answer(self):\n        return True\n", encoding="utf-8"
+    )
+
+    async def exercise() -> None:
+        store = SQLiteWorkflowStore(tmp_path / "projects.sqlite3")
+        await store.initialize()
+        project = await store.create_project("campus", "Campus", workspace_path="agent")
+        service = CodeEvidenceService(tmp_path)
+        manual = service.preview(
+            project,
+            path="manual.py",
+            start_line=1,
+            end_line=1,
+            reason="Old manual selection.",
+        )
+        result_store = FileResultStore(tmp_path / "results")
+        await result_store.initialize()
+        catalog = ArtifactCatalogService(
+            tmp_path / "catalog.sqlite3",
+            workspace_root=tmp_path,
+            result_store=result_store,
+            artifact_directory=tmp_path / "artifacts",
+        )
+        await catalog.initialize()
+        await catalog.add_code_evidence("campus", manual)
+
+        discovered = service.discover(project)
+        await catalog.replace_code_evidence("campus", discovered)
+        stored = await catalog.list_code_evidence("campus")
+
+        assert {item.path for item in stored} == {item.path for item in discovered}
+        assert {item.content_hash for item in stored} == {item.content_hash for item in discovered}
+        assert all(item.content_hash != manual.content_hash for item in stored)
+
+    asyncio.run(exercise())
+
+
 def test_campus_project_preflight_separates_blocks_and_reviews(tmp_path: Path) -> None:
     repository = Path(__file__).resolve().parents[2]
 

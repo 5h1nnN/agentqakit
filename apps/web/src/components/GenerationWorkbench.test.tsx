@@ -94,7 +94,7 @@ describe("GenerationWorkbench", () => {
 
     expect(await screen.findByText("Plan matrix")).toBeVisible();
     expect(screen.getByText("Should refusal wording be standardized?")).toBeVisible();
-    expect(screen.getByText("unobservable")).toBeVisible();
+    expect(screen.getByText("10 tokens")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Confirm plan & generate candidates" }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(

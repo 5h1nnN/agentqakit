@@ -24,10 +24,12 @@ export async function replayRecordedFailure(
   page: Page,
   caseId = "score-other-student-denied",
 ): Promise<string> {
+  await page.getByRole("button", { name: /Investigate/ }).click();
   await expect(page.locator(".failure-list button").first()).toBeVisible({ timeout: 60_000 });
   await page.locator(".failure-list button").first().click();
   const cassette = await page.getByLabel("Replay cassette path").inputValue();
   expect(cassette).toMatch(/\/cassettes\/.+\.jsonl$/);
+  await page.getByRole("button", { name: /Execute/ }).click();
 
   const testSection = page.locator(".campaign-builder-grid > section").nth(0);
   const goldenLabels = testSection.locator(".campaign-options label");
@@ -147,23 +149,26 @@ export async function completeAssurance(
   expect(fixedRun).toBeTruthy();
 
   if (!options.startAtComparison) {
+    await page.getByRole("button", { name: /Investigate/ }).click();
     await expect(page.locator(".failure-list button").first()).toBeVisible({ timeout: 60_000 });
-    await page.getByRole("button", { name: "Preview redacted AI evidence" }).click();
-    await page.getByRole("button", { name: "Explicitly start AI Analysis" }).click();
-    await expect(page.getByText(/Non-authoritative diagnosis/)).toBeVisible({
+    await page.getByRole("button", { name: "Review AI input" }).click();
+    await page.getByRole("button", { name: "Analyze failure with AI" }).click();
+    await expect(page.getByText(/Root-cause candidates/)).toBeVisible({
       timeout: 240_000,
     });
     await page.getByRole("button", { name: "Create bounded Handoff Bundle" }).click();
     await expect(page.getByLabel("MCP resource URI")).toHaveValue(/agentqa:\/\/workflows\//);
-    await page.getByRole("button", { name: "Rerun preflight after repair" }).click();
-    const resume = page.getByRole("button", { name: "Resume" });
+    await page.getByRole("button", { name: "Check repaired version" }).click();
+    await page.getByRole("button", { name: /Overview/ }).click();
+    const resume = page.getByRole("button", { name: "Resume evaluation" });
     await expect(resume).toBeEnabled({ timeout: 10_000 });
     await resume.click();
   }
 
+  await page.getByRole("button", { name: /Release/ }).click();
   await page.locator(".assurance-workbench > .panel__header").getByRole("button", { name: "Refresh" }).click();
   const compareSection = page.locator(".assurance-section").filter({
-    has: page.getByRole("heading", { name: "Transparent release decision" }),
+    has: page.getByRole("heading", { name: "Compare versions and apply a release gate" }),
   });
   const baseline = compareSection.locator("select").nth(0);
   const candidate = compareSection.locator("select").nth(1);
@@ -179,9 +184,9 @@ export async function completeAssurance(
   await candidate.selectOption({ index: candidateValues.indexOf(fixedRun ?? "") });
   await page.getByRole("button", { name: "Compare runs" }).click();
   await expect(page.getByText("Fixed").last()).toBeVisible();
-  await page.getByLabel("GateSpec path").fill("agentqa/regression-gate.yaml");
-  await page.getByRole("button", { name: "Evaluate regression gate" }).click();
-  await expect(page.getByText(/CLI-compatible exit code/)).toBeVisible();
+  await page.getByLabel("Release policy").fill("agentqa/regression-gate.yaml");
+  await page.getByRole("button", { name: "Make release decision" }).click();
+  await expect(page.getByText(/meets the release policy/)).toBeVisible();
   await compareSection.locator("select").nth(2).selectOption("mutation");
   if (options.mutationRunId) {
     const mutationCandidateValues = await candidate
@@ -192,14 +197,14 @@ export async function completeAssurance(
       index: mutationCandidateValues.indexOf(options.mutationRunId),
     });
   }
-  await page.getByLabel("GateSpec path").fill("agentqa/mutation-gate.yaml");
-  await page.getByRole("button", { name: "Evaluate mutation gate" }).click();
+  await page.getByLabel("Release policy").fill("agentqa/mutation-gate.yaml");
+  await page.getByRole("button", { name: "Make release decision" }).click();
   await expect(page.getByRole("heading", { name: "mutation gate" })).toBeVisible();
-  await expect(page.getByText("CLI-compatible exit code 0")).toBeVisible();
+  await expect(page.getByText(/meets the release policy/)).toBeVisible();
   await page.getByRole("button", { name: "Generate report" }).click();
 
   const downloadPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: "Download JSON copy" }).click();
+  await page.getByRole("button", { name: "Download JSON" }).click();
   const download = await downloadPromise;
   const output = path.resolve(process.cwd(), "../../benchmark/reference-results/t22-deepseek-web-20261015");
   await mkdir(output, { recursive: true });

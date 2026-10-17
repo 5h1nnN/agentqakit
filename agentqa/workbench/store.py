@@ -160,6 +160,10 @@ class WorkflowStore(Protocol):
         self, project_id: str, manifest_snapshot: RunManifestSnapshot
     ) -> WorkbenchProject: ...
 
+    async def update_project_spec_refs(
+        self, project_id: str, default_spec_refs: dict[str, str]
+    ) -> WorkbenchProject: ...
+
     async def create_workflow(
         self,
         *,
@@ -693,6 +697,48 @@ class SQLiteWorkflowStore:
     ) -> WorkbenchProject:
         return await asyncio.to_thread(
             self._update_project_observation_sync, project_id, manifest_snapshot
+        )
+
+    def _update_project_spec_refs_sync(
+        self, project_id: str, default_spec_refs: dict[str, str]
+    ) -> WorkbenchProject:
+        self._initialize_sync()
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT project_json FROM workbench_projects WHERE project_id = ?", (project_id,)
+            ).fetchone()
+            if row is None:
+                raise WorkflowStoreError(
+                    "workbench project does not exist", code="WORKBENCH_PROJECT_NOT_FOUND"
+                )
+            project = self._parse_project(cast(str, row["project_json"]))
+            updated = project.model_copy(
+                update={"default_spec_refs": default_spec_refs, "updated_at": utc_now()}
+            )
+            connection.execute(
+                "UPDATE workbench_projects SET project_json = ?, updated_at = ? "
+                "WHERE project_id = ?",
+                (
+                    _json(updated.model_dump(mode="json")),
+                    to_utc_iso8601(updated.updated_at),
+                    project_id,
+                ),
+            )
+            connection.commit()
+            return updated
+        except WorkflowStoreError:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    async def update_project_spec_refs(
+        self, project_id: str, default_spec_refs: dict[str, str]
+    ) -> WorkbenchProject:
+        return await asyncio.to_thread(
+            self._update_project_spec_refs_sync, project_id, default_spec_refs
         )
 
     def _create_workflow_sync(

@@ -48,18 +48,20 @@ describe("Workbench", () => {
         const path = String(input);
         const payload = path === "/api/projects"
           ? { projects: [project] }
+          : path === "/api/runs?project_id=demo"
+            ? { runs: [], jobs: [] }
           : path === "/api/projects/demo"
             ? project
+            : path === "/api/projects/demo/discover"
+              ? { project, refs: project.default_spec_refs, ready: true, missing: [] }
             : path === "/api/projects/demo/preflight"
               ? { project_id: "demo", checked_at: workflow.updated_at, executable: true, requires_approval: true, checks: [{ check_id: "provider", category: "provider", status: "REVIEW", message: "Provider is configured.", path: null }], manifest_snapshot: null }
               : path === "/api/projects/demo/artifacts/import"
                 ? { project_id: "demo", scanned: 1, imported: 1, unchanged: 0, rejected: 0, runs_registered: 0, issues: [] }
                 : path === "/api/projects/demo/artifacts"
                   ? { artifacts: [{ artifact_id: "artifact-1", project_id: "demo", artifact_type: "GenerationReport", source: "REFERENCE", path: "benchmark/reference-results/demo/generation-report.json", schema_version: "agentqa.generation-report/v1alpha1", checksum: `sha256:${"b".repeat(64)}`, size_bytes: 200, created_at: workflow.created_at, workflow_id: null, run_id: null, availability: "AVAILABLE", metadata: {} }], total: 1 }
-                  : path === "/api/projects/demo/code-evidence/preview"
-                    ? codeEvidence
-                    : path === "/api/projects/demo/code-evidence" && init?.method === "POST"
-                      ? codeEvidence
+                  : path === "/api/projects/demo/code-evidence/discover"
+                    ? { codeEvidence: [codeEvidence], count: 1 }
                       : path === "/api/projects/demo/code-evidence"
                         ? { codeEvidence: [codeEvidence] }
                         : path === "/api/projects/demo/evidence-preview"
@@ -79,13 +81,11 @@ describe("Workbench", () => {
     vi.unstubAllGlobals();
   });
 
-  it("shows persisted events and sends an explicit resume transition", async () => {
+  it("shows the active evaluation and sends an explicit resume transition", async () => {
     render(<Workbench />);
-    fireEvent.click(await screen.findByRole("button", { name: /Interrupted check/ }));
 
     expect(await screen.findByText("WORKFLOW_PROCESS_RESTART")).toBeVisible();
-    expect(await screen.findByText("WORKFLOW CREATED")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Resume" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resume evaluation" }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
       "/api/workflows/workflow-interrupted-1/resume",
@@ -93,27 +93,20 @@ describe("Workbench", () => {
     ));
   });
 
-  it("runs preflight, indexes artifacts, and requires code preview before selection", async () => {
+  it("auto-discovers project configuration and repository context", async () => {
     render(<Workbench />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Run preflight" }));
-    expect(await screen.findByText("EXECUTABLE")).toBeVisible();
-    expect(screen.getByText("APPROVAL REQUIRED")).toBeVisible();
+    fireEvent.click(await screen.findByRole("button", { name: "Scan project" }));
+    expect(await screen.findByText("Ready")).toBeVisible();
+    expect(screen.getByText(/resources were detected/)).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: "Discover artifacts" }));
-    expect(await screen.findByText("GenerationReport")).toBeVisible();
-
-    fireEvent.change(screen.getByLabelText("File"), { target: { value: "src/agent.py" } });
-    fireEvent.change(screen.getByLabelText("End line"), { target: { value: "2" } });
-    fireEvent.change(screen.getByLabelText("Selection reason"), { target: { value: "Inspect agent behavior" } });
-    expect(screen.queryByRole("button", { name: "Add to CodeEvidence" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Preview redacted excerpt" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Add to CodeEvidence" }));
+    fireEvent.click(screen.getByRole("button", { name: /Test design/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Build AI context/ }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
-      "/api/projects/demo/code-evidence",
+      "/api/projects/demo/code-evidence/discover",
       expect.objectContaining({ method: "POST" }),
     ));
-    expect(await screen.findByText("Selected evidence")).toBeVisible();
+    expect(await screen.findByText("src/agent.py")).toBeVisible();
   });
 });

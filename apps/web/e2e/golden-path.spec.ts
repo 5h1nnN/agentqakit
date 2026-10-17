@@ -163,8 +163,10 @@ async function mockApi(page: Page, calls: string[]) {
     if (path === "/api/health") return json({ status: "ok", storage: "Mock", workflowStorage: "Mock", workspaceRoot: "/workspace", judge: { configured: true, provider: "mock", model: "deterministic-v1" } });
     if (path === "/api/projects" && method === "GET") return json({ projects: [project] });
     if (path === "/api/projects/campus-ops" && method === "GET") return json(project);
+    if (path === "/api/projects/campus-ops/discover") return json({ project, refs: project.default_spec_refs, ready: true, missing: [] });
     if (path === "/api/projects/campus-ops/preflight") return json({ project_id: "campus-ops", checked_at: now, executable: true, requires_approval: false, checks: [{ check_id: "manifest", category: "schema", status: "PASS", message: "Manifest is valid.", path: project.default_spec_refs.manifest }], manifest_snapshot: {} });
     if (path === "/api/projects/campus-ops/artifacts") return json({ artifacts: [], total: 0 });
+    if (path === "/api/projects/campus-ops/code-evidence/discover") return json({ codeEvidence, count: codeEvidence.length });
     if (path === "/api/projects/campus-ops/code-evidence") return json({ codeEvidence });
     if (path === "/api/projects/campus-ops/evidence-preview") return json({ project_id: "campus-ops", manifest_sections: ["purpose", "capabilities", "tools", "policies"], code_evidence: codeEvidence, evidence_types: ["manifest", "code"], excluded: ["unselected source files", "secrets"], provider: "mock", model: "deterministic-v1", max_input_tokens: 32000, max_output_tokens: 4096, timeout_seconds: 60, max_cost_usd: null, evidence_hash: hash });
     if (path === "/api/workflows" && method === "GET") return json({ workflows: [workflow] });
@@ -219,31 +221,29 @@ test("Campus Ops Golden Path is operable entirely from the Web workbench", async
   const calls: string[] = [];
   await mockApi(page, calls);
   await page.goto("/");
-  await page.getByRole("button", { name: "Workbench" }).click();
-  await expect(page.getByRole("heading", { name: "Assurance workbench" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Campus Ops Agent" })).toBeVisible();
+  await page.getByRole("button", { name: "Scan project" }).click();
+  await expect(page.getByText("Ready", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: /Test design/ }).click();
+  await page.getByRole("button", { name: "Build AI context" }).click();
+  await expect(page.locator(".context-files article")).toHaveCount(7);
 
-  await page.locator(".workflow-item", { hasText: "T22 Web Golden Path" }).click();
-  await expect(page.getByRole("heading", { name: "Generation & review studio" })).toBeVisible();
-
-  await page.getByRole("button", { name: "Run preflight" }).click();
-  await expect(page.getByText("EXECUTABLE", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Refresh catalog" }).click();
-  await expect(page.getByText("7/10 selected")).toBeVisible();
-
-  await expect(page.getByText("mock / deterministic-v1").first()).toBeVisible();
+  await expect(page.getByText("120 tokens", { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Candidate review" })).toBeVisible();
   await page.locator(".candidate-card").getByRole("button", { name: "Approve" }).click();
   await expect.poll(() => calls.some((value) => value.includes("/review"))).toBeTruthy();
 
+  await page.getByRole("button", { name: /Execute/ }).click();
   await expect(page.getByRole("heading", { name: "Campaign builder" })).toBeVisible();
   await expect(page.locator(".campaign-risk-grid").getByText("record", { exact: true })).toBeVisible();
   await expect(page.getByText("2 / 2 trials")).toBeVisible();
 
   await replayRecordedFailure(page, "authorization-boundary");
 
-  await page.getByRole("button", { name: "Preview redacted AI evidence" }).click();
-  await expect(page.getByRole("heading", { name: "Evidence preview" })).toBeVisible();
-  await page.getByRole("button", { name: "Explicitly start AI Analysis" }).click();
+  await page.getByRole("button", { name: /Investigate/ }).click();
+  await page.getByRole("button", { name: "Review AI input" }).click();
+  await expect(page.getByRole("heading", { name: "Evidence selected for analysis" })).toBeVisible();
+  await page.getByRole("button", { name: "Analyze failure with AI" }).click();
   await expect(page.getByText(/Reused the existing analysis/)).toBeVisible();
   await expect(page.getByText("The authorization predicate is inverted.")).toBeVisible();
 
@@ -251,22 +251,23 @@ test("Campus Ops Golden Path is operable entirely from the Web workbench", async
   await expect(page.getByLabel("MCP resource URI")).toHaveValue(
     "agentqa://workflows/workflow-t22/handoffs/handoff-t22",
   );
-  await page.getByRole("button", { name: "Rerun preflight after repair" }).click();
+  await page.getByRole("button", { name: "Check repaired version" }).click();
   await expect(page.getByText("CHANGED", { exact: true }).first()).toBeVisible();
 
+  await page.getByRole("button", { name: /Release/ }).click();
   await page.getByRole("button", { name: "Compare runs" }).click();
   await expect(page.getByText("QUALITY IMPROVED COST NEUTRAL")).toBeVisible();
-  await page.getByRole("button", { name: "Evaluate regression gate" }).click();
-  await expect(page.getByText("CLI-compatible exit code 0")).toBeVisible();
+  await page.getByRole("button", { name: "Make release decision" }).click();
+  await expect(page.getByText("Candidate meets the release policy.")).toBeVisible();
   const compareSection = page.locator(".assurance-section").filter({
-    has: page.getByRole("heading", { name: "Transparent release decision" }),
+    has: page.getByRole("heading", { name: "Compare versions and apply a release gate" }),
   });
   await compareSection.locator("select").nth(2).selectOption("mutation");
-  await page.getByLabel("GateSpec path").fill("agentqa/mutation-gate.yaml");
-  await page.getByRole("button", { name: "Evaluate mutation gate" }).click();
+  await page.getByLabel("Release policy").fill("agentqa/mutation-gate.yaml");
+  await page.getByRole("button", { name: "Make release decision" }).click();
   await expect(page.getByRole("heading", { name: "mutation gate" })).toBeVisible();
   await page.getByRole("button", { name: "Generate report" }).click();
-  await expect(page.getByText("agentqa.workflow-report/v1alpha1", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download JSON" })).toBeEnabled();
 
   expect(calls).toContain("POST /api/workflows/workflow-t22/handoffs");
   expect(calls).toContain("POST /api/campaigns/campaign-replay-t22/start");

@@ -119,14 +119,14 @@ catalog entries rather than depending on a fixed directory depth. Catalog reads
 are bounded to 200 rows by default (maximum 500) and return `total`, `limit`,
 and `offset` alongside the current page.
 
-Code evidence uses a separate two-step boundary. Preview rejects `.env*`, Git
-metadata, credentials, keys, binary or oversized files, generated/dependency
-directories, traversal, and symlinks. It returns only a redacted excerpt and
-its content hash. A maximum of 10 explicitly selected excerpts and 160 KiB of
-redacted content is retained per project. The evidence preview lists included
-Manifest sections and excerpts, excluded data classes, provider/model, token
-limits, timeout, and a deterministic evidence hash before a later AI action is
-allowed to use it.
+Code context has both automatic and low-level paths. The Web action
+`POST /api/projects/{project_id}/code-evidence/discover` ranks relevant source
+files inside the configured repository and persists bounded redacted excerpts.
+The preview/add routes remain available for SDK and MCP callers that need exact
+line ranges. Both paths reject `.env*`, Git metadata, credentials, keys, binary
+or oversized files, generated/dependency directories, traversal, and symlinks.
+A maximum of 10 excerpts and 160 KiB of redacted content is retained per
+project. A later AI action receives only those persisted selections.
 
 T19 connects the existing two-phase generator to persistent Workflow steps and
 the browser review surface:
@@ -181,15 +181,16 @@ states, findings, mutation evidence, comparisons, and quality-gate decisions.
 The launch form accepts an optional Manifest path and exposes a DeepSeek opt-in
 when the server is configured. Run details show each AI verdict, score, and
 rationale.
-The **Workbench** view creates projects and durable workflow containers, polls
-their current state, shows the ordered audit timeline, and exposes only valid
-resume and cancel actions. It also provides T18 project setup, Preflight,
-artifact discovery/catalog inspection, safe workspace browsing, redacted code
-preview with an explicit add action, and evidence-boundary inspection. The
-T19 Generation & Review Studio adds a Goal Editor, reviewed-evidence picker,
-Plan Matrix, explicit Plan confirmation, Token/Cost summary, candidate
-diagnostics, risk approvals, and immutable JSON revision editor. The existing
-**Runs** view and CLI remain compatible;
+The **Workspace** is organized into Overview, Test design, Execute,
+Investigate, and Release stages. Project creation requires only a name and
+repository directory; validated specification discovery fills the manifest,
+target, tests, mutation, gate, and generation-goal roles. Run history and
+details live inside Execute instead of a separate top-level Runs page. Overview
+keeps readiness and history concise, while hashes and raw audit records remain
+available in expandable technical details. Test design adds automatic repository
+context, a Goal Editor, Plan Matrix, explicit Plan confirmation, candidate
+diagnostics, risk approvals, and immutable JSON revision editing. The CLI and
+low-level APIs remain compatible;
 workflow metadata shares the SQLite file but uses separate versioned tables.
 The **AI evidence** view additionally discovers strict, checksummed generation
 reports and AnalysisReports from the MCP and T16 artifact layouts. It shows
