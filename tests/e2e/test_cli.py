@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from agentqa import __version__
@@ -14,10 +15,11 @@ pytestmark = pytest.mark.e2e
 
 def test_help_lists_top_level_usage() -> None:
     result = runner.invoke(app, ["--help"])
+    stdout = unstyle(result.stdout)
 
     assert result.exit_code == 0
-    assert "Fault-injection and regression testing for AI agents." in result.stdout
-    assert "--version" in result.stdout
+    assert "Fault-injection and regression testing for AI agents." in stdout
+    assert "--version" in stdout
 
 
 def test_version() -> None:
@@ -30,11 +32,13 @@ def test_version() -> None:
 def test_serve_is_listed_and_rejects_remote_binding_without_opt_in() -> None:
     help_result = runner.invoke(app, ["serve", "--help"])
     remote_result = runner.invoke(app, ["serve", "--host", "0.0.0.0"])
+    help_stdout = unstyle(help_result.stdout)
+    remote_stderr = unstyle(remote_result.stderr)
 
     assert help_result.exit_code == 0
-    assert "local AgentQAKit API" in help_result.stdout
+    assert "local AgentQAKit API" in help_stdout
     assert remote_result.exit_code == 2
-    assert "non-loopback hosts require --allow-remote" in remote_result.stderr
+    assert "non-loopback hosts require --allow-remote" in remote_stderr
 
 
 def test_compare_and_gate_commands_write_checksummed_reports(tmp_path: Path) -> None:
