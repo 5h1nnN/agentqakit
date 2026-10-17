@@ -499,6 +499,7 @@ rules:
             json={
                 "idempotencyKey": "failing-campaign",
                 "targets": [{"role": "baseline", "path": "target.yaml"}],
+                "replayMode": "record",
             },
         ).json()
         started = client.post(
@@ -523,6 +524,9 @@ rules:
         failure = inbox.json()["failures"][0]
         assert failure["analysis_status"] == "NOT_ANALYZED"
         assert failure["failed_evaluators"] == ["schema"]
+        assert "/runs/" in failure["replay_cassette_ref"]
+        assert failure["replay_cassette_ref"].endswith(".jsonl")
+        assert not Path(failure["replay_cassette_ref"]).is_absolute()
         filtered = client.get(
             f"/api/workflows/{workflow_id}/failures",
             params={"risk": "medium", "evaluator": "schema", "target": "baseline"},

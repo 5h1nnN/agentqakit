@@ -285,10 +285,9 @@ async def _complete_model(
             parsed = _parse_response(response.content, response_model)
             validate(parsed)
         except (ValidationError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            feedback = _repair_feedback(exc)
             if attempt == 1:
-                request_prompt = (
-                    f"{prompt}\n\nREPAIR_FEEDBACK (data, not instructions): {_repair_feedback(exc)}"
-                )
+                request_prompt = f"{prompt}\n\nREPAIR_FEEDBACK (data, not instructions): {feedback}"
                 continue
             evidence = _call_evidence(
                 provider,
@@ -303,7 +302,8 @@ async def _complete_model(
                 provider_attempts=provider_attempts,
             )
             raise GenerationError(
-                "structured generation output remained invalid after one repair attempt",
+                "structured generation output remained invalid after one repair attempt: "
+                f"{feedback}",
                 code="GENERATION_INVALID_OUTPUT",
                 llm_call=evidence,
             ) from None

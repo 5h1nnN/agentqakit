@@ -141,6 +141,24 @@ def create_mcp_server(
     def comparison(comparison_id: str) -> str:
         return application.comparison_resource(comparison_id)
 
+    @server.resource(
+        "agentqa://analyses/{analysis_id}",
+        name="analysis-report",
+        description="Verified AnalysisReport produced by either Web or MCP.",
+        mime_type="application/json",
+    )
+    def analysis(analysis_id: str) -> str:
+        return application.analysis_resource(analysis_id)
+
+    @server.resource(
+        "agentqa://workflows/{workflow_id}/handoffs/{handoff_id}",
+        name="handoff-bundle",
+        description="Bounded external-repair task, identities, and evidence Resource URIs.",
+        mime_type="application/json",
+    )
+    def handoff(workflow_id: str, handoff_id: str) -> str:
+        return application.handoff_resource(workflow_id, handoff_id)
+
     readonly = ToolAnnotations(
         read_only_hint=True,
         destructive_hint=False,

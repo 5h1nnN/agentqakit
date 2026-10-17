@@ -87,6 +87,8 @@ async def test_deepseek_provider_requests_json_and_records_safe_usage() -> None:
     body = captured["body"]
     assert isinstance(body, dict)
     assert body["response_format"] == {"type": "json_object"}
+    assert body["thinking"] == {"type": "disabled"}
+    assert body["reasoning_effort"] == "none"
     assert body["temperature"] == 0.0
     assert "schema" in body["messages"][0]["content"]
     assert response.metadata["usage"] == {
@@ -217,6 +219,11 @@ async def test_deepseek_provider_retries_transient_status_once() -> None:
 def test_deepseek_configuration_rejects_non_official_key_destination() -> None:
     with pytest.raises(DeepSeekConfigurationError, match="official"):
         _settings(base_url="https://example.test/v1")
+
+
+def test_deepseek_configuration_rejects_unknown_reasoning_effort() -> None:
+    with pytest.raises(DeepSeekConfigurationError, match="REASONING_EFFORT"):
+        _settings(reasoning_effort="ultra")
 
 
 def test_private_judge_environment_loads_only_known_values(

@@ -669,6 +669,7 @@ export interface FailureInboxItem {
   mutation_ids: string[];
   test_revision_hash: string;
   failure_bundle_ref: string | null;
+  replay_cassette_ref: string | null;
   trace_status: "complete" | "partial" | "missing";
   analysis_status: AnalysisStatus;
   analysis_count: number;
@@ -734,6 +735,7 @@ export interface HandoffBundle {
   created_at: string;
   workflow_id: string;
   project_id: string;
+  handoff_resource_uri: string;
   failure_resource_uri: string;
   analysis_resource_uri: string;
   baseline_target_hash: string;

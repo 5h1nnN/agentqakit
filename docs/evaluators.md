@@ -65,6 +65,9 @@ The DeepSeek provider uses Chat Completions JSON Output with a bounded token
 limit, no redirects, one retry for transient transport/429/5xx failures, and
 strict `JudgeDecision` validation. For credential safety, its Base URL must be
 the official `https://api.deepseek.com` endpoint, optionally ending in `/v1`.
+`AGENTQA_LLM_REASONING_EFFORT` defaults to `none` for strict structured output;
+set it to `low`, `high`, or `max` only when the additional reasoning cost and
+output-token consumption are intentional.
 The API key is never placed in provider metadata, prompts, artifacts, database
 records, error messages, or the reconstructed CLI command.
 

@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from agentqa.mcp import AgentQAMCPApplication
 from agentqa.storage import FileResultStore
 from agentqa.workbench import (
     ArtifactCatalogService,
@@ -46,6 +47,36 @@ def test_catalog_imports_verified_run_and_registers_it_in_result_store(tmp_path:
         refreshed = await catalog.list_artifacts("campus")
         changed = next(entry for entry in refreshed if entry.artifact_id == lifecycle.artifact_id)
         assert changed.availability == "INVALID"
+
+    asyncio.run(exercise())
+
+
+def test_catalog_imports_mcp_artifact_with_the_authoritative_checksum(tmp_path: Path) -> None:
+    async def exercise() -> None:
+        artifacts = tmp_path / "artifacts"
+        create_storable_run(artifacts, "baseline", passed=False)
+        create_storable_run(artifacts, "candidate", passed=True)
+        application = AgentQAMCPApplication(tmp_path)
+        result = application.compare_runs("baseline", "candidate")
+        report_path = tmp_path / result["report_path"]
+        checksum = report_path.with_name(f"{report_path.name}.sha256").read_text().strip()
+
+        result_store = FileResultStore(tmp_path / "results")
+        await result_store.initialize()
+        catalog = ArtifactCatalogService(
+            tmp_path / "catalog.sqlite3",
+            workspace_root=tmp_path,
+            result_store=result_store,
+            artifact_directory=artifacts,
+        )
+        await catalog.initialize()
+        imported = await catalog.discover("campus", ["mcp"])
+        entries = await catalog.list_artifacts("campus", "ComparisonReport")
+
+        assert imported.imported == 1
+        assert len(entries) == 1
+        assert entries[0].source == "MCP"
+        assert entries[0].checksum == checksum
 
     asyncio.run(exercise())
 

@@ -265,6 +265,7 @@ async def test_generation_rejects_unknown_manifest_references_after_one_repair()
     assert captured.value.llm_call is not None
     assert captured.value.llm_call.status == "INVALID_OUTPUT"
     assert captured.value.llm_call.attempts == 2
+    assert "undeclared tool" in captured.value.message
     assert len(provider.requests) == 2
     assert "REPAIR_FEEDBACK" not in provider.requests[0].prompt
     assert "REPAIR_FEEDBACK" in provider.requests[1].prompt

@@ -21,3 +21,12 @@ coordinate validation, remediation, and disclosure timing with the reporter.
 AgentQAKit artifacts must never contain raw authorization headers, cookies, API
 keys, or other credentials. Use synthetic data in bug reports and reproduction
 bundles.
+
+The Web service is a local, single-user workbench. Keep its default loopback
+binding; it is not a multi-tenant service and does not provide an Internet-facing
+authentication boundary. Review external/irreversible tool declarations and use
+sandbox accounts before approving a Campaign.
+
+Handoff Bundles and WorkflowReports may contain hashes, bounded task text and
+AgentQAKit Resource URIs, but must not contain raw CodeEvidence, prompts or
+credentials. Run `make leak-scan` before publishing reference artifacts.

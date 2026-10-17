@@ -1,12 +1,14 @@
 import hashlib
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
 import pytest
 
 from agentqa.mcp import AgentQAMCPApplication, MCPApplicationError
-from agentqa.specs.hashing import canonical_json_bytes
+from agentqa.specs.hashing import canonical_json_bytes, sha256_digest
+from agentqa.workbench.models import HandoffBundle
 from tests.fixtures.artifact_runs import create_run_artifact
 
 
@@ -120,4 +122,47 @@ def test_compare_tool_writes_resource_backed_report(tmp_path: Path) -> None:
     resource = _resource(application.comparison_resource(result["comparison_id"]))
 
     assert result["quality_cost_status"] == "QUALITY_PRESERVED_COST_IMPROVED"
-    assert resource["data"]["candidate_run_id"] == "candidate"
+    assert resource["data"]["artifact"]["candidate_run_id"] == "candidate"
+    report = tmp_path / result["report_path"]
+    assert (
+        resource["data"]["artifact_checksum"]
+        == report.with_name(f"{report.name}.sha256").read_text(encoding="utf-8").strip()
+    )
+
+
+def test_web_handoff_is_available_as_verified_mcp_resource(tmp_path: Path) -> None:
+    digest = "sha256:" + "1" * 64
+    handoff = HandoffBundle.model_validate(
+        {
+            "handoff_id": "handoff-1",
+            "created_at": datetime(2026, 10, 15, tzinfo=UTC),
+            "workflow_id": "workflow-1",
+            "project_id": "campus-ops",
+            "handoff_resource_uri": ("agentqa://workflows/workflow-1/handoffs/handoff-1"),
+            "failure_resource_uri": "agentqa://runs/run-1/failures/trial-1",
+            "analysis_resource_uri": "agentqa://analyses/analysis-1",
+            "baseline_target_hash": digest,
+            "baseline_manifest_hash": digest,
+            "baseline_source_snapshot_hash": digest,
+            "baseline_runtime_hash": digest,
+            "suggested_regression_tests": ["authorization remains enforced"],
+            "missing_evidence": [],
+            "developer_task": "Fix only the cited authorization regression.",
+        }
+    )
+    destination = (
+        tmp_path / ".agentqa/artifacts/workflows/workflow-1/handoffs/handoff-1/handoff-bundle.json"
+    )
+    destination.parent.mkdir(parents=True)
+    payload = canonical_json_bytes(handoff) + b"\n"
+    destination.write_bytes(payload)
+    destination.with_name(f"{destination.name}.sha256").write_text(
+        f"{sha256_digest(payload)}\n", encoding="utf-8"
+    )
+
+    resource = _resource(
+        AgentQAMCPApplication(tmp_path).handoff_resource("workflow-1", "handoff-1")
+    )
+
+    assert resource["data"]["artifact"] == handoff.model_dump(mode="json")
+    assert resource["data"]["artifact_checksum"] == sha256_digest(payload)

@@ -27,6 +27,11 @@ Coding Agents through bounded, checksummed resources and approval-gated tools,
 without granting arbitrary filesystem or shell access.
 The complete standalone, MCP collaboration, and controlled three-arm T16
 experiment is documented in [`docs/t16-end-to-end.md`](docs/t16-end-to-end.md).
+The complete Web product flow is documented in the
+[`five-minute workbench quickstart`](docs/web-workbench-quickstart.md), with
+[`Web/MCP handoff semantics`](docs/workbench-artifacts-and-handoff.md),
+[`T22 acceptance`](docs/t22-acceptance.md), and a
+[`competition demo script`](docs/competition-demo-script.md).
 Completed runs can now be indexed in a checksummed file store or transactional
 SQLite database, queried through a local FastAPI service, and inspected in the
 React evidence console.
@@ -122,6 +127,9 @@ agentqa test run examples/specs/ci-test.yaml \
 The API key is process-only secret input. Structured LLM evidence records model
 identity, configuration and evidence hashes, bounded request IDs, verdict,
 rationale, latency, attempts, and token usage, but never the key or raw prompt.
+Structured JSON calls default to `AGENTQA_LLM_REASONING_EFFORT=none` so
+DeepSeek reasoning tokens cannot consume the output budget before the required
+JSON object is complete; `low`, `high`, and `max` remain explicit opt-ins.
 
 Generate a test plan and validated candidate tests with the same DeepSeek
 configuration:

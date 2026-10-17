@@ -598,6 +598,7 @@ class FailureInboxItem(StrictModel):
     mutation_ids: list[NonEmptyString] = Field(default_factory=list, max_length=100)
     test_revision_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     failure_bundle_ref: str | None = Field(default=None, max_length=2_000)
+    replay_cassette_ref: str | None = Field(default=None, max_length=2_000)
     trace_status: Literal["complete", "partial", "missing"]
     analysis_status: AnalysisStatus
     analysis_count: int = Field(default=0, ge=0)
@@ -622,6 +623,7 @@ class HandoffBundle(StrictModel):
     created_at: UtcDateTime
     workflow_id: NonEmptyString
     project_id: ResourceName
+    handoff_resource_uri: NonEmptyString
     failure_resource_uri: NonEmptyString
     analysis_resource_uri: NonEmptyString
     baseline_target_hash: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")

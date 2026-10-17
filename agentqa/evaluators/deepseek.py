@@ -9,7 +9,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, ClassVar, cast
+from typing import Any, ClassVar, Literal, cast
 from urllib.parse import urlparse
 
 import httpx
@@ -27,6 +27,7 @@ _ENVIRONMENT_KEYS = frozenset(
         "AGENTQA_LLM_MODEL",
         "AGENTQA_LLM_TIMEOUT_SECONDS",
         "AGENTQA_LLM_MAX_TOKENS",
+        "AGENTQA_LLM_REASONING_EFFORT",
         "AGENTQA_LLM_TEMPERATURE",
         "AGENTQA_LLM_RETRY_BACKOFF_SECONDS",
         "AGENTQA_JUDGE_API_KEY",
@@ -34,6 +35,7 @@ _ENVIRONMENT_KEYS = frozenset(
         "AGENTQA_JUDGE_MODEL",
         "AGENTQA_JUDGE_TIMEOUT_SECONDS",
         "AGENTQA_JUDGE_MAX_TOKENS",
+        "AGENTQA_JUDGE_REASONING_EFFORT",
         "AGENTQA_JUDGE_TEMPERATURE",
         "AGENTQA_JUDGE_RETRY_BACKOFF_SECONDS",
     }
@@ -141,6 +143,7 @@ class DeepSeekJudgeSettings:
     base_url: str = "https://api.deepseek.com"
     timeout_seconds: float = 60.0
     max_tokens: int = 8_192
+    reasoning_effort: Literal["none", "low", "high", "max"] = "none"
     temperature: float = 0.0
     retry_backoff_seconds: float = 0.5
 
@@ -169,6 +172,10 @@ class DeepSeekJudgeSettings:
             )
         if not 64 <= self.max_tokens <= 16_384:
             raise DeepSeekConfigurationError("AGENTQA_LLM_MAX_TOKENS must be between 64 and 16384")
+        if self.reasoning_effort not in {"none", "low", "high", "max"}:
+            raise DeepSeekConfigurationError(
+                "AGENTQA_LLM_REASONING_EFFORT must be none, low, high, or max"
+            )
         if not 0.0 <= self.temperature <= 2.0:
             raise DeepSeekConfigurationError("AGENTQA_LLM_TEMPERATURE must be between 0 and 2")
         if not 0.0 <= self.retry_backoff_seconds <= 10.0:
@@ -200,6 +207,14 @@ class DeepSeekJudgeSettings:
                 "AGENTQA_LLM_MAX_TOKENS",
                 "AGENTQA_JUDGE_MAX_TOKENS",
                 8_192,
+            ),
+            reasoning_effort=cast(
+                Literal["none", "low", "high", "max"],
+                _environment_alias(
+                    "AGENTQA_LLM_REASONING_EFFORT",
+                    "AGENTQA_JUDGE_REASONING_EFFORT",
+                    "none",
+                ),
             ),
             temperature=_float_environment_alias(
                 "AGENTQA_LLM_TEMPERATURE",
@@ -255,6 +270,7 @@ class DeepSeekJudgeProvider:
             "base_url": self._settings.base_url,
             "timeout_seconds": self._settings.timeout_seconds,
             "max_tokens": self._settings.max_tokens,
+            "reasoning_effort": self._settings.reasoning_effort,
             "temperature": self._settings.temperature,
             "response_format": "json_object",
         }
@@ -302,6 +318,10 @@ class DeepSeekJudgeProvider:
                 {"role": "user", "content": request.prompt},
             ],
             "response_format": {"type": "json_object"},
+            "thinking": {
+                "type": ("disabled" if self._settings.reasoning_effort == "none" else "enabled")
+            },
+            "reasoning_effort": self._settings.reasoning_effort,
             "temperature": self._settings.temperature,
             "max_tokens": min(self._settings.max_tokens, request.max_output_tokens),
             "stream": False,

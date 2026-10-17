@@ -124,13 +124,13 @@ def _artifact_type(path: Path) -> str:
         return "GenerationPlan"
     if "analysis" in name or parts.intersection({"analysis", "analyses"}):
         return "AnalysisReport"
-    if name == "comparison.json":
+    if name == "comparison.json" or ("comparisons" in parts and name.endswith(".json")):
         return "ComparisonReport"
     if name == "handoff-bundle.json":
         return "HandoffBundle"
     if name == "workflow-report.json":
         return "WorkflowReport"
-    if "gate" in name and name.endswith(".json"):
+    if ("gate" in name or parts.intersection({"gate", "gates"})) and name.endswith(".json"):
         return "GateResult"
     if name == "mcp-transcript.json":
         return "MCPTranscript"

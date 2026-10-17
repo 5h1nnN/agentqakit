@@ -24,6 +24,7 @@ from agentqa.llm import StructuredLLMProvider
 from agentqa.models import (
     AgentManifest,
     AgentTestSpec,
+    AnalysisReport,
     CodeEvidence,
     ComparisonReport,
     GenerationGoal,
@@ -39,6 +40,7 @@ from agentqa.specs.hashing import canonical_json_bytes, sha256_digest
 from agentqa.specs.schema import build_json_schemas
 from agentqa.storage import redact_secrets
 from agentqa.traceview import TraceView
+from agentqa.workbench.models import HandoffBundle
 
 MCP_RESOURCE_SCHEMA_VERSION = "agentqa.mcp-resource/v1alpha1"
 _MAX_RESOURCE_BYTES = 256 * 1024
@@ -425,19 +427,102 @@ class AgentQAMCPApplication:
         uri = f"agentqa://comparisons/{comparison_id}"
         try:
             identifier = self.paths.component(comparison_id, label="comparison_id")
-            data = self._checked_report(self.reports / "comparisons" / f"{identifier}.json")
-            report = ComparisonReport.model_validate_json(json.dumps(data))
-            summary = cast(
-                dict[str, JsonValue],
-                report.model_dump(mode="json", exclude={"cases"}),
+            report, checksum = self._verified_artifact(
+                [self.reports / "comparisons" / f"{identifier}.json"],
+                ComparisonReport,
             )
-            summary["case_count"] = len(report.cases)
-            summary["case_preview"] = cast(
-                JsonValue,
-                [item.model_dump(mode="json") for item in report.cases[:_MAX_CASE_PREVIEW]],
+            return _resource_document(
+                uri,
+                {
+                    "artifact_type": "ComparisonReport",
+                    "artifact_checksum": checksum,
+                    "schema_version": "agentqa.comparison-report/v1alpha1",
+                    "artifact": report,
+                },
             )
-            summary["cases_truncated"] = len(report.cases) > _MAX_CASE_PREVIEW
-            return _resource_document(uri, summary)
+        except Exception as exc:
+            return _resource_error(uri, exc)
+
+    def _verified_artifact(self, paths: Sequence[Path], model: type[_Model]) -> tuple[_Model, str]:
+        """Load one explicitly addressed, checksummed artifact without generic file access."""
+        matches = [path for path in paths if path.is_file() and not path.is_symlink()]
+        if len(matches) != 1:
+            raise MCPApplicationError(
+                "artifact resource was not found or is ambiguous",
+                code="MCP_RESOURCE_NOT_FOUND",
+            )
+        path = matches[0]
+        try:
+            path.resolve().relative_to(self.paths.root)
+            payload = path.read_bytes()
+            expected = path.with_name(f"{path.name}.sha256").read_text(encoding="utf-8").strip()
+        except (OSError, ValueError):
+            raise MCPApplicationError(
+                "artifact resource could not be verified",
+                code="MCP_RESOURCE_CHECKSUM_ERROR",
+            ) from None
+        if len(payload) > _MAX_REPORT_BYTES or expected != sha256_digest(payload):
+            raise MCPApplicationError(
+                "artifact resource checksum is invalid",
+                code="MCP_RESOURCE_CHECKSUM_ERROR",
+            )
+        try:
+            return model.model_validate_json(payload), expected
+        except ValidationError:
+            raise MCPApplicationError(
+                "artifact resource does not match its shared schema",
+                code="MCP_RESOURCE_SCHEMA_ERROR",
+            ) from None
+
+    def analysis_resource(self, analysis_id: str) -> str:
+        """Expose a Web- or MCP-produced AnalysisReport through one shared schema."""
+        safe_id = self.paths.component(analysis_id, label="analysis_id")
+        uri = f"agentqa://analyses/{safe_id}"
+        try:
+            roots = [self.paths.root / ".agentqa" / "artifacts", self.paths.root / "artifacts"]
+            candidates = [self.reports / "analyses" / f"{safe_id}.json"]
+            for root in roots:
+                candidates.extend(root.glob(f"workflows/*/analyses/analysis-{safe_id}.json"))
+            report, checksum = self._verified_artifact(candidates, AnalysisReport)
+            return _resource_document(
+                uri,
+                {
+                    "artifact_type": "AnalysisReport",
+                    "artifact_checksum": checksum,
+                    "schema_version": report.schema_version,
+                    "artifact": report,
+                },
+            )
+        except Exception as exc:
+            return _resource_error(uri, exc)
+
+    def handoff_resource(self, workflow_id: str, handoff_id: str) -> str:
+        """Expose a bounded Web handoff to a Coding Agent without filesystem access."""
+        safe_workflow = self.paths.component(workflow_id, label="workflow_id")
+        safe_handoff = self.paths.component(handoff_id, label="handoff_id")
+        uri = f"agentqa://workflows/{safe_workflow}/handoffs/{safe_handoff}"
+        try:
+            relative = (
+                Path("workflows")
+                / safe_workflow
+                / "handoffs"
+                / safe_handoff
+                / "handoff-bundle.json"
+            )
+            candidates = [
+                self.paths.root / ".agentqa" / "artifacts" / relative,
+                self.paths.root / "artifacts" / relative,
+            ]
+            handoff, checksum = self._verified_artifact(candidates, HandoffBundle)
+            return _resource_document(
+                uri,
+                {
+                    "artifact_type": "HandoffBundle",
+                    "artifact_checksum": checksum,
+                    "schema_version": handoff.schema_version,
+                    "artifact": handoff,
+                },
+            )
         except Exception as exc:
             return _resource_error(uri, exc)
 

@@ -375,6 +375,9 @@ details summary { cursor: pointer; color: #43535e; }
 .rule-list article:last-child { border-bottom: 0; }
 .rule-list p { margin: 3px 0 0; color: var(--muted); font-size: 0.8rem; }
 .rule-list code { color: #53636e; font-size: 0.72rem; text-align: right; }
+.handoff-copy { display: grid; grid-template-columns: 1fr auto; gap: 10px; align-items: end; margin: 16px 0; }
+.handoff-copy label { min-width: 0; }
+.handoff-copy textarea { min-height: 96px; }
 
 footer { border-top: 1px solid var(--line); min-height: 58px; display: flex; align-items: center; justify-content: space-between; padding: 0 3vw; color: var(--muted); font-size: 0.75rem; }
 

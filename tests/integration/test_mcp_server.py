@@ -102,6 +102,8 @@ async def test_official_in_memory_client_discovers_and_runs_shared_runner(tmp_pa
             "agentqa://runs/{run_id}/trace-summary",
             "agentqa://runs/{run_id}/failures/{failure_id}",
             "agentqa://comparisons/{comparison_id}",
+            "agentqa://analyses/{analysis_id}",
+            "agentqa://workflows/{workflow_id}/handoffs/{handoff_id}",
         }
         assert validated.structured_content is not None
         assert validated.structured_content["valid"] is True

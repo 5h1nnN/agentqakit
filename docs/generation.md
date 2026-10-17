@@ -44,8 +44,10 @@ agentqa generate plan \
 Omit `--goal` to use a bounded default goal. DeepSeek configuration is loaded
 from `.env.local` by default and can be changed with `--llm-env-file`. Keep
 `AGENTQA_LLM_MAX_TOKENS=8192` for generation; the more compact Judge workflow
-still applies its lower per-call cap. The plan and its adjacent `.sha256` file
-are immutable inputs to the next phase.
+still applies its lower per-call cap. Keep
+`AGENTQA_LLM_REASONING_EFFORT=none` for schema-heavy JSON generation unless a
+larger reasoning-inclusive output budget is deliberately configured. The plan
+and its adjacent `.sha256` file are immutable inputs to the next phase.
 
 Plan categories are `normal`, `boundary`, `fault`, `security`, `efficiency`, and
 `hitl`. Risk levels are `low`, `medium`, `high`, and `critical`. A goal can also

@@ -136,6 +136,14 @@ class AssuranceWorkbenchService:
             ) from None
         return candidate
 
+    def _workspace_ref(self, path: Path) -> str | None:
+        """Return a safe, paste-ready workspace reference without leaking host paths."""
+        candidate = path if path.is_absolute() else self.workspace_root / path
+        try:
+            return candidate.resolve().relative_to(self.workspace_root).as_posix()
+        except ValueError:
+            return None
+
     async def _analysis_reports(
         self, project_id: str
     ) -> list[tuple[CatalogArtifact, AnalysisReport]]:
@@ -278,6 +286,13 @@ class AssuranceWorkbenchService:
                             result.test_case_id, sha256_digest(result.test_case_id.encode())
                         ),
                         failure_bundle_ref=result.failure_bundle_ref,
+                        replay_cassette_ref=(
+                            None
+                            if subrun.artifact_path is None or result.cassette_ref is None
+                            else self._workspace_ref(
+                                Path(subrun.artifact_path) / result.cassette_ref
+                            )
+                        ),
                         trace_status=result.trace_status,
                         analysis_status=cast(Any, resolved_status),
                         analysis_count=len(matches),
@@ -471,11 +486,13 @@ class AssuranceWorkbenchService:
             )
         campaign, subrun = selected
         snapshot = campaign.config.manifest_snapshot
+        handoff_id = new_id()
         handoff = HandoffBundle(
-            handoff_id=new_id(),
+            handoff_id=handoff_id,
             created_at=utc_now(),
             workflow_id=workflow_id,
             project_id=project.project_id,
+            handoff_resource_uri=f"agentqa://workflows/{workflow_id}/handoffs/{handoff_id}",
             failure_resource_uri=f"agentqa://runs/{analysis.run_id}/failures/{analysis.trial_id}",
             analysis_resource_uri=f"agentqa://analyses/{analysis.analysis_id}",
             baseline_target_hash=subrun.target.spec_hash,
