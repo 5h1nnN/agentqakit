@@ -101,12 +101,36 @@ describe("Workbench", () => {
     expect(screen.getByText(/resources were detected/)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: /Test design/ }));
-    fireEvent.click(await screen.findByRole("button", { name: /Build AI context/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /(Build|Refresh) source context/ }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(
       "/api/projects/demo/code-evidence/discover",
       expect.objectContaining({ method: "POST" }),
     ));
     expect(await screen.findByText("src/agent.py")).toBeVisible();
+  });
+
+  it("deletes the selected project only after confirmation", async () => {
+    const mockedFetch = vi.mocked(fetch);
+    const original = mockedFetch.getMockImplementation();
+    let deleted = false;
+    mockedFetch.mockImplementation(async (input, init) => {
+      if (String(input) === "/api/projects/demo" && init?.method === "DELETE") {
+        deleted = true;
+        return { ok: true, status: 204 } as Response;
+      }
+      if (String(input) === "/api/projects" && deleted) {
+        return { ok: true, status: 200, json: async () => ({ projects: [] }) } as Response;
+      }
+      return original!(input, init) as Promise<Response>;
+    });
+    vi.stubGlobal("confirm", vi.fn().mockReturnValue(true));
+    render(<Workbench />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Delete project" }));
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(
+      "/api/projects/demo", expect.objectContaining({ method: "DELETE" }),
+    ));
+    expect(await screen.findByRole("button", { name: "Create first project" })).toBeVisible();
   });
 });

@@ -76,6 +76,7 @@ export function Workbench() {
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [events, setEvents] = useState<WorkflowEvent[]>([]);
   const [busy, setBusy] = useState(false);
+  const [runView, setRunView] = useState<"campaign" | "results">("campaign");
   const [error, setError] = useState<string | null>(null);
   const eventCursor = useRef(0);
 
@@ -140,6 +141,15 @@ export function Workbench() {
     setBoundary(null);
     setArtifacts([]);
     setSelectedRunId(null);
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    void api.listCodeEvidence(projectId).then((items) => {
+      if (!cancelled) setCodeEvidence(items);
+    }).catch(() => { /* Source context is optional until explicitly scanned. */ });
+    return () => { cancelled = true; };
   }, [projectId]);
 
   const createProject = async (event: FormEvent) => {
@@ -233,6 +243,21 @@ export function Workbench() {
     setProjectId(value); setSelectedId(null); setPhase("overview");
   };
 
+  const deleteProject = async () => {
+    if (!selectedProject || !window.confirm(`Delete “${selectedProject.name}” and its evaluations, run index, and project evidence? Repository files and saved artifact files will be kept.`)) return;
+    setBusy(true); setError(null);
+    try {
+      await api.deleteProject(selectedProject.project_id);
+      const remaining = projects.filter((item) => item.project_id !== selectedProject.project_id);
+      setProjects(remaining);
+      setProjectId(remaining[0]?.project_id ?? "");
+      setSelectedId(null);
+      setWorkflows([]); setRuns([]); setJobs([]); setEvents([]);
+      setPhase("overview");
+    } catch (reason) { setError((reason as Error).message); }
+    finally { setBusy(false); }
+  };
+
   return (
     <div className="workspace-shell">
       <aside className="project-rail">
@@ -258,7 +283,7 @@ export function Workbench() {
         {selectedProject && <>
           <header className="workspace-header">
             <div><p className="eyebrow">{selectedProject.workspace_path}</p><h1>{selectedProject.name}</h1><p>{selectedProject.description || "Agent evaluation workspace"}</p></div>
-            <div className="workspace-header__actions"><span className={`status ${statusClass(selected?.status ?? "DRAFT")}`}>{selected?.status ?? "NO WORKFLOW"}</span><button className="button button--small" onClick={() => void createWorkflow()} disabled={busy}>New evaluation</button></div>
+            <div className="workspace-header__actions"><span className={`status ${statusClass(selected?.status ?? "DRAFT")}`}>{selected?.status ?? "NO WORKFLOW"}</span><button className="button button--small" onClick={() => void createWorkflow()} disabled={busy}>New evaluation</button><button className="button button--small button--danger" onClick={() => void deleteProject()} disabled={busy}>Delete project</button></div>
           </header>
 
           <nav className="phase-nav" aria-label="Evaluation phases">
@@ -297,8 +322,8 @@ export function Workbench() {
 
           {phase === "design" && <div className="phase-content">
             <section className="panel context-card">
-              <div className="context-card__copy"><span className="ai-orb">✦</span><div><p className="eyebrow">Repository context</p><h2>Let AI understand the agent</h2><p>AgentQAKit scans the repository, selects relevant implementation files and redacts likely secrets. You can review the selected files before generating tests.</p></div></div>
-              <button className="button button--ai" disabled={busy} onClick={() => void buildContext()}><span>✦</span>{codeEvidence.length ? "Refresh AI context" : "Build AI context"}</button>
+              <div className="context-card__copy"><div><p className="eyebrow">Repository scan · no AI call</p><h2>Source context</h2><p>Scans selected implementation files and redacts likely secrets. AI uses this evidence only when you choose it during test generation.</p></div></div>
+              <button className="button" disabled={busy} onClick={() => void buildContext()}>{codeEvidence.length ? "Refresh source context" : "Build source context"}</button>
               {codeEvidence.length > 0 && <div className="context-files">{codeEvidence.map((item) => <article key={item.contentHash}><strong>{item.path}</strong><small>lines {item.startLine}–{item.endLine}</small></article>)}</div>}
               {boundary && <details className="technical-details"><summary>What AI can access</summary><div className="boundary-summary"><p><strong>Included:</strong> agent manifest and {boundary.code_evidence.length} selected source files.</p><p><strong>Excluded:</strong> {boundary.excluded.join(", ")}.</p></div></details>}
             </section>
@@ -306,8 +331,9 @@ export function Workbench() {
           </div>}
 
           {phase === "run" && <div className="phase-content">
-            {selected && <CampaignWorkbench workflow={selected} />}
-            {selectedRun ? <><button className="back-button" onClick={() => setSelectedRunId(null)}>← All results</button><RunDetail run={selectedRun} /></> : <RunList runs={runs} jobs={jobs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />}
+            <div className="workspace-tabs" role="tablist" aria-label="Execution view"><button role="tab" aria-selected={runView === "campaign"} className={runView === "campaign" ? "is-active" : ""} onClick={() => setRunView("campaign")}>Campaign builder</button><button role="tab" aria-selected={runView === "results"} className={runView === "results" ? "is-active" : ""} onClick={() => setRunView("results")}>Results <span>{runs.length}</span></button></div>
+            {runView === "campaign" && selected && <CampaignWorkbench workflow={selected} />}
+            {runView === "results" && (selectedRun ? <><button className="back-button" onClick={() => setSelectedRunId(null)}>← All results</button><RunDetail run={selectedRun} /></> : <RunList runs={runs} jobs={jobs} selectedRunId={selectedRunId} onSelect={setSelectedRunId} />)}
           </div>}
 
           {phase === "analyze" && <div className="phase-content">{selected && <AssuranceWorkbench workflow={selected} codeEvidence={codeEvidence} view="investigate" />}</div>}

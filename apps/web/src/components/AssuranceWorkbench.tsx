@@ -36,8 +36,9 @@ export function AssuranceWorkbench({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [preview, setPreview] = useState<FailureEvidencePreview | null>(null);
   const [analyses, setAnalyses] = useState<AnalysisReport[]>([]);
-  const [selectedHashes, setSelectedHashes] = useState<string[]>([]);
   const [reuseExisting, setReuseExisting] = useState(true);
+  const [investigateTab, setInvestigateTab] = useState<"failures" | "diagnosis" | "repair">("failures");
+  const [releaseTab, setReleaseTab] = useState<"decision" | "report">("decision");
   const [filters, setFilters] = useState({ risk: "", evaluator: "", tool: "", mutation: "", target: "", testRevision: "", analysisStatus: "" });
   const [runs, setRuns] = useState<StoredRunSummary[]>([]);
   const [baseline, setBaseline] = useState("");
@@ -65,7 +66,10 @@ export function AssuranceWorkbench({
     setAnalyses(nextAnalyses);
     const nextRuns = runResponse.runs ?? [];
     setRuns(nextRuns);
-    setSelectedId((current) => current && nextFailures.some((item) => item.failure_id === current) ? current : nextFailures[0]?.failure_id ?? null);
+    const completedRuns = new Set(nextRuns.filter((run) => run.status === "COMPLETED").map((run) => run.run_id));
+    setSelectedId((current) => current && nextFailures.some((item) => item.failure_id === current)
+      ? current
+      : nextFailures.find((item) => completedRuns.has(item.run_id))?.failure_id ?? nextFailures[0]?.failure_id ?? null);
     setBaseline((current) => current || nextRuns[1]?.run_id || nextRuns[0]?.run_id || "");
     setCandidate((current) => current || nextRuns[0]?.run_id || "");
   }, [filters, workflow.project_id, workflow.workflow_id]);
@@ -76,6 +80,9 @@ export function AssuranceWorkbench({
   }, [load]);
 
   const selected = useMemo(() => failures.find((item) => item.failure_id === selectedId) ?? null, [failures, selectedId]);
+  const selectedRunStatus = runs.find((run) => run.run_id === selected?.run_id)?.status;
+  const canAnalyze = (workflow.status === "READY" || workflow.status === "FAILED_SAFE")
+    && selectedRunStatus !== "FAILED" && selectedRunStatus !== "CANCELLED";
   const selectedAnalysis = useMemo(() => analyses.find((item) => item.analysis_id === selected?.latest_analysis_id) ?? analyses.find((item) => item.run_id === selected?.run_id && item.trial_id === selected?.trial_id) ?? null, [analyses, selected]);
 
   const act = async (operation: () => Promise<void>) => {
@@ -87,14 +94,14 @@ export function AssuranceWorkbench({
 
   const previewEvidence = () => act(async () => {
     if (!selectedId) return;
-    setPreview(await api.previewFailureEvidence(workflow.workflow_id, selectedId, selectedHashes));
+    setPreview(await api.previewFailureEvidence(workflow.workflow_id, selectedId, codeEvidence.map((item) => item.contentHash)));
   });
 
   const analyze = () => act(async () => {
-    if (!selectedId || !preview) return;
+    if (!selectedId) return;
     const response = await api.analyzeFailure(workflow.workflow_id, selectedId, {
       idempotencyKey: `analysis-${Date.now()}`,
-      codeEvidenceHashes: selectedHashes,
+      codeEvidenceHashes: codeEvidence.map((item) => item.contentHash),
       reuseExisting,
     });
     if (response.reused) {
@@ -109,12 +116,14 @@ export function AssuranceWorkbench({
       }
     }
     await load();
+    setInvestigateTab("diagnosis");
   });
 
   const createHandoff = () => act(async () => {
     if (!selectedAnalysis) return;
     const response = await api.createHandoff(workflow.workflow_id, selectedAnalysis.analysis_id, developerTask);
     setHandoff(response.handoff);
+    setInvestigateTab("repair");
     setNotice("Handoff Bundle created. The workflow is waiting for external repair.");
   });
 
@@ -142,6 +151,7 @@ export function AssuranceWorkbench({
   const exportReport = () => act(async () => {
     const response = await api.exportWorkflowReport(workflow.workflow_id);
     setReport(response.report);
+    setReleaseTab("report");
     setNotice(`WorkflowReport verified at ${response.artifact.uri}.`);
   });
 
@@ -153,24 +163,26 @@ export function AssuranceWorkbench({
     URL.revokeObjectURL(url);
   };
 
-  return <div className="assurance-workbench">
+  return <div className={`assurance-workbench assurance-workbench--${view} assurance-workbench--${investigateTab} release-tab--${releaseTab}`}>
     <div className="panel__header"><div><p className="eyebrow">{view === "investigate" ? "Failure investigation" : "Release decision"}</p><h2>{view === "investigate" ? "Understand and repair failures" : "Compare, gate and report"}</h2></div><button className="button button--small" disabled={busy} onClick={() => void load()}>Refresh</button></div>
     {error && <div className="notice notice--bad">{error}</div>}
     {notice && <div className="notice">{notice}</div>}
+    {view === "investigate" && workflow.status === "FAILED_SAFE" && <div className="notice notice--warn">The Campaign stopped with an error. Verified failures from completed runs can still be diagnosed; the failed workflow and its original error remain unchanged.</div>}
+    {view === "release" && <div className="workspace-tabs" role="tablist" aria-label="Release view"><button role="tab" aria-selected={releaseTab === "decision"} className={releaseTab === "decision" ? "is-active" : ""} onClick={() => setReleaseTab("decision")}>Quality decision</button><button role="tab" aria-selected={releaseTab === "report"} className={releaseTab === "report" ? "is-active" : ""} onClick={() => setReleaseTab("report")}>Evaluation report</button></div>}
 
-    {view === "investigate" && <><section className="assurance-section">
+    {view === "investigate" && <><div className="workspace-tabs" role="tablist" aria-label="Investigation view"><button role="tab" aria-selected={investigateTab === "failures"} className={investigateTab === "failures" ? "is-active" : ""} onClick={() => setInvestigateTab("failures")}>Failures <span>{failures.length}</span></button><button role="tab" aria-selected={investigateTab === "diagnosis"} className={investigateTab === "diagnosis" ? "is-active" : ""} onClick={() => setInvestigateTab("diagnosis")}>AI diagnosis</button><button role="tab" aria-selected={investigateTab === "repair"} className={investigateTab === "repair" ? "is-active" : ""} onClick={() => setInvestigateTab("repair")}>Repair checkpoint</button></div><div hidden={investigateTab !== "failures"}><section className="assurance-section">
       <div className="panel__header"><div><p className="eyebrow">1 · Failure Inbox</p><h3>Campaign failures</h3></div><strong>{failures.length}</strong></div>
       <div className="failure-filters">
         {(["risk", "evaluator", "tool", "mutation", "target", "testRevision"] as const).map((name) => <label key={name}>{name}<input value={filters[name]} onChange={(event) => setFilters((current) => ({ ...current, [name]: event.target.value }))} /></label>)}
         <label>analysis<select value={filters.analysisStatus} onChange={(event) => setFilters((current) => ({ ...current, analysisStatus: event.target.value }))}><option value="">all</option><option>NOT_ANALYZED</option><option>ANALYZING</option><option>ANALYZED</option><option>FAILED_SAFE</option></select></label>
       </div>
       <div className="failure-layout">
-        <div className="failure-list">{failures.map((item) => <button key={item.failure_id} className={item.failure_id === selectedId ? "is-selected" : ""} onClick={() => { setSelectedId(item.failure_id); setPreview(null); }}><StatusBadge status={item.analysis_status} /><strong>{item.test_case_id}</strong><small>{item.target_role} · {item.risk} · {shortId(item.run_id)}</small><span>{item.failed_evaluators.join(", ") || "failed without evaluator detail"}</span></button>)}{failures.length === 0 && <p className="muted padded">No Campaign failures match these filters.</p>}</div>
-        {selected && <div className="failure-detail"><div className="workflow-meta"><span>Trace<strong>{selected.trace_status}</strong></span><span>Tools<strong>{selected.tools.length}</strong></span><span>Mutations<strong>{selected.mutation_ids.length}</strong></span><span>Analyses<strong>{selected.analysis_count}</strong></span></div><p>{selected.failure_bundle_ref ? "A verified failure bundle is available." : "The failure bundle is unavailable."}</p>{selected.replay_cassette_ref ? <label>Replay recording<input aria-label="Replay cassette path" className="mono" readOnly value={selected.replay_cassette_ref} /></label> : <p>No replay recording is available.</p>}<div className="selected-evidence"><h4>Source context for AI</h4>{codeEvidence.length === 0 ? <p className="muted">Build repository context in Test design to give AI more implementation detail.</p> : codeEvidence.map((item) => <label className="check-row" key={item.contentHash}><input type="checkbox" checked={selectedHashes.includes(item.contentHash)} onChange={(event) => setSelectedHashes((current) => event.target.checked ? [...current, item.contentHash] : current.filter((value) => value !== item.contentHash))} /><span>{item.path}<small>lines {item.startLine}–{item.endLine}</small></span></label>)}</div><button className="button" disabled={busy} onClick={() => void previewEvidence()}>Review AI input</button></div>}
+        <div className="failure-list">{failures.map((item) => <button key={item.failure_id} className={item.failure_id === selectedId ? "is-selected" : ""} onClick={() => { setSelectedId(item.failure_id); setPreview(null); }}><StatusBadge status={item.analysis_status} /><strong>{item.test_case_id}</strong><small>{item.target_role} · {item.risk} · {shortId(item.run_id)} · {runs.find((run) => run.run_id === item.run_id)?.status ?? "run status unknown"}</small><span>{item.failed_evaluators.join(", ") || "failed without evaluator detail"}</span></button>)}{failures.length === 0 && <p className="muted padded">No Campaign failures match these filters.</p>}</div>
+        {selected && <div className="failure-detail"><div className="workflow-meta"><span>Trace<strong>{selected.trace_status}</strong></span><span>Tools<strong>{selected.tools.length}</strong></span><span>Mutations<strong>{selected.mutation_ids.length}</strong></span><span>Analyses<strong>{selected.analysis_count}</strong></span></div><p>{selected.failure_bundle_ref ? "A failure bundle is recorded." : "The failure bundle is unavailable."}</p><p className="muted">The agent description and {codeEvidence.length} scanned source excerpts are selected automatically.</p>{selectedRunStatus && selectedRunStatus !== "COMPLETED" && <p className="notice notice--warn">This run did not complete and cannot supply verified analysis input. Select a failure from a completed run.</p>}<div className="button-row"><button className="button button--ai" disabled={busy || !canAnalyze} onClick={() => void analyze()}><span>✦</span>Analyze failure with AI</button><button className="button button--small" disabled={busy} onClick={() => void previewEvidence()}>Inspect AI input</button></div><details className="technical-details"><summary>Advanced analysis options</summary><label className="check-row"><input type="checkbox" checked={reuseExisting} onChange={(event) => setReuseExisting(event.target.checked)} /><span>Reuse an existing analysis when inputs are unchanged</span></label>{selected.replay_cassette_ref && <label>Replay recording<input aria-label="Replay cassette path" className="mono" readOnly value={selected.replay_cassette_ref} /></label>}</details></div>}
       </div>
     </section>
 
-    {preview && <section className="assurance-section evidence-review"><div className="panel__header"><div><p className="eyebrow">AI input review</p><h3>Evidence selected for analysis</h3></div></div><div className="metric-grid metric-grid--compact"><article className="metric"><span>Evidence items</span><strong>{preview.bundle.items.length}</strong></article><article className="metric"><span>Missing</span><strong>{preview.bundle.missing_evidence.length}</strong></article><article className="metric"><span>Blocking gaps</span><strong>{preview.bundle.blocking_gaps.length}</strong></article><article className="metric"><span>Existing analyses</span><strong>{preview.reusable_analyses.length}</strong></article></div><div className="evidence-items">{preview.bundle.items.map((item) => <details key={item.evidence_id}><summary>{item.kind} · {item.summary}</summary><pre>{JSON.stringify(item.data, null, 2)}</pre></details>)}</div>{preview.bundle.missing_evidence.length > 0 && <div className="notice notice--warn">Missing evidence: {preview.bundle.missing_evidence.join(" · ")}</div>}<div className="button-row"><label className="check-row"><input type="checkbox" checked={reuseExisting} onChange={(event) => setReuseExisting(event.target.checked)} /><span>Reuse an existing analysis when inputs are unchanged</span></label><button className="button button--ai" disabled={busy || workflow.status !== "READY"} onClick={() => void analyze()}><span>✦</span>Analyze failure with AI</button></div></section>}
+    {preview && <details className="assurance-section evidence-review"><summary>AI input: {preview.bundle.items.length} evidence items · {preview.bundle.blocking_gaps.length} blocking gaps</summary><div className="evidence-items">{preview.bundle.items.map((item) => <details key={item.evidence_id}><summary>{item.kind} · {item.summary}</summary><pre>{JSON.stringify(item.data, null, 2)}</pre></details>)}</div>{preview.bundle.blocking_gaps.length > 0 && <div className="notice notice--bad">Blocking gaps: {preview.bundle.blocking_gaps.join(" · ")}</div>}{preview.bundle.missing_evidence.length > 0 && <p className="muted">Optional evidence not included: {preview.bundle.missing_evidence.join(" · ")}</p>}</details>}</div>
 
     {selectedAnalysis && <section className="assurance-section analysis-report"><div className="panel__header"><div><p className="eyebrow">3 · Non-authoritative diagnosis</p><h3>{selectedAnalysis.test_case_id}</h3></div><span className="status status--good">{selectedAnalysis.llm_call.status}</span></div><h4>Observed facts</h4>{selectedAnalysis.observed_facts.map((fact) => <article key={fact.statement}><p>{fact.statement}</p><code>{fact.evidence_ids.join(", ")}</code></article>)}<h4>Earliest divergence</h4><p>{selectedAnalysis.earliest_divergence?.description ?? "Not observable"}</p><h4>Root-cause candidates</h4>{selectedAnalysis.root_causes.map((cause) => <article className={cause.confidence < 0.6 ? "low-confidence" : ""} key={cause.id}><div><strong>{cause.hypothesis}</strong><StatusBadge status={cause.confidence < 0.6 ? "LOW CONFIDENCE" : "HYPOTHESIS"}>{percent(cause.confidence)}</StatusBadge></div><p>{cause.reasoning}</p><code>Evidence: {cause.evidence_ids.join(", ")}</code>{cause.confidence < 0.6 && <small>Low-confidence suggestion — not a confirmed fact.</small>}</article>)}<div className="analysis-columns"><div><h4>Missing evidence</h4><ul>{selectedAnalysis.missing_evidence.map((item) => <li key={item}>{item}</li>)}</ul></div><div><h4>Suggested tests</h4><ul>{selectedAnalysis.regression_tests.map((item) => <li key={item.title}><strong>{item.title}</strong> — {item.expected_behavior}</li>)}</ul></div></div><label>External repair task<textarea value={developerTask} onChange={(event) => setDeveloperTask(event.target.value)} /></label><button className="button" disabled={busy || workflow.status !== "READY"} onClick={() => void createHandoff()}>Create bounded Handoff Bundle</button></section>}
 

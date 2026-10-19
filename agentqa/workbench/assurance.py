@@ -385,6 +385,12 @@ class AssuranceWorkbenchService:
                 },
             )
             return {"reused": True, "report": report, "step": None}
+        workflow, _ = await self._context(workflow_id)
+        if workflow.status not in {"READY", "FAILED_SAFE"}:
+            raise AssuranceWorkbenchError(
+                "workflow is not ready for failure analysis",
+                code="WORKFLOW_TRANSITION_ERROR",
+            )
         _, _, inputs, _, project = await self._failure_source(workflow_id, failure_id)
         available = {
             item.content_hash: item
@@ -427,6 +433,7 @@ class AssuranceWorkbenchService:
                 "trial_id": inputs.result.trial_id,
                 "evidence_hash": preview.evidence_hash,
                 "code_evidence_hashes": list(code_evidence_hashes),
+                "diagnostic_only": workflow.status == "FAILED_SAFE",
             },
             handler=handler,
         )

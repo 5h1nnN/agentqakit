@@ -248,6 +248,22 @@ async def test_manifest_only_generation_uses_bounded_default_goal() -> None:
 
 
 @pytest.mark.asyncio
+async def test_plan_drops_unsubstantiated_code_provenance() -> None:
+    goal = _goal()
+    response = _plan_response(goal)
+    item = response["items"][0]
+    assert isinstance(item, dict)
+    item["source_refs"] = ["manifest:policy/no-disclosure"]
+    provider = FakeGenerationProvider([response])
+
+    plan = await GenerationService(provider).generate_plan(_manifest(), goal)
+
+    assert plan.items[0].provenance == ["declared"]
+    assert plan.items[0].source_refs == ["manifest:policy/no-disclosure"]
+    assert plan.llm_call.status == "SUCCEEDED"
+
+
+@pytest.mark.asyncio
 async def test_generation_rejects_unknown_manifest_references_after_one_repair() -> None:
     goal = _goal()
     invalid = _plan_response(goal)

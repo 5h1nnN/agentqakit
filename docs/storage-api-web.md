@@ -99,6 +99,7 @@ rewrite imported artifact files:
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/projects/{project_id}` | Read project configuration and the last observed source snapshot |
+| `DELETE` | `/api/projects/{project_id}` | Remove project, evaluation, run-index, and selected-evidence metadata; reject active work and leave repository and artifact files untouched |
 | `POST` | `/api/projects/{project_id}/preflight` | Validate specs, paths, entrypoints, dependencies, provider state, tool risk, side effects, and local source identity |
 | `POST` | `/api/projects/{project_id}/artifacts/import` | Explicitly discover checksummed artifacts in allowlisted workspace roots |
 | `GET` | `/api/projects/{project_id}/artifacts` | List catalog entries independently of their original directory layout |

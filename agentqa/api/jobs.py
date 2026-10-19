@@ -197,6 +197,14 @@ class RunJobManager:
             jobs = [job for job in self._jobs.values() if job.project_id == project_id]
         return sorted(jobs, key=lambda item: item.submitted_at, reverse=True)
 
+    async def forget_project(self, project_id: str) -> None:
+        """Remove terminal in-memory jobs after project metadata is deleted."""
+        async with self._lock:
+            for run_id, job in list(self._jobs.items()):
+                if job.project_id == project_id and job.status not in {"QUEUED", "RUNNING"}:
+                    self._jobs.pop(run_id, None)
+                    self._tasks.pop(run_id, None)
+
     async def wait(self, run_id: str) -> RunJob | None:
         async with self._lock:
             task = self._tasks.get(run_id)

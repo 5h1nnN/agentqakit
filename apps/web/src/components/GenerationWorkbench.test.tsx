@@ -93,7 +93,7 @@ describe("GenerationWorkbench", () => {
     render(<GenerationWorkbench project={project} workflow={workflow} codeEvidence={[]} />);
 
     expect(await screen.findByText("Plan matrix")).toBeVisible();
-    expect(screen.getByText("Should refusal wording be standardized?")).toBeVisible();
+    expect(screen.queryByText("Should refusal wording be standardized?")).not.toBeInTheDocument();
     expect(screen.getByText("10 tokens")).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Confirm plan & generate candidates" }));
 

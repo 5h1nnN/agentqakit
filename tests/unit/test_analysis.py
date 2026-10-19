@@ -5,6 +5,7 @@ from datetime import timedelta
 import pytest
 from pydantic import JsonValue
 
+from agentqa.analysis import build_evidence_bundle
 from agentqa.application import AnalysisError, FailureAnalysisService
 from agentqa.conventions import utc_now
 from agentqa.evaluators import EvaluationRequest, LLMJudgeEvaluator
@@ -196,6 +197,26 @@ def _analysis_response(*, evidence_id: str = "error-span-01") -> dict[str, JsonV
         ],
         "repair_directions": ["Inspect the permission-error recovery branch."],
     }
+
+
+def test_analysis_includes_twelve_manifest_policies_without_false_missing_warning() -> None:
+    payload = _manifest().model_dump(mode="json", by_alias=True)
+    payload["policies"]["invariants"] = [
+        {"id": f"policy-{index}", "description": f"Declared rule {index}.", "severity": "high"}
+        for index in range(12)
+    ]
+    result, trace = _trial()
+    bundle = build_evidence_bundle(
+        run_id="run-analysis",
+        trial_id=result.trial_id,
+        test_spec=_spec(),
+        target_result=result.target_result,
+        trace_record=trace,
+        manifest=AgentManifest.model_validate(payload),
+        evaluations=result.evaluations,
+    )
+    assert sum(item.evidence_id.startswith("manifest-policy-") for item in bundle.items) == 12
+    assert not any("limited to 10" in item for item in bundle.missing_evidence)
 
 
 @pytest.mark.asyncio

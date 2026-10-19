@@ -1,0 +1,6 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: QualityGate
+metadata:
+  name: mutation
+rules:
+  minMutationScore: 0.5

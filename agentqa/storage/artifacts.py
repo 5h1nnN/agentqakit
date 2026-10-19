@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import threading
+import time
 from pathlib import Path
 from typing import Any, cast
 
@@ -75,7 +76,16 @@ class ArtifactWriter:
                 handle.write(payload)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary, path)
+            # On Windows, a live progress reader can briefly prevent replacement.
+            # Retry the same fully flushed temporary file; never bypass checksums.
+            for attempt in range(20):
+                try:
+                    os.replace(temporary, path)
+                    break
+                except PermissionError:
+                    if os.name != "nt" or attempt == 19:
+                        raise
+                    time.sleep(0.05)
             # POSIX permits opening a directory so the rename itself can be
             # flushed. Windows does not, and the file contents have already
             # been flushed above before the atomic replacement.

@@ -1,0 +1,1 @@
+{"exit_code":0,"passed":true,"rules":[{"actual":0,"expected":0,"message":"observed 0, allowed at most 0","name":"maxNewRegressions","passed":true}]}

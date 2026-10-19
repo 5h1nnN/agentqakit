@@ -369,6 +369,17 @@ def create_app(
     async def get_project(project_id: str) -> Any:
         return await require_project(project_id)
 
+    @app.delete("/api/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+    async def delete_project(project_id: str) -> Response:
+        await require_project(project_id)
+        if any(job.status in {"QUEUED", "RUNNING"} for job in await jobs.list(project_id)):
+            raise _http_error(
+                "WORKBENCH_PROJECT_ACTIVE", "stop running jobs before deleting this project", 409
+            )
+        await active_workflow_store.delete_project(project_id)
+        await jobs.forget_project(project_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     @app.post("/api/projects/{project_id}/discover")
     async def discover_project(project_id: str) -> dict[str, Any]:
         project = await require_project(project_id)

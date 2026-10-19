@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from pathlib import Path, PurePosixPath
@@ -542,6 +543,23 @@ class GenerationWorkbenchService:
                 "candidate generation requires confirmation of the current verified plan",
                 code="GENERATION_PLAN_CONFIRMATION_ERROR",
             )
+        # The plan artifact becomes visible just before the orchestrator marks
+        # its workflow step complete. Absorb that brief, normal transition.
+        workflow = await self.workflow_store.get_workflow(session.workflow_id)
+        if workflow is not None and workflow.status == "RUNNING":
+            active_plan = next(
+                (step for step in reversed(workflow.steps)
+                 if step.kind == "GENERATE_PLAN" and step.status == "RUNNING"),
+                None,
+            )
+            if active_plan is not None:
+                try:
+                    await asyncio.wait_for(self.orchestrator.wait(active_plan.step_id), timeout=5)
+                except TimeoutError:
+                    raise GenerationWorkspaceError(
+                        "plan is still finalizing; retry candidate generation shortly",
+                        code="GENERATION_PLAN_FINALIZING",
+                    ) from None
         generating = session.model_copy(update={"status": "GENERATING", "updated_at": utc_now()})
         await self.session_store.update_session(generating)
 

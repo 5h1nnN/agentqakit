@@ -156,6 +156,8 @@ class WorkflowStore(Protocol):
 
     async def list_projects(self) -> list[WorkbenchProject]: ...
 
+    async def delete_project(self, project_id: str) -> None: ...
+
     async def update_project_observation(
         self, project_id: str, manifest_snapshot: RunManifestSnapshot
     ) -> WorkbenchProject: ...
@@ -538,6 +540,39 @@ class SQLiteWorkflowStore:
                 message="Workflow marked interrupted after process restart.",
                 data={"reason": "process_restart"},
             )
+        # Diagnostic analysis leaves a failed workflow terminal while its
+        # non-authoritative step runs. Interrupt those orphaned steps too.
+        diagnostic_rows = connection.execute(
+            "SELECT s.step_json, w.workflow_json FROM workflow_steps s "
+            "JOIN workflow_runs w ON w.workflow_id = s.workflow_id "
+            "WHERE w.status = 'FAILED_SAFE' AND s.status = 'RUNNING' "
+            "AND s.kind = 'ANALYZE_FAILURE'"
+        ).fetchall()
+        for row in diagnostic_rows:
+            step = self._parse_step(cast(str, row["step_json"]))
+            if step.input_data.get("diagnostic_only") is not True:
+                continue
+            workflow = self._load_workflow(connection, step.workflow_id)
+            self._write_step(
+                connection,
+                step.model_copy(
+                    update={
+                        "status": "INTERRUPTED",
+                        "finished_at": utc_now(),
+                        "error": ErrorInfo(
+                            code="WORKFLOW_PROCESS_RESTART",
+                            message="diagnostic analysis stopped before completion",
+                        ),
+                    }
+                ),
+            )
+            self._append_event(
+                connection,
+                workflow,
+                event_type="DIAGNOSTIC_STEP_INTERRUPTED",
+                message="Diagnostic analysis interrupted after process restart.",
+                step_id=step.step_id,
+            )
 
     async def initialize(self) -> None:
         await asyncio.to_thread(self._initialize_sync)
@@ -656,6 +691,72 @@ class SQLiteWorkflowStore:
 
     async def list_projects(self) -> list[WorkbenchProject]:
         return await asyncio.to_thread(self._list_projects_sync)
+
+    def _delete_project_sync(self, project_id: str) -> None:
+        self._initialize_sync()
+        connection = self._connect()
+        try:
+            connection.execute("BEGIN IMMEDIATE")
+            if connection.execute(
+                "SELECT 1 FROM workbench_projects WHERE project_id = ?", (project_id,)
+            ).fetchone() is None:
+                raise WorkflowStoreError(
+                    "project does not exist", code="WORKBENCH_PROJECT_NOT_FOUND"
+                )
+            if connection.execute(
+                "SELECT 1 FROM workflow_runs WHERE project_id = ? AND status = 'RUNNING'",
+                (project_id,),
+            ).fetchone() is not None:
+                raise WorkflowStoreError(
+                    "stop running evaluations before deleting this project",
+                    code="WORKBENCH_PROJECT_ACTIVE",
+                )
+            if connection.execute(
+                "SELECT 1 FROM workflow_steps s JOIN workflow_runs w "
+                "ON w.workflow_id = s.workflow_id WHERE w.project_id = ? "
+                "AND s.status IN ('QUEUED', 'RUNNING')",
+                (project_id,),
+            ).fetchone() is not None:
+                raise WorkflowStoreError(
+                    "stop active evaluation steps before deleting this project",
+                    code="WORKBENCH_PROJECT_ACTIVE",
+                )
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            if "campaigns" in tables and connection.execute(
+                "SELECT 1 FROM campaigns WHERE project_id = ? AND status = 'RUNNING'",
+                (project_id,),
+            ).fetchone() is not None:
+                raise WorkflowStoreError(
+                    "stop running campaigns before deleting this project",
+                    code="WORKBENCH_PROJECT_ACTIVE",
+                )
+            # Workflow children and run-result children have ON DELETE CASCADE.
+            connection.execute("DELETE FROM workflow_runs WHERE project_id = ?", (project_id,))
+            for table in ("artifact_catalog", "selected_code_evidence", "runs"):
+                if table in tables:
+                    connection.execute(f"DELETE FROM {table} WHERE project_id = ?", (project_id,))
+            if "projects" in tables:
+                connection.execute("DELETE FROM projects WHERE project_id = ?", (project_id,))
+            connection.execute("DELETE FROM workbench_projects WHERE project_id = ?", (project_id,))
+            connection.commit()
+        except (WorkflowStoreError, sqlite3.Error) as exc:
+            connection.rollback()
+            if isinstance(exc, WorkflowStoreError):
+                raise
+            raise WorkflowStoreError(
+                f"SQLite project deletion failed: {type(exc).__name__}",
+                code="WORKFLOW_STORE_DATABASE_ERROR",
+            ) from None
+        finally:
+            connection.close()
+
+    async def delete_project(self, project_id: str) -> None:
+        await asyncio.to_thread(self._delete_project_sync, project_id)
 
     def _update_project_observation_sync(
         self, project_id: str, manifest_snapshot: RunManifestSnapshot
@@ -981,7 +1082,12 @@ class SQLiteWorkflowStore:
                     )
                 connection.rollback()
                 return existing
-            if workflow.status != "READY":
+            diagnostic = (
+                kind == "ANALYZE_FAILURE"
+                and workflow.status == "FAILED_SAFE"
+                and safe_input.get("diagnostic_only") is True
+            )
+            if workflow.status != "READY" and not diagnostic:
                 raise WorkflowStoreError(
                     "workflow must be READY before a step is queued",
                     code="WORKFLOW_TRANSITION_ERROR",
@@ -1069,14 +1175,23 @@ class SQLiteWorkflowStore:
                     "only a queued workflow step can start", code="WORKFLOW_STEP_TRANSITION_ERROR"
                 )
             workflow = self._load_workflow(connection, step.workflow_id)
-            self._transition(
-                connection,
-                workflow,
-                "RUNNING",
-                event_type="STEP_STARTED",
-                message=f"Started {step.kind} attempt {step.attempt}.",
-                step_id=step.step_id,
-            )
+            if step.input_data.get("diagnostic_only") is True and workflow.status == "FAILED_SAFE":
+                self._append_event(
+                    connection,
+                    workflow,
+                    event_type="DIAGNOSTIC_STEP_STARTED",
+                    message="Started a read-only diagnosis of verified failure evidence.",
+                    step_id=step.step_id,
+                )
+            else:
+                self._transition(
+                    connection,
+                    workflow,
+                    "RUNNING",
+                    event_type="STEP_STARTED",
+                    message=f"Started {step.kind} attempt {step.attempt}.",
+                    step_id=step.step_id,
+                )
             started = step.model_copy(update={"status": "RUNNING", "started_at": utc_now()})
             self._write_step(connection, started)
             connection.commit()
@@ -1122,15 +1237,24 @@ class SQLiteWorkflowStore:
             self._write_step(connection, completed)
             self._write_artifacts(connection, step.workflow_id, step.step_id, safe_artifacts)
             workflow = self._load_workflow(connection, step.workflow_id)
-            target: WorkflowStatus = "COMPLETED" if complete_workflow else "READY"
-            self._transition(
-                connection,
-                workflow,
-                target,
-                event_type="STEP_COMPLETED",
-                message=f"Completed {step.kind} attempt {step.attempt}.",
-                step_id=step.step_id,
-            )
+            if step.input_data.get("diagnostic_only") is True and workflow.status == "FAILED_SAFE":
+                self._append_event(
+                    connection,
+                    workflow,
+                    event_type="DIAGNOSTIC_STEP_COMPLETED",
+                    message="Completed diagnosis; the failed workflow remains failed.",
+                    step_id=step.step_id,
+                )
+            else:
+                target: WorkflowStatus = "COMPLETED" if complete_workflow else "READY"
+                self._transition(
+                    connection,
+                    workflow,
+                    target,
+                    event_type="STEP_COMPLETED",
+                    message=f"Completed {step.kind} attempt {step.attempt}.",
+                    step_id=step.step_id,
+                )
             connection.commit()
             return completed
         except WorkflowStoreError:
@@ -1176,15 +1300,25 @@ class SQLiteWorkflowStore:
             )
             self._write_step(connection, ended)
             workflow = self._load_workflow(connection, step.workflow_id)
-            self._transition(
-                connection,
-                workflow,
-                workflow_status,
-                event_type=event_type,
-                message=error.message,
-                step_id=step.step_id,
-                error=error,
-            )
+            if step.input_data.get("diagnostic_only") is True and workflow.status == "FAILED_SAFE":
+                self._append_event(
+                    connection,
+                    workflow,
+                    event_type="DIAGNOSTIC_STEP_ENDED",
+                    message=redact_text_secrets(error.message),
+                    step_id=step.step_id,
+                    data={"code": error.code, "step_status": step_status},
+                )
+            else:
+                self._transition(
+                    connection,
+                    workflow,
+                    workflow_status,
+                    event_type=event_type,
+                    message=error.message,
+                    step_id=step.step_id,
+                    error=error,
+                )
             connection.commit()
             return ended
         except WorkflowStoreError:

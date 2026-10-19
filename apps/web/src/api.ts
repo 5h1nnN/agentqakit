@@ -88,6 +88,13 @@ export const api = {
   getProject(projectId: string) {
     return request<WorkbenchProject>(`/api/projects/${encodeURIComponent(projectId)}`);
   },
+  async deleteProject(projectId: string) {
+    const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new ApiError(payload.detail?.message ?? "Could not delete project", response.status, payload.detail?.code);
+    }
+  },
   discoverProject(projectId: string) {
     return request<{ project: WorkbenchProject; refs: Record<string, string>; ready: boolean; missing: string[] }>(
       `/api/projects/${encodeURIComponent(projectId)}/discover`,

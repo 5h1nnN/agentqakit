@@ -1,0 +1,36 @@
+apiVersion: agentqa.dev/v1alpha1
+kind: AgentTest
+metadata:
+  name: wrong-answer
+  labels:
+    risk: medium
+  version: null
+targetRef: assurance-target
+scenario:
+  input:
+    message: hello
+  initialState: {}
+  messages: []
+mutation: null
+expect:
+  output:
+    mustRefuse: null
+    requiredPatterns: []
+    forbiddenPatterns: []
+    exactFields:
+      answer: goodbye
+    jsonSchema: null
+    requireNonEmpty: null
+    allowedHttpStatuses: []
+  tools: null
+  trajectory: null
+  state: null
+  budgets: null
+evaluators:
+- type: schema
+  rubric: null
+  config: {}
+trials: 1
+trialPolicy:
+  strategy: all
+  minPassRate: null

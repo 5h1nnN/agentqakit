@@ -1,0 +1,15 @@
+apiVersion: agentqa.dev/v1alpha2
+kind: AgentManifest
+metadata:
+  name: assurance-agent
+runtime:
+  language: python
+  framework: custom
+  entrypoint: demo_agent:run
+purpose:
+  summary: Return a declared answer.
+capabilities:
+  - name: answer
+    description: Return one answer.
+quality:
+  objectives: [task-success]

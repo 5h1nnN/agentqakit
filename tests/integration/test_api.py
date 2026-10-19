@@ -16,7 +16,9 @@ from pydantic import JsonValue
 from agentqa.api import ApiSettings, create_app
 from agentqa.evaluators import JudgeRequest
 from agentqa.llm import StructuredRequest, StructuredResponse
+from agentqa.models import ErrorInfo
 from agentqa.storage import FileResultStore
+from agentqa.workbench.store import SQLiteWorkflowStore
 from tests.fixtures.stored_runs import create_storable_run
 
 pytestmark = pytest.mark.integration
@@ -222,6 +224,28 @@ def test_api_persists_workbench_workflows_and_event_cursors(tmp_path: Path) -> N
         )
         assert conflict.status_code == 409
         assert conflict.json()["detail"]["code"] == "WORKFLOW_IDEMPOTENCY_CONFLICT"
+
+
+def test_api_deletes_project_metadata_but_preserves_workspace_files(tmp_path: Path) -> None:
+    marker = tmp_path / "agent-source.py"
+    marker.write_text("print('kept')\n", encoding="utf-8")
+    app = create_app(_settings(tmp_path))
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/projects", json={"projectId": "remove-me", "name": "Old project"}
+        )
+        assert created.status_code == 201
+        workflow = client.post(
+            "/api/workflows",
+            json={"projectId": "remove-me", "name": "Old evaluation", "idempotencyKey": "old-1"},
+        )
+        assert workflow.status_code == 201
+
+        deleted = client.delete("/api/projects/remove-me")
+        assert deleted.status_code == 204
+        assert client.get("/api/projects/remove-me").status_code == 404
+        assert client.get(f"/api/workflows/{workflow.json()['workflow_id']}").status_code == 404
+        assert marker.read_text(encoding="utf-8") == "print('kept')\n"
 
 
 def test_campaign_builder_confirms_exact_config_and_persists_target_run(
@@ -465,9 +489,11 @@ rules:
 """,
         encoding="utf-8",
     )
+    workflow_store = SQLiteWorkflowStore(_settings(tmp_path).database_path)
     app = create_app(
         _settings(tmp_path),
         store=FileResultStore(tmp_path / "store"),
+        workflow_store=workflow_store,
         judge_provider=_AnalysisProvider(),
     )
 
@@ -631,6 +657,35 @@ rules:
             body["artifact"]["checksum"]
             == "sha256:" + hashlib.sha256(report_path.read_bytes()).hexdigest()
         )
+
+        # A failed Campaign must remain terminal, but a completed, verified
+        # subrun's failure can still receive non-authoritative diagnosis.
+        break_step = asyncio.run(workflow_store.create_step(
+            workflow_id=workflow_id, kind="PREFLIGHT", idempotency_key="simulate-integrity-error",
+            input_data={},
+        ))
+        asyncio.run(workflow_store.start_step(break_step.step_id))
+        asyncio.run(workflow_store.fail_step(
+            break_step.step_id,
+            ErrorInfo(code="ARTIFACT_CATALOG_CHECKSUM_ERROR", message="checksum mismatch"),
+        ))
+        diagnostic = client.post(
+            f"/api/workflows/{workflow_id}/failures/{failure['failure_id']}/analyses",
+            json={"idempotencyKey": "diagnose-after-failure", "reuseExisting": False},
+        )
+        assert diagnostic.status_code == 202, diagnostic.text
+        diagnostic_step_id = diagnostic.json()["step"]["step_id"]
+        for _ in range(100):
+            current = client.get(f"/api/workflows/{workflow_id}").json()
+            diagnostic_step = next(
+                item for item in current["steps"] if item["step_id"] == diagnostic_step_id
+            )
+            if diagnostic_step["status"] in {"COMPLETED", "FAILED_SAFE"}:
+                break
+            time.sleep(0.02)
+        assert diagnostic_step["status"] == "COMPLETED"
+        assert current["status"] == "FAILED_SAFE"
+        assert current["error"]["code"] == "ARTIFACT_CATALOG_CHECKSUM_ERROR"
 
 
 def test_api_imports_catalog_and_requires_explicit_code_evidence_selection(

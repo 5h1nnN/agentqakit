@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -86,3 +87,25 @@ def test_detects_tampered_results(tmp_path: Path) -> None:
 
     with pytest.raises(ArtifactError, match="checksum mismatch"):
         writer.read_result_records()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows file sharing behavior")
+def test_retries_transient_windows_replace_and_keeps_checksum(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    writer = ArtifactWriter(tmp_path, new_id())
+    writer.initialize()
+    real_replace = os.replace
+    attempts = 0
+
+    def intermittently_locked(source: Path, destination: Path) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts <= 2:
+            raise PermissionError("reader briefly holds the file")
+        real_replace(source, destination)
+
+    monkeypatch.setattr("agentqa.storage.artifacts.os.replace", intermittently_locked)
+    writer.append_result({"passed": True})
+    assert attempts >= 3
+    assert writer.verify_checksum("results.jsonl")

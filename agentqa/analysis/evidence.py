@@ -276,7 +276,7 @@ def build_evidence_bundle(
         selected_capabilities = _selected_names(
             list(capabilities),
             requested_capabilities,
-            limit=10,
+            limit=20,
             label="capability",
             missing=missing,
         )
@@ -298,7 +298,7 @@ def build_evidence_bundle(
         selected_policies = _selected_names(
             list(policies),
             requested_policies,
-            limit=10,
+            limit=20,
             label="policy",
             missing=missing,
         )
