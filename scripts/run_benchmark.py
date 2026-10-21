@@ -17,12 +17,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal, cast
 
-import yaml
+# This script is intentionally runnable by absolute path from outside the
+# repository. In that mode Python adds ``scripts/`` rather than the repository
+# root to sys.path, so repository-local benchmark targets under ``examples``
+# would otherwise be unavailable even when AgentQAKit itself is installed.
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPOSITORY_ROOT))
 
-from agentqa.application import RunExecutionConfig, execute_run
-from agentqa.evaluators import JudgeProvider
-from agentqa.evaluators.deepseek import DeepSeekJudgeProvider, load_judge_environment
-from agentqa.models import RunResult, TestResult
+import yaml  # noqa: E402
+
+from agentqa.application import RunExecutionConfig, execute_run  # noqa: E402
+from agentqa.evaluators import JudgeProvider  # noqa: E402
+from agentqa.evaluators.deepseek import (  # noqa: E402
+    DeepSeekJudgeProvider,
+    load_judge_environment,
+)
+from agentqa.models import RunResult, TestResult  # noqa: E402
 
 
 @dataclass(frozen=True, slots=True)
