@@ -1,7 +1,0 @@
-apiVersion: agentqa.dev/v1alpha1
-kind: Target
-metadata:
-  name: assurance-target
-type: python
-entrypoint: demo_agent:run
-workingDirectory: .

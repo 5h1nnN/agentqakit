@@ -1,0 +1,7 @@
+# Checksummed text artifacts must have identical bytes on every platform.
+*.csv text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.sha256 text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf

@@ -697,40 +697,51 @@ class SQLiteWorkflowStore:
         connection = self._connect()
         try:
             connection.execute("BEGIN IMMEDIATE")
-            if connection.execute(
-                "SELECT 1 FROM workbench_projects WHERE project_id = ?", (project_id,)
-            ).fetchone() is None:
+            if (
+                connection.execute(
+                    "SELECT 1 FROM workbench_projects WHERE project_id = ?", (project_id,)
+                ).fetchone()
+                is None
+            ):
                 raise WorkflowStoreError(
                     "project does not exist", code="WORKBENCH_PROJECT_NOT_FOUND"
                 )
-            if connection.execute(
-                "SELECT 1 FROM workflow_runs WHERE project_id = ? AND status = 'RUNNING'",
-                (project_id,),
-            ).fetchone() is not None:
+            if (
+                connection.execute(
+                    "SELECT 1 FROM workflow_runs WHERE project_id = ? AND status = 'RUNNING'",
+                    (project_id,),
+                ).fetchone()
+                is not None
+            ):
                 raise WorkflowStoreError(
                     "stop running evaluations before deleting this project",
                     code="WORKBENCH_PROJECT_ACTIVE",
                 )
-            if connection.execute(
-                "SELECT 1 FROM workflow_steps s JOIN workflow_runs w "
-                "ON w.workflow_id = s.workflow_id WHERE w.project_id = ? "
-                "AND s.status IN ('QUEUED', 'RUNNING')",
-                (project_id,),
-            ).fetchone() is not None:
+            if (
+                connection.execute(
+                    "SELECT 1 FROM workflow_steps s JOIN workflow_runs w "
+                    "ON w.workflow_id = s.workflow_id WHERE w.project_id = ? "
+                    "AND s.status IN ('QUEUED', 'RUNNING')",
+                    (project_id,),
+                ).fetchone()
+                is not None
+            ):
                 raise WorkflowStoreError(
                     "stop active evaluation steps before deleting this project",
                     code="WORKBENCH_PROJECT_ACTIVE",
                 )
             tables = {
                 row[0]
-                for row in connection.execute(
-                    "SELECT name FROM sqlite_master WHERE type = 'table'"
-                )
+                for row in connection.execute("SELECT name FROM sqlite_master WHERE type = 'table'")
             }
-            if "campaigns" in tables and connection.execute(
-                "SELECT 1 FROM campaigns WHERE project_id = ? AND status = 'RUNNING'",
-                (project_id,),
-            ).fetchone() is not None:
+            if (
+                "campaigns" in tables
+                and connection.execute(
+                    "SELECT 1 FROM campaigns WHERE project_id = ? AND status = 'RUNNING'",
+                    (project_id,),
+                ).fetchone()
+                is not None
+            ):
                 raise WorkflowStoreError(
                     "stop running campaigns before deleting this project",
                     code="WORKBENCH_PROJECT_ACTIVE",

@@ -5,6 +5,8 @@ from typing import Annotated
 
 import typer
 
+from agentqa.web_assets import resolve_web_directory
+
 
 def serve(
     host: Annotated[
@@ -38,8 +40,15 @@ def serve(
         Path | None,
         typer.Option(
             "--static",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
             resolve_path=True,
-            help="Built React dist directory; omit the option to use apps/web/dist.",
+            help=(
+                "Built React dist directory; omit to use a workspace build or "
+                "the UI bundled in the installed package."
+            ),
         ),
     ] = None,
     allow_remote: Annotated[
@@ -59,20 +68,17 @@ def serve(
         from agentqa.api import ApiSettings, create_app
     except ImportError:
         typer.echo(
-            'ERROR API dependencies are missing; install with pip install ".[api]"',
+            'ERROR Web dependencies are missing; install with pip install "agentqakit[web]"',
             err=True,
         )
         raise typer.Exit(code=2) from None
 
     workspace = workspace.resolve()
-    default_static = workspace / "apps" / "web" / "dist"
     settings = ApiSettings(
         workspace_root=workspace,
         artifact_directory=artifacts.resolve(),
         database_path=(data_directory.resolve() / "agentqa.sqlite3"),
-        static_directory=(
-            default_static if static_directory is None else static_directory.resolve()
-        ),
+        static_directory=resolve_web_directory(workspace, explicit=static_directory),
     )
     typer.echo(f"AgentQAKit: http://{host}:{port}")
     typer.echo(f"Workspace: {workspace}")

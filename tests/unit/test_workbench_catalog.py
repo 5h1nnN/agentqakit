@@ -16,6 +16,15 @@ from agentqa.workbench import (
 from tests.fixtures.stored_runs import create_storable_run
 
 
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symbolic-link privilege is unavailable")
+        raise
+
+
 def test_catalog_imports_verified_run_and_registers_it_in_result_store(tmp_path: Path) -> None:
     async def exercise() -> None:
         artifacts = tmp_path / "artifacts"
@@ -94,7 +103,7 @@ def test_code_evidence_is_explicit_bounded_redacted_and_workspace_confined(
     (project_root / ".env.local").write_text("DEEPSEEK_API_KEY=secret", encoding="utf-8")
     outside = tmp_path / "outside.py"
     outside.write_text("secret = True\n", encoding="utf-8")
-    (project_root / "linked.py").symlink_to(outside)
+    _symlink_or_skip(project_root / "linked.py", outside)
     store = SQLiteWorkflowStore(tmp_path / "projects.sqlite3")
 
     async def create_project() -> WorkbenchProject:

@@ -12,6 +12,15 @@ from agentqa.workbench.models import HandoffBundle
 from tests.fixtures.artifact_runs import create_run_artifact
 
 
+def _symlink_or_skip(link: Path, target: Path, *, target_is_directory: bool = False) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=target_is_directory)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1314:
+            pytest.skip("Windows symbolic-link privilege is unavailable")
+        raise
+
+
 def _manifest(path: Path, *, external: bool = False) -> None:
     tool = ""
     if external:
@@ -76,7 +85,7 @@ def test_missing_dynamic_resource_returns_structured_error(tmp_path: Path) -> No
 def test_workspace_rejects_parent_and_symlink_escape(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside-agentqa.yaml"
     outside.write_text("not: used\n", encoding="utf-8")
-    (tmp_path / "escape.yaml").symlink_to(outside)
+    _symlink_or_skip(tmp_path / "escape.yaml", outside)
     application = AgentQAMCPApplication(tmp_path)
 
     with pytest.raises(MCPApplicationError, match="relative"):
@@ -88,7 +97,7 @@ def test_workspace_rejects_parent_and_symlink_escape(tmp_path: Path) -> None:
 def test_workspace_rejects_output_directory_symlink_escape(tmp_path: Path) -> None:
     outside = tmp_path.parent / "outside-agentqa-artifacts"
     outside.mkdir(exist_ok=True)
-    (tmp_path / "artifacts").symlink_to(outside, target_is_directory=True)
+    _symlink_or_skip(tmp_path / "artifacts", outside, target_is_directory=True)
     application = AgentQAMCPApplication(tmp_path)
 
     with pytest.raises(MCPApplicationError, match="escapes"):

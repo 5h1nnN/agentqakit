@@ -1,6 +1,0 @@
-apiVersion: agentqa.dev/v1alpha1
-kind: QualityGate
-metadata:
-  name: regression
-rules:
-  maxNewRegressions: 0

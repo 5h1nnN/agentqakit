@@ -55,6 +55,7 @@ from agentqa.specs.hashing import sha256_digest
 from agentqa.storage import ResultStore, ResultStoreError, SQLiteResultStore
 from agentqa.tracing import InMemoryTraceStore, TraceOptions
 from agentqa.tracing.otlp import OTLPDecodeError, ingest_otlp_protobuf
+from agentqa.web_assets import resolve_web_directory
 from agentqa.workbench import (
     ArtifactCatalogError,
     ArtifactCatalogService,
@@ -101,7 +102,7 @@ class ApiSettings:
             workspace_root=workspace,
             artifact_directory=workspace / ".agentqa" / "artifacts",
             database_path=workspace / ".agentqa" / "agentqa.sqlite3",
-            static_directory=workspace / "apps" / "web" / "dist",
+            static_directory=resolve_web_directory(workspace),
         )
 
 

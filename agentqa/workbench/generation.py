@@ -548,8 +548,11 @@ class GenerationWorkbenchService:
         workflow = await self.workflow_store.get_workflow(session.workflow_id)
         if workflow is not None and workflow.status == "RUNNING":
             active_plan = next(
-                (step for step in reversed(workflow.steps)
-                 if step.kind == "GENERATE_PLAN" and step.status == "RUNNING"),
+                (
+                    step
+                    for step in reversed(workflow.steps)
+                    if step.kind == "GENERATE_PLAN" and step.status == "RUNNING"
+                ),
                 None,
             )
             if active_plan is not None:

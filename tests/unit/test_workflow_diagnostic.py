@@ -15,7 +15,9 @@ async def test_failed_workflow_allows_only_non_authoritative_diagnosis(tmp_path:
         project_id="project", name="Evaluation", description="", idempotency_key="evaluation"
     )
     failed_step = await store.create_step(
-        workflow_id=workflow.workflow_id, kind="PREFLIGHT", idempotency_key="preflight",
+        workflow_id=workflow.workflow_id,
+        kind="PREFLIGHT",
+        idempotency_key="preflight",
         input_data={},
     )
     await store.start_step(failed_step.step_id)
@@ -24,7 +26,9 @@ async def test_failed_workflow_allows_only_non_authoritative_diagnosis(tmp_path:
 
     with pytest.raises(WorkflowStoreError, match="workflow must be READY"):
         await store.create_step(
-            workflow_id=workflow.workflow_id, kind="RUN_CAMPAIGN", idempotency_key="retry",
+            workflow_id=workflow.workflow_id,
+            kind="RUN_CAMPAIGN",
+            idempotency_key="retry",
             input_data={},
         )
 

@@ -251,7 +251,9 @@ async def test_manifest_only_generation_uses_bounded_default_goal() -> None:
 async def test_plan_drops_unsubstantiated_code_provenance() -> None:
     goal = _goal()
     response = _plan_response(goal)
-    item = response["items"][0]
+    items = response["items"]
+    assert isinstance(items, list)
+    item = items[0]
     assert isinstance(item, dict)
     item["source_refs"] = ["manifest:policy/no-disclosure"]
     provider = FakeGenerationProvider([response])

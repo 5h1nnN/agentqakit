@@ -41,6 +41,57 @@ React evidence console.
 - Python 3.11 or newer
 - `pip`
 
+## Installation
+
+The first public alpha distribution is being prepared. Until it is published,
+install the package directly from a source checkout:
+
+```bash
+git clone https://github.com/5h1nnN/agentqakit.git
+cd agentqakit
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
+```
+
+Optional features are installed as extras:
+
+```bash
+python -m pip install -e ".[web]"             # FastAPI server and bundled Web UI
+python -m pip install -e ".[mcp]"             # local Coding Agent collaboration
+python -m pip install -e ".[langgraph]"       # LangGraph target adapter
+python -m pip install -e ".[instrumentation]" # OpenAI/OpenInference instrumentation
+```
+
+After the first PyPI alpha is published, the equivalent SDK and CLI installation
+will be `python -m pip install agentqakit`. Release availability is recorded in
+the [changelog](CHANGELOG.md); do not treat this command as available before a
+release appears there and on PyPI.
+
+## Python SDK
+
+The importable SDK is part of the same `agentqakit` distribution as the CLI. It
+exposes three transparent decorators:
+
+```python
+import agentqa
+
+
+@agentqa.tool(name="course.lookup")
+def lookup(course_id: str) -> dict[str, str]:
+    return {"course_id": course_id, "status": "open"}
+
+
+@agentqa.agent(name="course-agent")
+def run(payload: dict[str, object]) -> dict[str, str]:
+    return lookup(str(payload["course_id"]))
+```
+
+Outside an AgentQAKit run these wrappers preserve ordinary function behavior.
+During a run they expose bounded Agent, Tool, and Retriever evidence to tracing,
+mutation, and replay. See the [Python SDK guide](docs/python-sdk.md).
+
 ## Development setup
 
 ```bash
@@ -222,9 +273,13 @@ Web development are documented in
 
 ## Project status
 
-The public APIs beyond the shared T0 conventions are not stable yet. See
+AgentQAKit is pre-alpha software. The public APIs beyond the shared T0
+conventions are not stable yet. Releases follow semantic versions with explicit
+pre-release identifiers, and breaking changes remain possible before `1.0`.
+See
 [`docs/development-conventions.md`](docs/development-conventions.md) for the
-rules that are already frozen.
+rules that are already frozen and [`docs/releasing.md`](docs/releasing.md) for
+the reproducible release process.
 
 ## License
 

@@ -660,15 +660,21 @@ rules:
 
         # A failed Campaign must remain terminal, but a completed, verified
         # subrun's failure can still receive non-authoritative diagnosis.
-        break_step = asyncio.run(workflow_store.create_step(
-            workflow_id=workflow_id, kind="PREFLIGHT", idempotency_key="simulate-integrity-error",
-            input_data={},
-        ))
+        break_step = asyncio.run(
+            workflow_store.create_step(
+                workflow_id=workflow_id,
+                kind="PREFLIGHT",
+                idempotency_key="simulate-integrity-error",
+                input_data={},
+            )
+        )
         asyncio.run(workflow_store.start_step(break_step.step_id))
-        asyncio.run(workflow_store.fail_step(
-            break_step.step_id,
-            ErrorInfo(code="ARTIFACT_CATALOG_CHECKSUM_ERROR", message="checksum mismatch"),
-        ))
+        asyncio.run(
+            workflow_store.fail_step(
+                break_step.step_id,
+                ErrorInfo(code="ARTIFACT_CATALOG_CHECKSUM_ERROR", message="checksum mismatch"),
+            )
+        )
         diagnostic = client.post(
             f"/api/workflows/{workflow_id}/failures/{failure['failure_id']}/analyses",
             json={"idempotencyKey": "diagnose-after-failure", "reuseExisting": False},

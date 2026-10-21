@@ -21,6 +21,7 @@ dist/
 !.env.example
 
 # AgentQAKit runtime data
+.agentqa/
 artifacts/
 .tmp/
 benchmark/results/
@@ -32,6 +33,7 @@ benchmark/results/
 # Web build output
 apps/web/node_modules/
 apps/web/dist/
+agentqa/_static/dist/
 apps/web/test-results/
 apps/web/playwright-report/
 *.tsbuildinfo

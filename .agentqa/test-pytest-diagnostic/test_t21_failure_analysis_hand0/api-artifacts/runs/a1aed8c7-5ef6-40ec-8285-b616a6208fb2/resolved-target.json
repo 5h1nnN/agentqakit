@@ -1,1 +1,0 @@
-{"apiVersion":"agentqa.dev/v1alpha1","entrypoint":"demo_agent:run","environmentAllowlist":[],"isolation":"subprocess","kind":"Target","metadata":{"labels":{},"name":"assurance-target","version":null},"schema_version":"agentqa.artifact/v1alpha1","timeoutMs":30000,"type":"python","workerMode":"perInvocation","workingDirectory":"."}

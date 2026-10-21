@@ -1,1 +1,0 @@
-{"exit_code":1,"passed":false,"rules":[{"actual":null,"expected":0.5,"message":"configured metric was not observable","name":"minMutationScore","passed":false}]}
