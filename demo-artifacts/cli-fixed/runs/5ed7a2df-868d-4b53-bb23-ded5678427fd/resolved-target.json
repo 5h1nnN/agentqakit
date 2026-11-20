@@ -1,0 +1,1 @@
+{"apiVersion":"agentqa.dev/v1alpha1","entrypoint":"campus_ops_agent.graph:build_fixed","inputKey":"messages","kind":"Target","metadata":{"labels":{},"name":"campus-ops-fixed","version":"1.0.0"},"outputPath":"result","schema_version":"agentqa.artifact/v1alpha1","stateDiffAllowlist":["result","audit","plan"],"timeoutMs":2000,"type":"langgraph"}
